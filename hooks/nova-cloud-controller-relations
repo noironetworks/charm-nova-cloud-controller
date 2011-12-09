@@ -89,6 +89,73 @@ function nova-network_joined {
   relation-set network_manager=$manager ec2_host=$(unit-get private-address)
 }
 
+function keystone_joined {
+  # inform keystone about our service and register its endpoints
+  # note: all 3 endpoint urls point to the same nova endpoint.
+  url="http://$(unit-get private-address):8773/services/Cloud"
+  relation-set service="nova" \
+    region="RegionOne" public_url=$url admin_url=$url internal_url=$url
+}
+
+function keystone_changed {
+ token=$(relation-get admin_token)
+ service_port=$(relation-get service_port)
+ auth_port=$(relation-get auth_port)
+ [[ -z "$token" ]] || [[ -z "$service_port" ]] || [[ -z "$auth_port" ]] &&
+    juju-log "keystone_changed: Peer not ready"  && exit 0
+  [[ "$token" == "-1" ]] &&
+    juju-log "keystone_changed: admin token error" && exit 1
+  juju-log "keystone_changed: Acquired admin token"
+  
+  keystone_host=`dig +short +search $(relation-get private-address)`
+  set_or_update "keystone_ec2_url" "http://$(relation-get private-address):5000/v2.0/ec2tokens"
+
+  # as of now (12/19/11), the default ec2 api pipelines need updating for keystone to work
+  # could/should be fixed in packaged config
+  ec2pipeline="ec2faultwrap logrequest totoken authtoken keystonecontext cloudrequest authorizer ec2executor"
+  update_pipeline "ec2cloud" "$ec2pipeline"
+  update_pipeline "ec2admin" "$ec2pipeline"
+
+  if grep -q use_deprecated_auth $NOVA_CONF ; then
+    juju-log "keystone_changed: Disabling '--use_deprecated_auth"
+    sed -i '/--use_deprecated_auth/d' $NOVA_CONF
+  fi
+
+  ### This should be added to the default api-paste.ini
+  juju-log "Appending filter:totoken to paste config"
+  cat <<END >>$API_CONF
+
+[filter:totoken]
+paste.filter_factory = keystone.middleware.ec2_token:EC2Token.factory
+
+END
+
+  ## Append keystone auth config to the bottom of the paste ini
+  # this will probably need to be fixed so we dont append everytime
+  # the relation is run
+  juju-log "Updating $API_CONF with filter:keystonecontext and filter:authtoken"
+  cat <<END >>$API_CONF
+
+####
+# Keystone auth config added by Juju
+###
+[filter:keystonecontext]
+paste.filter_factory = keystone.middleware.nova_keystone_context:NovaKeystoneContext.factory
+
+[filter:authtoken]
+paste.filter_factory = keystone.middleware.auth_token:filter_factory
+service_protocol = http
+service_host = $keystone_host 
+service_port = $service_port
+auth_host = $keystone_host 
+auth_port = $auth_port 
+auth_protocol = http
+auth_uri = http://$keystone_host:$service_port/
+admin_token = $token 
+END
+    nova_ctl nova-api restart
+}
+
 case $ARG0 in
   "start"|"stop") nova_ctl all $ARG0 ;;
   "install") install_hook ;;
@@ -99,5 +166,7 @@ case $ARG0 in
   "image-service-relation-joined") exit 0 ;;
   "image-service-relation-changed") image-service_changed ;;
   "nova-network-relation-joined") nova-network_joined ;;
+  "identity-service-relation-joined") keystone_joined ;;
+  "identity-service-relation-changed") keystone_changed ;;
   *) exit 0 ;;
 esac

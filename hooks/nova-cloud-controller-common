@@ -1,8 +1,9 @@
 #!/bin/bash
 SERVICES="nova-api nova-objectstore nova-scheduler"
-PACKAGES="$SERVICES python-mysqldb"
+PACKAGES="$SERVICES python-mysqldb python-keystone"
 
 NOVA_CONF=$(config-get nova-config)
+API_CONF="/etc/nova/api-paste.ini"
 
 # we'll request credentials via the amqp relation for this user
 RABBIT_USER=$(config-get rabbit-user)
@@ -28,6 +29,19 @@ function set_or_update {
   else
     echo "--$KEY=$VALUE" >>$NOVA_CONF
   fi
+}
+
+function update_pipeline {
+  # updates pipeline middleware definitions in api-paste.ini
+  local pipeline="$1"
+  local new="$2"
+  local tag="\[pipeline:$pipeline\]"
+  if ! grep -q "$tag" $API_CONF ; then
+      echo "ERROR: pipeline not found: $pipeline"
+      return 1
+  fi
+  juju-log "Updating pipeline:$pipeline in $API_CONF"
+  sed -i "/$tag/, +1 s/\(pipeline = \).*/\1$new/g" $API_CONF
 }
 
 function nova_ctl_status {
