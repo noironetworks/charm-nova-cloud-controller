@@ -2,7 +2,7 @@ options:
   nova-release:
     default: distro
     type: string
-    description: Nova PPA from which to install. (distro, trunk, milestone, milestone-proposed)
+    description: Nova PPA from which to install. (distro, trunk, milestone, milestone-proposed or ppa:somewhere/else)
   nova-config:
     default: /etc/nova/nova.conf
     type: string
