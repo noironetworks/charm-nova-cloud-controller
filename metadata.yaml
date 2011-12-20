@@ -5,8 +5,6 @@ description: |
   Cloud controller node for Openstack nova.  Contains nova-schedule,
   nova-api, nova-network and nova-objectstore.
 provides:
-  cloud-controller:
-    interface: nova
   nova-network:
     interface: nova
 requires:
