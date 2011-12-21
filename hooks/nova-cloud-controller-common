@@ -1,6 +1,6 @@
 #!/bin/bash
-SERVICES="nova-api nova-objectstore nova-scheduler openstackx"
-PACKAGES="$SERVICES python-mysqldb python-keystone"
+SERVICES="nova-api nova-objectstore nova-scheduler"
+PACKAGES="$SERVICES python-mysqldb python-keystone openstackx"
 
 NOVA_CONF=$(config-get nova-config)
 API_CONF="/etc/nova/api-paste.ini"
