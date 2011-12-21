@@ -17,6 +17,17 @@ function install_hook {
   DEBIAN_FRONTEND=noninteractive apt-get -y \
     install --no-install-recommends $PACKAGES || exit 1
   configure_network_manager $NETWORK_MANAGER
+
+  # setup osapi extensions required for dashboard
+  # these are the required middleware extensions as of 12/20/2011
+  extensions="openstackx.extensions.admin.Admin
+              nova.api.openstack.v2.contrib.standard_extensions"
+
+  for e in $extensions ; do
+    grep -q "^--osapi_extension=$e" "$NOVA_CONF" ||
+      echo "--osapi_extension=$e" >>"$NOVA_CONF"
+  done
+
   nova_ctl all stop
 }
 
