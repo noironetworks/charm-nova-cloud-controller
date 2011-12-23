@@ -103,7 +103,7 @@ function nova-network_joined {
 function keystone_joined {
   # inform keystone about our service and register its endpoints
   # note: all 3 endpoint urls point to the same nova endpoint.
-  url="http://$(unit-get private-address):8773/services/Cloud"
+  url="http://$(unit-get private-address):8774/v1.1/%tenant_id%"
   relation-set service="nova" \
     region="RegionOne" public_url=$url admin_url=$url internal_url=$url
 }
