@@ -1,8 +1,9 @@
 #!/bin/bash
 SERVICES="nova-api nova-objectstore nova-scheduler"
-PACKAGES="$SERVICES python-mysqldb"
+PACKAGES="$SERVICES python-mysqldb python-keystone openstackx"
 
 NOVA_CONF=$(config-get nova-config)
+API_CONF="/etc/nova/api-paste.ini"
 
 # we'll request credentials via the amqp relation for this user
 RABBIT_USER=$(config-get rabbit-user)
@@ -28,6 +29,19 @@ function set_or_update {
   else
     echo "--$KEY=$VALUE" >>$NOVA_CONF
   fi
+}
+
+function update_pipeline {
+  # updates pipeline middleware definitions in api-paste.ini
+  local pipeline="$1"
+  local new="$2"
+  local tag="\[pipeline:$pipeline\]"
+  if ! grep -q "$tag" $API_CONF ; then
+      echo "ERROR: pipeline not found: $pipeline"
+      return 1
+  fi
+  juju-log "Updating pipeline:$pipeline in $API_CONF"
+  sed -i "/$tag/, +1 s/\(pipeline = \).*/\1$new/g" $API_CONF
 }
 
 function nova_ctl_status {
@@ -114,11 +128,24 @@ function configure_network_manager {
 }
 
 function add_ppa {
-  # don't setup PPA, install from archive
+  # Install from archive instead of PPA.
   [[ $PPA == "distro" ]] && return 0
-  juju-log "nova-cloud-controller: Configuring PPA access for $PPA"
   . /etc/lsb-release
-  PPA_URL="deb http://ppa.launchpad.net/nova-core/$PPA/ubuntu $DISTRIB_CODENAME main"
-  add-apt-repository "$PPA_URL" || exit 1
+  [[ -z $PPA ]] && return 0
+  # if referenced by name, setup ppa to upstream PPAs
+  if [[ "$PPA" == "trunk" ]] ||
+     [[ "$PPA" == "milestone" ]] ||
+     [[ "$PPA" == "milestone-proposed" ]] ; then
+      juju-log "nova: Configuring installation from upstream PPA ($PPA)"
+      PPA_URL="deb http://ppa.launchpad.net/nova-core/$PPA/ubuntu $DISTRIB_CODENAME main"
+      add-apt-repository "$PPA_URL" || exit 1
+      return
+  fi
+  if [[ "${PPA:0:4}" == "ppa:" ]] ; then
+    juju-log "nova: Configuring installation from custom PPA ($PPA)"
+    add-apt-repository -y "$PPA" || exit 1
+    return
+  fi
+  juju-log "nova: No PPA specified. Falling back to installation from Ubuntu archive."
 }
 
