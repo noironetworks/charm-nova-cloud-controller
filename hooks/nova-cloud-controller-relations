@@ -118,7 +118,7 @@ function keystone_changed {
     juju-log "keystone_changed: admin token error" && exit 1
   juju-log "keystone_changed: Acquired admin token"
   
-  keystone_host=`dig +short +search $(relation-get private-address)`
+  keystone_host=$(relation-get private-address)
   set_or_update "keystone_ec2_url" "http://$(relation-get private-address):5000/v2.0/ec2tokens"
 
   # as of now (12/19/11), the default ec2 api pipelines need updating for keystone to work
