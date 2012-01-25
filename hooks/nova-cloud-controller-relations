@@ -135,39 +135,15 @@ function keystone_changed {
     sed -i '/--use_deprecated_auth/d' $NOVA_CONF
   fi
 
-  ### This should be added to the default api-paste.ini
-  juju-log "Appending filter:totoken to paste config"
-  cat <<END >>$API_CONF
+  # update keystone authtoken settings accordingly
+  set_or_update "service_host" "$keystone_host" "$API_CONF"
+  set_or_update "service_port" "$service_port" "$API_CONF"
+  set_or_update "auth_host" "$keystone_host" "$API_CONF"
+  set_or_update "auth_port" "$auth_port" "$API_CONF"
+  set_or_update "auth_url" "http://$keystone_host:$service_port/" "$API_CONF"
+  set_or_update "admin_token" "$token" "$API_CONF"
 
-[filter:totoken]
-paste.filter_factory = keystone.middleware.ec2_token:EC2Token.factory
-
-END
-
-  ## Append keystone auth config to the bottom of the paste ini
-  # this will probably need to be fixed so we dont append everytime
-  # the relation is run
-  juju-log "Updating $API_CONF with filter:keystonecontext and filter:authtoken"
-  cat <<END >>$API_CONF
-
-####
-# Keystone auth config added by Juju
-###
-[filter:keystonecontext]
-paste.filter_factory = keystone.middleware.nova_keystone_context:NovaKeystoneContext.factory
-
-[filter:authtoken]
-paste.filter_factory = keystone.middleware.auth_token:filter_factory
-service_protocol = http
-service_host = $keystone_host 
-service_port = $service_port
-auth_host = $keystone_host 
-auth_port = $auth_port 
-auth_protocol = http
-auth_uri = http://$keystone_host:$service_port/
-admin_token = $token 
-END
-    nova_ctl nova-api restart
+  nova_ctl nova-api restart
 }
 
 case $ARG0 in
