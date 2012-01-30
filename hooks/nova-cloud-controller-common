@@ -1,5 +1,5 @@
 #!/bin/bash
-SERVICES="nova-api nova-objectstore nova-scheduler"
+SERVICES="nova-api nova-objectstore nova-scheduler nova-cert"
 PACKAGES="$SERVICES python-mysqldb python-keystone openstackx"
 
 NOVA_CONF=$(config-get nova-config)
@@ -17,9 +17,11 @@ NETWORK_MANAGER=$(config-get network-manager)
 PPA=$(config-get nova-release)
 
 function set_or_update {
-  # set or update a key=value config option in nova.conf
+  # Set a config option in nova.conf or api-paste.ini, depending
+  # Defaults to updating nova.conf
   local KEY=$1
-  local VALUE=$2 local CONF_FILE=$3
+  local VALUE=$2
+  local CONF_FILE=$3
   local pattern=""
   [[ -z $KEY ]] && juju-log "set_or_update: Missing KEY" && exit 1
   [[ -z $VALUE ]] && juju-log "set_or_update: Missing VALUE" && exit 1
