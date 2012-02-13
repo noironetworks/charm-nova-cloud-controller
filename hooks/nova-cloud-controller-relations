@@ -154,7 +154,7 @@ case $ARG0 in
   "shared-db-relation-changed") db_changed ;;
   "image-service-relation-joined") exit 0 ;;
   "image-service-relation-changed") image-service_changed ;;
-  "nova-network-relation-joined") nova-network_joined ;;
+  "network-manager-relation-joined") nova-network_joined ;;
   "identity-service-relation-joined") keystone_joined ;;
   "identity-service-relation-changed") keystone_changed ;;
   *) exit 0 ;;

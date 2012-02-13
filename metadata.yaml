@@ -5,8 +5,10 @@ description: |
   Cloud controller node for Openstack nova.  Contains nova-schedule,
   nova-api, nova-network and nova-objectstore.
 provides:
-  nova-network:
+  cloud-controller:
     interface: nova
+  network-manager:
+    interface: nova-network
 requires:
   shared-db:
     interface: mysql-shared
@@ -16,3 +18,7 @@ requires:
     interface: glance
   identity-service:
     interface: keystone
+  cloud-compute:
+    interface: nova-compute
+  instance-storage:
+    interface: nova-volume
