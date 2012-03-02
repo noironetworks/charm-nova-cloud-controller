@@ -100,35 +100,51 @@ function nova-network_joined {
 }
 
 function keystone_joined {
-  # inform keystone about our service and register its endpoints
-  # note: all 3 endpoint urls point to the same nova endpoint.
-  url="http://$(unit-get private-address):8774/v1.1/%tenant_id%"
-  relation-set service="nova" \
-    region="RegionOne" public_url=$url admin_url=$url internal_url=$url
+  # we need to get two entries into keystone's catalog, nova + ec2
+  # group, them by prepending $service_ to each setting. the keystone
+  # charm will assemble settings into corresponding catalog entries
+  nova_url="http://$(unit-get private-address):8774/v1.1/\$(tenant_id)s"
+  ec2_url="http://$(unit-get private-address):8773/services/Cloud"
+  relation-set nova_service="nova" \
+    nova_region="RegionOne" \
+    nova_public_url="$nova_url" \
+    nova_admin_url="$nova_url" \
+    nova_internal_url="$nova_url" \
+    ec2_service="ec2" \
+    ec2_region="RegionOne" \
+    ec2_public_url="$ec2_url" \
+    ec2_admin_url="$ec2_url" \
+    ec2_internal_url="$ec2_url"
 }
 
 function keystone_changed {
- token=$(relation-get admin_token)
- service_port=$(relation-get service_port)
- auth_port=$(relation-get auth_port)
- [[ -z "$token" ]] || [[ -z "$service_port" ]] || [[ -z "$auth_port" ]] &&
-    juju-log "keystone_changed: Peer not ready"  && exit 0
+  token=$(relation-get admin_token)
+  service_port=$(relation-get service_port)
+  auth_port=$(relation-get auth_port)
+  service_username=$(relation-get service_username)
+  service_password=$(relation-get service_password)
+  service_tenant=$(relation-get service_tenant)
+  [[ -z "$token" ]] || [[ -z "$service_port" ]] || [[ -z "$auth_port" ]] || 
+    [[ -z "$service_username" ]] || [[ -z "$service_password" ]] ||
+    [[ -z "$service_tenant" ]] && juju-log "keystone_changed: Peer not ready" \
+      && exit 0
   [[ "$token" == "-1" ]] &&
     juju-log "keystone_changed: admin token error" && exit 1
-  juju-log "keystone_changed: Acquired admin token"
-  
-  keystone_host=$(relation-get private-address)
-  set_or_update "keystone_ec2_url" "http://$(relation-get private-address):5000/v2.0/ec2tokens"
 
-  # as of now (12/19/11), the default ec2 api pipelines need updating for keystone to work
-  # could/should be fixed in packaged config
+  # api paste pipelines to be configured depending on endpoint registered
   ec2pipeline="ec2faultwrap logrequest totoken authtoken keystonecontext cloudrequest authorizer ec2executor"
   osapipipeline="faultwrap authtoken keystonecontext ratelimit osapi_compute_app_v2"
 
-  update_pipeline "ec2cloud" "$ec2pipeline"
-  update_pipeline "ec2admin" "$ec2pipeline"
+  # update api-paste.ini pipelines
   update_pipeline "openstack_compute_api_v2" "$osapipipeline"
+  update_pipeline "ec2cloud" "$ec2pipeline"
+  # ec2admin might have gone away?
+  # update_pipeline "ec2admin" "$ec2pipeline"
 
+  # Update keystone authentication configuration
+  keystone_host=$(relation-get private-address)
+  set_or_update "keystone_ec2_url" "http://$(relation-get private-address):5000/v2.0/ec2tokens"
+  
   if grep -q use_deprecated_auth $NOVA_CONF ; then
     juju-log "keystone_changed: Disabling '--use_deprecated_auth"
     sed -i '/--use_deprecated_auth/d' $NOVA_CONF
@@ -139,9 +155,11 @@ function keystone_changed {
   set_or_update "service_port" "$service_port" "$API_CONF"
   set_or_update "auth_host" "$keystone_host" "$API_CONF"
   set_or_update "auth_port" "$auth_port" "$API_CONF"
-  set_or_update "auth_url" "http://$keystone_host:$service_port/" "$API_CONF"
+  set_or_update "auth_uri" "http://$keystone_host:$service_port/" "$API_CONF"
   set_or_update "admin_token" "$token" "$API_CONF"
-
+  set_or_update "admin_tenant_name" "$service_tenant" "$API_CONF"
+  set_or_update "admin_user" "$service_username" "$API_CONF"
+  set_or_update "admin_password" "$service_password" "$API_CONF"
   nova_ctl nova-api restart
 }
 

@@ -23,8 +23,8 @@ function set_or_update {
   local VALUE=$2
   local CONF_FILE=$3
   local pattern=""
-  [[ -z $KEY ]] && juju-log "set_or_update: Missing KEY" && exit 1
-  [[ -z $VALUE ]] && juju-log "set_or_update: Missing VALUE" && exit 1
+  [[ -z $KEY ]] && juju-log "set_or_update: value $VALUE missing KEY" && exit 1
+  [[ -z $VALUE ]] && juju-log "set_or_update: key $KEY missing VALUE" && exit 1
   [[ -z "$CONF_FILE" ]] && CONF_FILE=$NOVA_CONF
 
   case "$CONF_FILE" in
