@@ -104,12 +104,18 @@ function keystone_joined {
   # group, them by prepending $service_ to each setting. the keystone
   # charm will assemble settings into corresponding catalog entries
   nova_url="http://$(unit-get private-address):8774/v1.1/\$(tenant_id)s"
+  nova_vol_url="http://$(unit-get private-address):8776/v1/\$(tenant_id)s"
   ec2_url="http://$(unit-get private-address):8773/services/Cloud"
   relation-set nova_service="nova" \
     nova_region="RegionOne" \
     nova_public_url="$nova_url" \
     nova_admin_url="$nova_url" \
     nova_internal_url="$nova_url" \
+    nova-volume_service="nova-volume" \
+    nova-volume_region="RegionOne" \
+    nova-volume_public_url="$nova_vol_url" \
+    nova-volume_admin_url="$nova_vol_url" \
+    nova-volume_internal_url="$nova_vol_url" \
     ec2_service="ec2" \
     ec2_region="RegionOne" \
     ec2_public_url="$ec2_url" \
