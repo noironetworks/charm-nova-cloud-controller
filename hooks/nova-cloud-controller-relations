@@ -160,6 +160,7 @@ function keystone_changed {
   set_or_update "admin_user" "$service_username" "$API_CONF"
   set_or_update "admin_password" "$service_password" "$API_CONF"
   nova_ctl nova-api restart
+  nova_ctl nova-api-os-volume restart
 }
 
 case $ARG0 in
