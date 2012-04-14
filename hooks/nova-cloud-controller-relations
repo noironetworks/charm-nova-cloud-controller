@@ -34,6 +34,8 @@ function install_hook {
   open-port 8774
   # volume
   open-port 8776
+  # object-store / s3
+  open-port 3333
 
   nova_ctl all stop
 }
@@ -114,6 +116,7 @@ function keystone_joined {
   nova_url="http://$(unit-get private-address):8774/v1.1/\$(tenant_id)s"
   nova_vol_url="http://$(unit-get private-address):8776/v1/\$(tenant_id)s"
   ec2_url="http://$(unit-get private-address):8773/services/Cloud"
+  s3_url="http://$(unit-get private-address):3333"
   relation-set nova_service="nova" \
     nova_region="RegionOne" \
     nova_public_url="$nova_url" \
@@ -128,7 +131,12 @@ function keystone_joined {
     ec2_region="RegionOne" \
     ec2_public_url="$ec2_url" \
     ec2_admin_url="$ec2_url" \
-    ec2_internal_url="$ec2_url"
+    ec2_internal_url="$ec2_url" \
+    s3_service="s3" \
+    s3_region="RegionOne" \
+    s3_public_url="$s3_url" \
+    s3_admin_url="$s3_url" \
+    s3_internal_url="$s3_url"
 }
 
 function keystone_changed {
