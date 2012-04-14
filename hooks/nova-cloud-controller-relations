@@ -27,6 +27,14 @@ function install_hook {
       echo "--osapi_compute_extension=$e" >>"$NOVA_CONF"
   done
 
+  # Open up the various API endpoints
+  # EC2 
+  open-port 8774
+  # osapi
+  open-port 8774
+  # volume
+  open-port 8776
+
   nova_ctl all stop
 }
 
