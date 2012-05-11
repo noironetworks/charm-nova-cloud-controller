@@ -27,6 +27,9 @@ function install_hook {
       echo "--osapi_compute_extension=$e" >>"$NOVA_CONF"
   done
 
+  # Configure any flags specified in deployment config
+  set_config_flags
+
   # Open up the various API endpoints
   # EC2 
   open-port 8774
@@ -38,6 +41,11 @@ function install_hook {
   open-port 3333
 
   nova_ctl all stop
+}
+
+function config_changed {
+  set_config_flags
+  nova_ctl all restart
 }
 
 function amqp_joined {
@@ -181,6 +189,7 @@ function keystone_changed {
 case $ARG0 in
   "start"|"stop") nova_ctl all $ARG0 ;;
   "install") install_hook ;;
+  "config-changed") config_changed ;;
   "amqp-relation-joined") amqp_joined ;;
   "amqp-relation-changed") amqp_changed ;;
   "shared-db-relation-joined") db_joined ;;
