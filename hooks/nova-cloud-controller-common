@@ -28,8 +28,8 @@ function set_or_update {
   [[ -z "$CONF_FILE" ]] && CONF_FILE=$NOVA_CONF
 
   case "$CONF_FILE" in
-    "$NOVA_CONF") match="\-\-$KEY="
-                  pattern="--$KEY="
+    "$NOVA_CONF") match="^$KEY="
+                  pattern="$KEY="
                   out=$pattern
                   ;;
     "$API_CONF") match="^$KEY = "
