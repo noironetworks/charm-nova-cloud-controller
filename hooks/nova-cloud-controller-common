@@ -1,5 +1,5 @@
 #!/bin/bash
-SERVICES="nova-api nova-objectstore nova-scheduler nova-cert"
+SERVICES="nova-api-ec2 nova-api-os-compute nova-objectstore nova-cert"
 PACKAGES="$SERVICES python-mysqldb python-keystone"
 
 NOVA_CONF=$(config-get nova-config)

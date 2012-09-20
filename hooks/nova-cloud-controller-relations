@@ -31,12 +31,11 @@ function install_hook {
   set_config_flags
 
   # Open up the various API endpoints
-  # EC2 
+  # EC2
   open-port 8774
-  # osapi
+  # osapi-compute
   open-port 8774
-  # volume
-  open-port 8776
+
   # object-store / s3
   open-port 3333
 
@@ -122,19 +121,15 @@ function keystone_joined {
   # group, them by prepending $service_ to each setting. the keystone
   # charm will assemble settings into corresponding catalog entries
   nova_url="http://$(unit-get private-address):8774/v1.1/\$(tenant_id)s"
-  nova_vol_url="http://$(unit-get private-address):8776/v1/\$(tenant_id)s"
   ec2_url="http://$(unit-get private-address):8773/services/Cloud"
   s3_url="http://$(unit-get private-address):3333"
+
+  # these are the default endpoints
   relation-set nova_service="nova" \
     nova_region="RegionOne" \
     nova_public_url="$nova_url" \
     nova_admin_url="$nova_url" \
     nova_internal_url="$nova_url" \
-    nova-volume_service="nova-volume" \
-    nova-volume_region="RegionOne" \
-    nova-volume_public_url="$nova_vol_url" \
-    nova-volume_admin_url="$nova_vol_url" \
-    nova-volume_internal_url="$nova_vol_url" \
     ec2_service="ec2" \
     ec2_region="RegionOne" \
     ec2_public_url="$ec2_url" \
@@ -167,7 +162,7 @@ function keystone_changed {
   # Update keystone authentication configuration
   keystone_host=$(relation-get private-address)
   set_or_update "keystone_ec2_url" "http://$(relation-get private-address):5000/v2.0/ec2tokens"
-  
+
   if grep -q use_deprecated_auth $NOVA_CONF ; then
     juju-log "keystone_changed: Disabling '--use_deprecated_auth"
     sed -i '/--use_deprecated_auth/d' $NOVA_CONF
