@@ -1,41 +1,43 @@
 #!/bin/bash
 
-FORMULA_DIR=$(dirname $0)
-ARG0=${0##*/}
 
-if [[ -e $FORMULA_DIR/nova-cloud-controller-common ]] ; then
-  . $FORMULA_DIR/nova-cloud-controller-common
+CHARM_DIR=$(dirname $0)
+arg0=$(basename $0)
+
+if [[ -e $CHARM_DIR/nova-cloud-controller-common ]] ; then
+  . $CHARM_DIR/nova-cloud-controller-common
 else
-  echo "ERROR: Could not load nova-cloud-controller-common from $FORMULA_DIR"
+  echo "ERROR: Could not load nova-cloud-controller-common from $CHARM_DIR"
 fi
 
 function install_hook {
   juju-log "Installing nova packages"
   apt-get -y install python-software-properties || exit 1
-  add_ppa
+  configure_install_source $(config-get nova-release)
   apt-get update || exit 1
+
   DEBIAN_FRONTEND=noninteractive apt-get -y \
     install --no-install-recommends $PACKAGES || exit 1
+
   configure_network_manager $NETWORK_MANAGER
 
-  # setup osapi extensions required for dashboard
-  # these are the required middleware extensions as of 12/20/2011
-  extensions="nova.api.openstack.compute.contrib.standard_extensions"
-
-  for e in $extensions ; do
-    grep -q "^--osapi_compute_extension=$e" "$NOVA_CONF" ||
-      echo "--osapi_compute_extension=$e" >>"$NOVA_CONF"
-  done
+#  # setup osapi extensions required for dashboard
+#  # these are the required middleware extensions as of 12/20/2011
+#  extensions="nova.api.openstack.compute.contrib.standard_extensions"
+#
+#  for e in $extensions ; do
+#    grep -q "^--osapi_compute_extension=$e" "$NOVA_CONF" ||
+#      echo "--osapi_compute_extension=$e" >>"$NOVA_CONF"
+#  done
 
   # Configure any flags specified in deployment config
   set_config_flags
 
   # Open up the various API endpoints
   # EC2
-  open-port 8774
+  open-port 8773
   # osapi-compute
   open-port 8774
-
   # object-store / s3
   open-port 3333
 
@@ -51,57 +53,69 @@ function amqp_joined {
   # we request a username on the rabbit queue
   # and store it in nova.conf. our response is its IP + PASSWD
   # but we configure that in _changed
-  juju-log "amqp_joined: requesting credentials for $RABBIT_USER"
-  echo "amqp_joined: requesting credentials for $RABBIT_USER"
-  relation-set username=$RABBIT_USER
-  relation-set vhost=$RABBIT_VHOST
+  local rabbit_user=$(config-get rabbit-user)
+  local rabbit_vhost=$(config-get rabbit-vhost)
+  juju-log "amqp_joined: requesting credentials for $rabbit_user"
+  echo "amqp_joined: requesting credentials for $rabbit_user"
+  relation-set username=$rabbit_user
+  relation-set vhost=$rabbit_vhost
 }
 
 function amqp_changed {
   # server creates our credentials and tells us where
   # to connect.  for now, using default vhost '/'
-  RABBIT_HOST=`relation-get private-address`
-  RABBIT_PASSWORD=`relation-get password`
-  if [[ -z $RABBIT_HOST ]] || \
-     [[ -z $RABBIT_PASSWORD ]] ; then 
-      echo "amqp_changed: RABBIT_HOST||RABBIT_PASSWORD not set."
+  local rabbit_host=$(relation-get private-address)
+  local rabbit_password=$(relation-get password)
+
+  if [[ -z $rabbit_host ]] || \
+     [[ -z $rabbit_password ]] ; then
+      echo "amqp_changed: rabbit_host||rabbit_password not set."
       exit 0
   fi
-  echo "amqp_changed: Setting rabbit config in nova.conf: $RABBIT_HOST $RABBIT_USER $RABBIT_PASSWORD"
-  set_or_update rabbit_host $RABBIT_HOST
-  set_or_update rabbit_userid $RABBIT_USER
-  set_or_update rabbit_password $RABBIT_PASSWORD
-  set_or_update rabbit_virtual_host $RABBIT_VHOST
+
+  local rabbit_user=$(config-get rabbit-user)
+  local rabbit_vhost=$(config-get rabbit-vhost)
+  echo "amqp_changed: Setting rabbit config in nova.conf: $rabbit_host $rabbit_user $rabbit_password"
+  set_or_update rabbit_host $rabbit_host
+  set_or_update rabbit_userid $rabbit_user
+  set_or_update rabbit_password $rabbit_password
+  set_or_update rabbit_virtual_host $rabbit_vhost
   nova_ctl all restart
 }
 
 function db_joined {
   # tell mysql provider which database we want. it will create it and give us
   # credentials
-  juju-log "db_joined: requesting database access to $NOVA_DB for $DB_USER@$HOSTNAME"
-  relation-set database=$NOVA_DB
-  relation-set username=$DB_USER
-  relation-set hostname=`unit-get private-address`
+  local nova_db=$(config-get nova-db)
+  local db_user=$(config-get db-user)
+  local hostname=$(unit-get private-address)
+  juju-log "db_joined: requesting database access to $nova_db for $db_user@$hostname"
+  relation-set database=$nova_db username=$db_user hostname=$hostname
 }
 
 function db_changed {
-  DB_HOST=`relation-get private-address`
-  DB_PASSWORD=`relation-get password`
-  if [[ -z $DB_HOST ]] || [[ -z $DB_PASSWORD ]] ; then
-    echo "db_changed: DB_HOST || DB_PASSWORD not yet set. Exit 0 and retry"
+  local db_host=`relation-get private-address`
+  local db_password=`relation-get password`
+
+  if [[ -z $db_host ]] || [[ -z $db_password ]] ; then
+    echo "db_changed: db_host || db_password not yet set. Exit 0 and retry"
     exit 0
   fi
-  echo "db_changed: Configuring nova.conf for access to $NOVA_DB"
-  set_or_update sql_connection "mysql://$DB_USER:$DB_PASSWORD@$DB_HOST/$NOVA_DB"
-  nova_ctl all restart
-  sleep 1
+
+  local nova_db=$(config-get nova-db)
+  local db_user=$(config-get db-user)
+  echo "db_changed: Configuring nova.conf for access to $nova_db"
+
+  set_or_update sql_connection "mysql://$db_user:$db_password@$db_host/$nova_db"
+  nova_ctl all stop
   /usr/bin/nova-manage db sync
+  nova_ctl all start
 }
 
 function image-service_changed {
-  API_SERVER=`relation-get glance-api-server`
-  [[ -z $API_SERVER ]] && echo "image-service_changed: Peer not ready?" && exit 0
-  set_or_update glance_api_servers $API_SERVER
+  local api_server=$(relation-get glance-api-server)
+  [[ -z $api_server ]] && echo "image-service_changed: Peer not ready?" && exit 0
+  set_or_update glance_api_servers $api_server
   set_or_update image_service "nova.image.glance.GlanceImageService"
   nova_ctl all restart
 }
@@ -140,6 +154,16 @@ function keystone_joined {
     s3_public_url="$s3_url" \
     s3_admin_url="$s3_url" \
     s3_internal_url="$s3_url"
+
+  # tack on an endpoint for nova-volume a relation exists.
+  if [[ -n "$(relation-ids nova-volume-service)" ]] ; then
+    nova_vol_url="http://$(unit-get private-address):8776/v1/\$(tenant_id)s"
+    relation-set nova-volume_service="nova-volume" \
+      nova-volume_region="RegionOne" \
+      nova-volume_public_url="$nova_vol_url" \
+      nova-volume_admin_url="$nova_vol_url" \
+      nova-volume_internal_url="$nova_vol_url"
+  fi
 }
 
 function keystone_changed {
@@ -149,7 +173,7 @@ function keystone_changed {
   service_username=$(relation-get service_username)
   service_password=$(relation-get service_password)
   service_tenant=$(relation-get service_tenant)
-  [[ -z "$token" ]] || [[ -z "$service_port" ]] || [[ -z "$auth_port" ]] || 
+  [[ -z "$token" ]] || [[ -z "$service_port" ]] || [[ -z "$auth_port" ]] ||
     [[ -z "$service_username" ]] || [[ -z "$service_password" ]] ||
     [[ -z "$service_tenant" ]] && juju-log "keystone_changed: Peer not ready" \
       && exit 0
@@ -178,11 +202,58 @@ function keystone_changed {
   set_or_update "admin_tenant_name" "$service_tenant" "$API_CONF"
   set_or_update "admin_user" "$service_username" "$API_CONF"
   set_or_update "admin_password" "$service_password" "$API_CONF"
-  nova_ctl nova-api restart
+  nova_ctl all restart
 }
 
-case $ARG0 in
-  "start"|"stop") nova_ctl all $ARG0 ;;
+volume_joined() {
+  local svc=""
+  case "$arg0" in
+    "cinder-volume-service-relation-joined") svc="cinder" ;;
+    "nova-volume-service-relation-joined") svc="nova-volume" ;;
+    *) svc="nova-volume" ;;
+  esac
+
+  configure_volume_service "$svc"
+  nova_ctl all restart
+
+  # The nova-volume API can be hosted here alongside the other
+  # nova API services, but there needs to be a new endpoint
+  # configured in keystone.
+  if [[ "$svc" == "nova-volume" ]] ; then
+    apt-get -y install nova-api-os-volume
+    nova_vol_url="http://$(unit-get private-address):8776/v1/\$(tenant_id)s"
+    r_ids=$(relation-ids identity-service)
+    for id in $r_ids ; do
+      juju-log "$CHARM: Registering new endpoint for nova-volume API on "\
+               "existing identity-service relation: $id"
+      nova_vol_url="http://$(unit-get private-address):8776/v1/\$(tenant_id)s"
+      relation-set -r $id nova-volume_service="nova-volume" \
+        nova-volume_region="RegionOne" \
+        nova-volume_public_url="$nova_vol_url" \
+        nova-volume_admin_url="$nova_vol_url" \
+        nova-volume_internal_url="$nova_vol_url"
+    done
+  fi
+}
+
+volume_changed() {
+  # nothing to do here, yet.
+  exit 0
+}
+
+controller_joined() {
+  # This interface serves to synchronize global configuration to other
+  # nova services. For example, reconfiguring all nova services to use
+  # a new auth strategy after keystone has been introduced, a new
+  # volume driver after cinder, or a new network manager after quantum.
+  # This function is able to target existing relations to allow updating
+  # existing settings.
+  local relation_id="$1"
+}
+
+arg0=$(basename $0)
+case $arg0 in
+  "start"|"stop") nova_ctl all $arg0 ;;
   "install") install_hook ;;
   "config-changed") config_changed ;;
   "amqp-relation-joined") amqp_joined ;;
@@ -194,5 +265,9 @@ case $ARG0 in
   "network-manager-relation-joined") nova-network_joined ;;
   "identity-service-relation-joined") keystone_joined ;;
   "identity-service-relation-changed") keystone_changed ;;
+  "cloud-controller-relation-joined") controller_joined ;;
+  "cloud-controller-relation-changed") controller_changed ;;
+  "cinder-volume-service-relation-joined") volume_joined ;;
+  "nova-volume-service-relation-joined") volume_joined ;;
   *) exit 0 ;;
 esac
