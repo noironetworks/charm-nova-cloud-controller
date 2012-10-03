@@ -1,8 +1,18 @@
 #!/bin/bash
 
 CHARM="nova-cloud-controller"
+CONF_DIR="/etc/nova"
 
-SERVICES="nova-api-ec2 nova-api-os-compute nova-objectstore nova-cert"
+SERVICES="nova-api-ec2 nova-api-os-compute nova-objectstore nova-cert nova-scheduler"
+
+# If we have a relation to nova-volume-service, we'll also manage its API
+# endpoint here.
+n_vol=$(relation-ids nova-volume-service)
+if [[ -n "$n_vol" ]] ; then
+  SERVICES="$SERVICES nova-api-os-volume"
+  dpkg -l | grep -qv nova-api-os-volume && apt-get -y install nova-api-os-volume
+fi
+
 PACKAGES="$SERVICES python-mysqldb python-keystone"
 
 NOVA_CONF=$(config-get nova-config)
@@ -11,14 +21,14 @@ API_CONF="/etc/nova/api-paste.ini"
 # The specific flavor of volume service that exists (if any) is tracked
 # in this file.  It's updated by volume-service hooks and used by controller
 # hooks to inform backend nova services of how volume service is configured.
-VOLUME_SERVICE_FLAG_FILE=/var/lib/juju/volume_service.txt
+VOLUME_SERVICE_FLAG_FILE=/var/lib/juju/volume_service.conf
 
 NETWORK_MANAGER=$(config-get network-manager)
 
 PPA=$(config-get nova-release)
 
-if [[ -e $CHARM_DIR/lib/nova-common ]] ; then
-  . $CHARM_DIR/lib/nova-common
+if [[ -e $CHARM_DIR/lib/nova/nova-common ]] ; then
+  . $CHARM_DIR/lib/nova/nova-common
 else
-  juju-log "Couldn't load $CHARM_DIR/lib/nova-common" && exit 1
+  juju-log "Couldn't load $CHARM_DIR/lib/nova/nova-common" && exit 1
 fi

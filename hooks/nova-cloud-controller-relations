@@ -1,5 +1,4 @@
-#!/bin/bash
-
+#!/bin/bash -e
 
 CHARM_DIR=$(dirname $0)
 arg0=$(basename $0)
@@ -7,11 +6,11 @@ arg0=$(basename $0)
 if [[ -e $CHARM_DIR/nova-cloud-controller-common ]] ; then
   . $CHARM_DIR/nova-cloud-controller-common
 else
-  echo "ERROR: Could not load nova-cloud-controller-common from $CHARM_DIR"
+  juju-log "ERROR: Could not load nova-cloud-controller-common from $CHARM_DIR"
 fi
 
 function install_hook {
-  juju-log "Installing nova packages"
+  juju-log "$CHARM: Installing nova packages"
   apt-get -y install python-software-properties || exit 1
   configure_install_source $(config-get nova-release)
   apt-get update || exit 1
@@ -41,12 +40,26 @@ function install_hook {
   # object-store / s3
   open-port 3333
 
-  nova_ctl all stop
+  service_ctl all stop
 }
 
 function config_changed {
+
+  # Determine whether or not we should do an upgrade, based on whether or not
+  # the version offered in nova-release is greater than what is installed.
+
+  local install_src=$(config-get nova-release)
+  local cur=$(get_os_codename_package "nova-common")
+  local available=$(get_os_codename_install_source "$install_src")
+
+  if dpkg --compare-versions $(get_os_version_codename "$cur") lt \
+                             $(get_os_version_codename "$available") ; then
+    juju-log "$CHARM: Upgrading OpenStack release: $cur -> $available."
+    do_openstack_upgrade "$install_src" $PACKAGES
+  fi
+
   set_config_flags
-  nova_ctl all restart
+  service_ctl all restart
 }
 
 function amqp_joined {
@@ -55,8 +68,7 @@ function amqp_joined {
   # but we configure that in _changed
   local rabbit_user=$(config-get rabbit-user)
   local rabbit_vhost=$(config-get rabbit-vhost)
-  juju-log "amqp_joined: requesting credentials for $rabbit_user"
-  echo "amqp_joined: requesting credentials for $rabbit_user"
+  juju-log "$CHARM - amqp_joined: requesting credentials for $rabbit_user"
   relation-set username=$rabbit_user
   relation-set vhost=$rabbit_vhost
 }
@@ -69,18 +81,19 @@ function amqp_changed {
 
   if [[ -z $rabbit_host ]] || \
      [[ -z $rabbit_password ]] ; then
-      echo "amqp_changed: rabbit_host||rabbit_password not set."
+      juju-log "$CHARM - amqp_changed: rabbit_host||rabbit_password not set."
       exit 0
   fi
 
   local rabbit_user=$(config-get rabbit-user)
   local rabbit_vhost=$(config-get rabbit-vhost)
-  echo "amqp_changed: Setting rabbit config in nova.conf: $rabbit_host $rabbit_user $rabbit_password"
+  juju-log "$CHARM - amqp_changed: Setting rabbit config in nova.conf: " \
+           "$rabbit_user@$rabbit_host/$rabbit_vhost"
   set_or_update rabbit_host $rabbit_host
   set_or_update rabbit_userid $rabbit_user
   set_or_update rabbit_password $rabbit_password
   set_or_update rabbit_virtual_host $rabbit_vhost
-  nova_ctl all restart
+  service_ctl all restart
 }
 
 function db_joined {
@@ -89,7 +102,8 @@ function db_joined {
   local nova_db=$(config-get nova-db)
   local db_user=$(config-get db-user)
   local hostname=$(unit-get private-address)
-  juju-log "db_joined: requesting database access to $nova_db for $db_user@$hostname"
+  juju-log "$CHARM - db_joined: requesting database access to $nova_db for "\
+           "$db_user@$hostname"
   relation-set database=$nova_db username=$db_user hostname=$hostname
 }
 
@@ -98,26 +112,27 @@ function db_changed {
   local db_password=`relation-get password`
 
   if [[ -z $db_host ]] || [[ -z $db_password ]] ; then
-    echo "db_changed: db_host || db_password not yet set. Exit 0 and retry"
+    juju-log "$CHARM - db_changed: db_host||db_password set, will retry."
     exit 0
   fi
 
   local nova_db=$(config-get nova-db)
   local db_user=$(config-get db-user)
-  echo "db_changed: Configuring nova.conf for access to $nova_db"
+  juju-log "$CHARM - db_changed: Configuring nova.conf for access to $nova_db"
 
   set_or_update sql_connection "mysql://$db_user:$db_password@$db_host/$nova_db"
-  nova_ctl all stop
+  service_ctl all stop
   /usr/bin/nova-manage db sync
-  nova_ctl all start
+  service_ctl all start
 }
 
 function image-service_changed {
   local api_server=$(relation-get glance-api-server)
-  [[ -z $api_server ]] && echo "image-service_changed: Peer not ready?" && exit 0
+  [[ -z $api_server ]] &&
+    juju-log "$CHARM - image-service_changed: Peer not ready?" && exit 0
   set_or_update glance_api_servers $api_server
   set_or_update image_service "nova.image.glance.GlanceImageService"
-  nova_ctl all restart
+  service_ctl all restart
 }
 
 function nova-network_joined {
@@ -173,12 +188,14 @@ function keystone_changed {
   service_username=$(relation-get service_username)
   service_password=$(relation-get service_password)
   service_tenant=$(relation-get service_tenant)
+
   [[ -z "$token" ]] || [[ -z "$service_port" ]] || [[ -z "$auth_port" ]] ||
     [[ -z "$service_username" ]] || [[ -z "$service_password" ]] ||
-    [[ -z "$service_tenant" ]] && juju-log "keystone_changed: Peer not ready" \
-      && exit 0
+    [[ -z "$service_tenant" ]] &&
+      juju-log "$CHARM - keystone_changed: Peer not ready" && exit 0
+
   [[ "$token" == "-1" ]] &&
-    juju-log "keystone_changed: admin token error" && exit 1
+    juju-log "$CHARM - keystone_changed: admin token error" && exit 1
 
   # No need to update paste deploy pipelines, just set a flag in nova.conf
   set_or_update "auth_strategy" "keystone"
@@ -188,7 +205,7 @@ function keystone_changed {
   set_or_update "keystone_ec2_url" "http://$(relation-get private-address):5000/v2.0/ec2tokens"
 
   if grep -q use_deprecated_auth $NOVA_CONF ; then
-    juju-log "keystone_changed: Disabling '--use_deprecated_auth"
+    juju-log "$CHARM - keystone_changed: Disabling '--use_deprecated_auth"
     sed -i '/--use_deprecated_auth/d' $NOVA_CONF
   fi
 
@@ -202,7 +219,7 @@ function keystone_changed {
   set_or_update "admin_tenant_name" "$service_tenant" "$API_CONF"
   set_or_update "admin_user" "$service_username" "$API_CONF"
   set_or_update "admin_password" "$service_password" "$API_CONF"
-  nova_ctl all restart
+  service_ctl all restart
 }
 
 volume_joined() {
@@ -214,7 +231,7 @@ volume_joined() {
   esac
 
   configure_volume_service "$svc"
-  nova_ctl all restart
+  service_ctl all restart
 
   # The nova-volume API can be hosted here alongside the other
   # nova API services, but there needs to be a new endpoint
@@ -253,7 +270,7 @@ controller_joined() {
 
 arg0=$(basename $0)
 case $arg0 in
-  "start"|"stop") nova_ctl all $arg0 ;;
+  "start"|"stop") service_ctl all $arg0 ;;
   "install") install_hook ;;
   "config-changed") config_changed ;;
   "amqp-relation-joined") amqp_joined ;;
