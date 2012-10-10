@@ -63,7 +63,6 @@ nova_post_upgrade() {
   # the cloud controller(s).
   if [[ "$CHARM" == "nova-cloud-controller" ]] ; then
     juju-log "$CHARM: Migrating nova database."
-
     /usr/bin/nova-manage db sync
 
     # Trigger a service restart on all other nova nodes.
