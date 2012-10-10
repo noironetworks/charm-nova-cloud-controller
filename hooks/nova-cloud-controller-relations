@@ -259,13 +259,9 @@ volume_changed() {
 }
 
 controller_joined() {
-  # This interface serves to synchronize global configuration to other
-  # nova services. For example, reconfiguring all nova services to use
-  # a new auth strategy after keystone has been introduced, a new
-  # volume driver after cinder, or a new network manager after quantum.
-  # This function is able to target existing relations to allow updating
-  # existing settings.
-  local relation_id="$1"
+  # this interface is used primarily trigger events on other nova units.
+  # it used currently to trigger service restarts on other nodes
+  return 0
 }
 
 arg0=$(basename $0)
@@ -282,8 +278,8 @@ case $arg0 in
   "network-manager-relation-joined") nova-network_joined ;;
   "identity-service-relation-joined") keystone_joined ;;
   "identity-service-relation-changed") keystone_changed ;;
-  "cloud-controller-relation-joined") controller_joined ;;
-  "cloud-controller-relation-changed") controller_changed ;;
+  "cloud-controller-relation-joined")  controller_joined ;;
+  "cloud-controller-relation-changed") exit 0 ;;
   "cinder-volume-service-relation-joined") volume_joined ;;
   "nova-volume-service-relation-joined") volume_joined ;;
   *) exit 0 ;;
