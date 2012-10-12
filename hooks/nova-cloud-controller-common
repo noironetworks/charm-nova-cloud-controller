@@ -18,13 +18,6 @@ PACKAGES="$SERVICES python-mysqldb python-keystone uuid"
 NOVA_CONF=$(config-get nova-config)
 API_CONF="/etc/nova/api-paste.ini"
 
-# The specific flavor of volume service that exists (if any) is tracked
-# in this file.  It's updated by volume-service hooks and used by controller
-# hooks to inform backend nova services of how volume service is configured.
-VOLUME_SERVICE_FLAG_FILE=/var/lib/juju/volume_service.conf
-
-NETWORK_MANAGER=$(config-get network-manager)
-
 if [[ -e $CHARM_DIR/lib/nova/nova-common ]] ; then
   . $CHARM_DIR/lib/nova/nova-common
 else

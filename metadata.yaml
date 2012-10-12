@@ -7,8 +7,6 @@ description: |
 provides:
   cloud-controller:
     interface: nova
-  network-manager:
-    interface: nova-network
 requires:
   shared-db:
     interface: mysql-shared

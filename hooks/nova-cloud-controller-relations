@@ -18,16 +18,7 @@ function install_hook {
   DEBIAN_FRONTEND=noninteractive apt-get -y \
     install --no-install-recommends $PACKAGES || exit 1
 
-  configure_network_manager $NETWORK_MANAGER
-
-#  # setup osapi extensions required for dashboard
-#  # these are the required middleware extensions as of 12/20/2011
-#  extensions="nova.api.openstack.compute.contrib.standard_extensions"
-#
-#  for e in $extensions ; do
-#    grep -q "^--osapi_compute_extension=$e" "$NOVA_CONF" ||
-#      echo "--osapi_compute_extension=$e" >>"$NOVA_CONF"
-#  done
+  configure_network_manager $(config-get network-manager)
 
   # Configure any flags specified in deployment config
   set_config_flags
@@ -134,16 +125,6 @@ function image-service_changed {
   set_or_update glance_api_servers $api_server
   set_or_update image_service "nova.image.glance.GlanceImageService"
   service_ctl all restart
-}
-
-function nova-network_joined {
-  # this will be moved to its own nova-network formula when the
-  # time comes.  for now, tell peer what network manager we are
-  # using, and let them configure accordingly. we may want to also
-  # take care of assigning non-conflicting IPs to compute nodes
-  manager=$(cat $NOVA_CONF | grep network_manager | cut -d= -f2)
-  manager=$(echo $manager | sed -e 's/\./ /g' | awk '{ print $4 }')
-  relation-set network_manager=$manager ec2_host=$(unit-get private-address)
 }
 
 function keystone_joined {
@@ -254,15 +235,11 @@ volume_joined() {
   fi
 }
 
-volume_changed() {
-  # nothing to do here, yet.
-  exit 0
-}
-
-controller_joined() {
-  # this interface is used primarily trigger events on other nova units.
-  # it used currently to trigger service restarts on other nodes
-  return 0
+compute_joined() {
+  # Inform remote unit of the network manager we've been configured to use.
+  # nova-compute should configure itself accordingly.
+  relation-set network_manager=$(config-get network-manager)
+  relation-set ec2_host=$(unit-get private-address)
 }
 
 arg0=$(basename $0)
@@ -276,12 +253,10 @@ case $arg0 in
   "shared-db-relation-changed") db_changed ;;
   "image-service-relation-joined") exit 0 ;;
   "image-service-relation-changed") image-service_changed ;;
-  "network-manager-relation-joined") nova-network_joined ;;
   "identity-service-relation-joined") keystone_joined ;;
   "identity-service-relation-changed") keystone_changed ;;
-  "cloud-controller-relation-joined")  controller_joined ;;
-  "cloud-controller-relation-changed") exit 0 ;;
   "cinder-volume-service-relation-joined") volume_joined ;;
   "nova-volume-service-relation-joined") volume_joined ;;
+  "cloud-compute-relation-joined") compute_joined ;;
   *) exit 0 ;;
 esac
