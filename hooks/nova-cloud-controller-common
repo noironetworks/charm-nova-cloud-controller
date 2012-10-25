@@ -1,189 +1,25 @@
 #!/bin/bash
-SERVICES="nova-api nova-objectstore nova-scheduler nova-cert"
-PACKAGES="$SERVICES python-mysqldb python-keystone"
+
+CHARM="nova-cloud-controller"
+CONF_DIR="/etc/nova"
+
+SERVICES="nova-api-ec2 nova-api-os-compute nova-objectstore nova-cert nova-scheduler"
+
+# If we have a relation to nova-volume-service, we'll also manage its API
+# endpoint here.
+n_vol=$(relation-ids nova-volume-service)
+if [[ -n "$n_vol" ]] ; then
+  SERVICES="$SERVICES nova-api-os-volume"
+  dpkg -l | grep -q nova-api-os-volume || apt-get -y install nova-api-os-volume
+fi
+
+PACKAGES="$SERVICES python-mysqldb python-keystone uuid"
 
 NOVA_CONF=$(config-get nova-config)
 API_CONF="/etc/nova/api-paste.ini"
 
-# we'll request credentials via the amqp relation for this user
-RABBIT_USER=$(config-get rabbit-user)
-RABBIT_VHOST=$(config-get rabbit-vhost)
-# the database we'll be requesting via shared-db relations
-DB_USER=$(config-get db-user)
-NOVA_DB=$(config-get nova-db)
-
-NETWORK_MANAGER=$(config-get network-manager)
-
-PPA=$(config-get nova-release)
-
-function set_or_update {
-  # Set a config option in nova.conf or api-paste.ini, depending
-  # Defaults to updating nova.conf
-  local KEY=$1
-  local VALUE=$2
-  local CONF_FILE=$3
-  local pattern=""
-  [[ -z $KEY ]] && juju-log "set_or_update: value $VALUE missing KEY" && exit 1
-  [[ -z $VALUE ]] && juju-log "set_or_update: key $KEY missing VALUE" && exit 1
-  [[ -z "$CONF_FILE" ]] && CONF_FILE=$NOVA_CONF
-
-  case "$CONF_FILE" in
-    "$NOVA_CONF") match="\-\-$KEY="
-                  pattern="--$KEY="
-                  out=$pattern
-                  ;;
-    "$API_CONF") match="^$KEY = "
-                 pattern="$match"
-                 out="$KEY = "
-                 ;;
-    *) juju-log "ERROR: set_or_update: Invalid CONF_FILE ($CONF_FILE)"
-  esac
-
-  cat $CONF_FILE | grep "$match$VALUE" >/dev/null &&
-    juju-log "nova-cloud-controller: $KEY=$VALUE already in set in $CONF_FILE" \
-      && return 0
-  if cat $CONF_FILE | grep "$match" >/dev/null ; then
-    juju-log "nova-cloud-controller: Updating $CONF_FILE, $KEY=$VALUE"
-    sed -i "s|\($pattern\).*|\1$VALUE|" $CONF_FILE
-  else
-    juju-log "nova-cloud-controller: Setting new option $KEY=$VALUE in $CONF_FILE"
-    echo "$out$VALUE" >>$CONF_FILE
-  fi
-}
-
-function set_config_flags() {
-  # Set user-defined nova.conf flags from deployment config
-  juju-log "Processing config-flags."
-  flags=$(config-get config-flags)
-  if [[ "$flags" != "None" && -n "$flags" ]] ; then
-    for f in $(echo $flags | sed -e 's/,/ /g') ; do
-      k=$(echo $f | cut -d= -f1)
-      v=$(echo $f | cut -d= -f2)
-      set_or_update "$k" "$v"
-    done
-  fi
-}
-
-function nova_ctl_status {
-  SERVICE=$1
-  # workaround upstarts lack of scriptable return codes
-  STATUS=$(service $SERVICE status | cut -d/ -f1 | awk '{ print $2 }')
-  case $STATUS in
-    "start") return 0 ;;
-    "stop") return 1 ;;
-    *) echo "ERROR: Unexpected status of service $SERVICE: $STATUS" && exit 1 ;;
-  esac
-}
-
-function nova_ctl {
-  if [[ $1 == "all" ]] ; then
-    CTL=$SERVICES
-  else
-    CTL=$1
-  fi
-  ACTION=$2
-  if [[ -z $CTL ]] || [[ -z $ACTION ]] ; then
-    juju-log "ERROR nova_ctl: Not enough arguments"
-    exit 1
-  fi
-  for i in $CTL ; do
-    case $ACTION in
-      "start")
-        nova_ctl_status $i || service $i start ;;
-      "stop")
-        nova_ctl_status $i && service $i stop || return 0 ;;
-      "restart")
-        nova_ctl_status $i && service $i restart || service $i start ;;
-    esac
-    if [[ $? != 0 ]] ; then
-      juju-log "nova_ctl: ERROR - Service $i failed to $ACTION"
-    fi
-  done
-}
-
-function setup_bridge {
-  # XXX This is required by nova-network and will likely move somewhere else
-  # once we can split these services up into seperate formulas.
-  br=$1
-  ip=$2
-  netmask=$3
-  [[ -z $br ]] && br="br100"
-  [[ -z $ip ]] && ip="11.0.0.1"
-  [[ -z $netmask ]] && netmask="255.255.255.0"
-
-  apt-get -y install bridge-utils augeas-lenses augeas-tools
-  echo "Configuring bridge $br ($ip $netmask)"
-  context="/files/etc/network/interfaces"
-  augtool <<EOF
-  set $context/auto[child::1 = "$br"]/1 $br
-  set $context/iface[. = '$br'] $br
-  set $context/iface[. = '$br']/family inet
-  set $context/iface[. = '$br']/method static
-  set $context/iface[. = '$br']/address $ip
-  set $context/iface[. = '$br']/netmask $netmask
-  set $context/iface[. = '$br']/bridge_ports none 
-  save
-EOF
-  ifdown -a ; ifup -a
-}
-
-function configure_network_manager {
-  # needed by the nova-network bits
-  # to be expanded later to cover flatDhcp and VLAN
-  echo "$0: configuring $1 network manager"
-  case $1 in
-    "FlatManager")
-      NETWORK_BRIDGE=$(config-get bridge-interface)
-      BRIDGE_IP=$(config-get bridge-ip)
-      BRIDGE_NETMASK=$(config-get bridge-netmask)
-      setup_bridge $NETWORK_BRIDGE $BRIDGE_IP $BRIDGE_NETMASK
-      set_or_update network_manager nova.network.manager.FlatManager
-      set_or_update flat_network_bridge $NETWORK_BRIDGE
-      ;;
-    "FlatDHCPManager")
-      set_or_update network_manager nova.network.manager.FlatDHCPManager
-      ;;
-    *) echo "ERROR: Invalid network manager $1" && exit 1 ;;
-  esac
-}
-
-function add_ppa {
-  # Install from archive instead of PPA.
-  [[ $PPA == "distro" ]] && return 0
-  . /etc/lsb-release
-  [[ -z $PPA ]] && return 0
-  # if referenced by name, setup ppa to upstream PPAs
-  if [[ "$PPA" == "trunk" ]] ||
-     [[ "$PPA" == "milestone" ]] ||
-     [[ "$PPA" == "milestone-proposed" ]] ; then
-      juju-log "nova: Configuring installation from upstream PPA ($PPA)"
-      PPA_URL="deb http://ppa.launchpad.net/nova-core/$PPA/ubuntu $DISTRIB_CODENAME main"
-      add-apt-repository "$PPA_URL" || exit 1
-      return
-  fi
-  if [[ "${PPA:0:4}" == "ppa:" ]] ; then
-    juju-log "nova: Configuring installation from custom PPA ($PPA)"
-    add-apt-repository -y "$PPA" || exit 1
-    return
-  fi
-  if [[ "${PPA:0:3}" == "deb" ]] ; then
-    juju-log "nova: Configuring installation from custom PPA URL ($PPA)"
-    if echo "$PPA" | grep -q "|" ; then
-      # gpg key id tagged to end of url folloed by a |
-      url=$(echo $PPA | cut -d'|' -f1)
-      key=$(echo $PPA | cut -d'|' -f2)
-      if [[ -n "$key" ]] ; then
-        juju-log "Importing repository key: $key"
-        apt-key adv --keyserver keyserver.ubuntu.com --recv-keys "$key" || \
-          juju-log "WARN: Could not import key from keyserver: $key"
-      else
-        juju-log "No repository key specified"
-        url="$PPA"
-      fi
-      add-apt-repository -y "$url"
-    fi 
-    return
-  fi 
-  juju-log "nova: No PPA specified. Falling back to installation from Ubuntu archive."
-}
-
+if [[ -e $CHARM_DIR/lib/nova/nova-common ]] ; then
+  . $CHARM_DIR/lib/nova/nova-common
+else
+  juju-log "Couldn't load $CHARM_DIR/lib/nova/nova-common" && exit 1
+fi

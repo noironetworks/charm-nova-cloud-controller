@@ -8,8 +8,6 @@ description: |
 provides:
   cloud-controller:
     interface: nova
-  network-manager:
-    interface: nova-network
 requires:
   shared-db:
     interface: mysql-shared
@@ -21,5 +19,7 @@ requires:
     interface: keystone
   cloud-compute:
     interface: nova-compute
-  instance-storage:
+  cinder-volume-service:
+    interface: cinder
+  nova-volume-service:
     interface: nova-volume
