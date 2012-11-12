@@ -236,10 +236,63 @@ volume_joined() {
 }
 
 compute_joined() {
+  # Its possible that we might be configured with a quantum network service
+  # which takes precendence over nova-network - propagate the relation data
+  # provided to nova-cloud-controller to nova-compute
+  rids=$(relation-ids quantum-network-service)
+  if [ -n "$rids" ]; then
+    for rid in $rids; do
+      for unit in $(relation-list -r $rid); do
+        keystone_host=$(relation-get -r $rid keystone_host $unit)
+        if [ -n "$keystone_host" ]; then
+          relation-set network_manager=Quantum \
+            keystone_host=$(relation-get -r $rid keystone_host $unit) \
+            auth_port=$(relation-get -r $rid auth_port $unit) \
+            service_username=$(relation-get -r $rid service_username $unit) \
+            service_password=$(relation-get -r $rid service_password $unit) \
+            service_tenant=$(relation-get -r $rid service_tenant $unit) \
+            quantum_host=$(relation-get -r $rid private-address $unit)
+            # Fast exit - job done
+            return
+          fi
+      done
+    done
+  fi
+  # Failback to nova-network
   # Inform remote unit of the network manager we've been configured to use.
   # nova-compute should configure itself accordingly.
   relation-set network_manager=$(config-get network-manager)
   relation-set ec2_host=$(unit-get private-address)
+}
+
+quantum_changed() {
+  # Configure the local API servers to use quantum for network
+  # configuration
+  keystone_host=$(relation-get keystone_host)
+  if [ -z "$keystone_host" ]; then
+    juju-log "Quantum relation not yet configured - bailing"
+    exit 0
+  fi
+  auth_port=$(relation-get auth_port)
+  service_username=$(relation-get service_username)
+  service_password=$(relation-get service_password)
+  service_tenant=$(relation-get service_tenant)
+  quantum_host=$(relation-get private-address)
+  set_or_update "network_api_class" "nova.network.quantumv2.api.API"
+  set_or_update "quantum_auth_strategy" "keystone"
+  set_or_update "quantum_url" "http://${quantum_host}:9696"
+  set_or_update "quantum_admin_tenant_name" "${service_tenant}"
+  set_or_update "quantum_admin_username" "${service_username}"
+  set_or_update "quantum_admin_password" "${service_password}"
+  set_or_update "quantum_admin_auth_url" "http://${keystone_host}:${auth_port}/v2.0"
+  service_ctl all restart
+  # Notify cloud-compute services about quantum
+  for rid in $(relation-ids cloud-compute); do
+    relation-set -r $rid keystone_host=$keystone_host \
+        auth_port=$auth_port service_username=$service_username \
+        service_password=$service_password service_tenant=$service_tenant \
+        quantum_host=$quantum_host network_manager=Quantum
+  done
 }
 
 arg0=$(basename $0)
@@ -258,5 +311,6 @@ case $arg0 in
   "cinder-volume-service-relation-joined") volume_joined ;;
   "nova-volume-service-relation-joined") volume_joined ;;
   "cloud-compute-relation-joined") compute_joined ;;
+  "quantum-network-service-relation-changed") quantum_changed ;;
   *) exit 0 ;;
 esac
