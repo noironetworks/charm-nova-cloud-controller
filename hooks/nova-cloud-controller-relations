@@ -220,8 +220,8 @@ volume_joined() {
   # configured in keystone.
   if [[ "$svc" == "nova-volume" ]] ; then
     apt-get -y install nova-api-os-volume
-    nova_vol_url="http://$(unit-get private-address):8776/v1/\$(tenant_id)s"
-    r_ids=$(relation-ids identity-service)
+    local nova_vol_url="http://$(unit-get private-address):8776/v1/\$(tenant_id)s"
+    local r_ids=$(relation-ids identity-service)
     for id in $r_ids ; do
       juju-log "$CHARM: Registering new endpoint for nova-volume API on "\
                "existing identity-service relation: $id"
@@ -233,6 +233,15 @@ volume_joined() {
         nova-volume_internal_url="$nova_vol_url"
     done
   fi
+
+  if [[ "$svc" == "cinder" ]] ; then
+    # Compute nodes need to be notified to set their volume
+    # driver accordingly.
+    r_ids=$(relation-ids cloud-compute)
+    for id in $r_ids ; do
+      relation-set -r $id volume_service="cinder"
+    done
+  fi
 }
 
 compute_joined() {
@@ -240,6 +249,14 @@ compute_joined() {
   # nova-compute should configure itself accordingly.
   relation-set network_manager=$(config-get network-manager)
   relation-set ec2_host=$(unit-get private-address)
+
+  # Compute's volume driver is dependent on volume service deployed.
+  local r_ids=$(relation-ids cinder-volume-service)
+  if [[ -n "$r_ids" ]] ; then
+    relation-set volume_service="cinder"
+  else
+    relation-set volume_service="nova-volume"
+  fi
 }
 
 arg0=$(basename $0)
