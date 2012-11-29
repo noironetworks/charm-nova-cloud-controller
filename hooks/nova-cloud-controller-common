@@ -15,8 +15,32 @@ fi
 
 PACKAGES="$SERVICES python-mysqldb python-keystone uuid"
 
+NET_MANAGER=$(config-get network-manager)
+if [ "$NET_MANAGER" == "Quantum" ]; then
+    SERVICES="$SERVICES quantum-server"
+    PACKAGES="$PACKAGES quantum-server"
+    QUANTUM_PLUGIN=$(config-get quantum-plugin)
+    case $QUANTUM_PLUGIN in
+        "ovs")
+            PACKAGES="$PACKAGES quantum-plugin-openvswitch"
+            QUANTUM_CORE_PLUGIN="quantum.plugins.openvswitch.ovs_quantum_plugin.OVSQuantumPluginV2"
+            QUANTUM_PLUGIN_CONF="/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini"
+            ;;
+        "nvp")
+            PACKAGES="$PACKAGES quantum-plugin-nicira"
+            QUANTUM_CORE_PLUGIN="quantum.plugins.nicira.nicira_nvp_plugin.QuantumPlugin.NvpPluginV2"
+            QUANTUM_PLUGIN_CONF="/etc/quantum/plugins/nicira/nvp.ini"
+            ;;
+        *)
+            juju-log "Unrecognised plugin for quantum: $QUANTUM_PLUGIN" && exit 1
+            ;;
+    esac
+fi
+
 NOVA_CONF=$(config-get nova-config)
 API_CONF="/etc/nova/api-paste.ini"
+QUANTUM_CONF="/etc/quantum/quantum.conf"
+QUANTUM_API_CONF="/etc/quantum/api-paste.ini"
 
 if [[ -e $CHARM_DIR/lib/nova/nova-common ]] ; then
   . $CHARM_DIR/lib/nova/nova-common
