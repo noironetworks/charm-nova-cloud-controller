@@ -53,7 +53,6 @@ function configure_network_manager {
     "Quantum")
       set_or_update "network_api_class" "nova.network.quantumv2.api.API"
       set_or_update "quantum_auth_strategy" "keystone"
-      set_or_update "quantum_url" "http://$(unit-get private-address):9696"
       set_or_update "core_plugin" "$QUANTUM_CORE_PLUGIN" "$QUANTUM_CONF"
       set_or_update "bind_host" "$(unit-get private-address)" "$QUANTUM_CONF"
       if [ "$QUANTUM_PLUGIN" == "ovs" ]; then

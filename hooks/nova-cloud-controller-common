@@ -47,3 +47,19 @@ if [[ -e $CHARM_DIR/lib/nova/nova-common ]] ; then
 else
   juju-log "Couldn't load $CHARM_DIR/lib/nova/nova-common" && exit 1
 fi
+
+function configure_quantum_networking {
+  if [ "$(config-get conf-ext-net)" != "no" ] &&
+     [ "$QUANTUM_PLUGIN" == "ovs" ] &&
+     [ -f /etc/quantum/novarc ] &&
+     [ -n "$(relation-ids shared-db)" ]; then
+    juju-log "Configuring external networking for quantum"
+    # Use helper to create external network gateway
+    # and router using generated credentials
+    . /etc/quantum/novarc
+    quantum-ext-net -g $(config-get ext-net-gateway) \
+                    -c $(config-get ext-net-cidr) \
+                    -f $(config-get pool-floating-start):$(config-get pool-floating-end) \
+                    $(config-get ext-net-name)
+  fi
+}

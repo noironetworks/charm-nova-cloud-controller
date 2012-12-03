@@ -69,6 +69,38 @@ options:
       .
       This configuration only has context when used with
       network-manager Quantum.
+  conf-ext-net:
+    type: string
+    default: "no"
+    description: Configure external network for quantum using
+      network configuration below.  Only used when OpenvSwitch
+      plugin is configured.
+  ext-net-name:
+    type: string
+    default: ext_net
+    description: |
+      Name of external network configuration to create for
+      public access to instances/floating IP's.
+  ext-net-cidr:
+    type: string
+    default: 192.168.21.0/24
+    description: |
+      External network addressing
+  ext-net-gateway:
+    type: string
+    default: 192.168.21.1
+    description: |
+      IP of the public network gateway (i.e. external router)
+  pool-floating-start:
+    type: string
+    default: 192.168.21.130
+    description: |
+      Start of default floating IP range.
+  pool-floating-end:
+    type: string
+    default: 192.168.21.200
+    description: |
+      End of default floating IP range.
   config-flags:
     default: None
     type: string

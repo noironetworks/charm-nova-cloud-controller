@@ -18,7 +18,7 @@ function install_hook {
   DEBIAN_FRONTEND=noninteractive apt-get -y \
     install --no-install-recommends $PACKAGES || exit 1
 
-  configure_network_manager $(config-get network-manager)
+  configure_network_manager $NET_MANAGER
 
   # Configure any flags specified in deployment config
   set_config_flags
@@ -35,7 +35,16 @@ function install_hook {
     open-port 9696
   fi
 
+  # Helpers for creating external and tenant networks
+  cp files/create_ext_net.py /usr/bin/quantum-ext-net
+  cp files/create_tenant_net.py /usr/bin/quantum-tenant-net
+
   service_ctl all stop
+}
+
+function upgrade_charm {
+  install_hook
+  service_ctl all start
 }
 
 function config_changed {
@@ -54,6 +63,11 @@ function config_changed {
   fi
 
   set_config_flags
+
+  if [ "$NET_MANAGER" == "Quantum" ]; then
+    configure_quantum_networking
+  fi
+
   service_ctl all restart
 }
 
@@ -136,6 +150,9 @@ function db_changed {
   service_ctl all stop
   /usr/bin/nova-manage db sync
   service_ctl all start
+  if [ "$NET_MANAGER" == "Quantum" ]; then
+    configure_quantum_networking
+  fi
   trigger_remote_service_restarts
 }
 
@@ -232,21 +249,34 @@ function keystone_changed {
   set_or_update "admin_user" "$service_username" "$API_CONF"
   set_or_update "admin_password" "$service_password" "$API_CONF"
 
-  if [ "$(config-get network-manager)" == "Quantum" ]; then
+  if [ "$NET_MANAGER" == "Quantum" ]; then
     # Configure Nova for quantum
+    keystone_url="http://${keystone_host}:${auth_port}/v2.0"
+    set_or_update "quantum_url" "http://$(unit-get private-address):9696"
     set_or_update "quantum_admin_tenant_name" "${service_tenant}"
     set_or_update "quantum_admin_username" "${service_username}"
     set_or_update "quantum_admin_password" "${service_password}"
-    set_or_update "quantum_admin_auth_url" "http://${keystone_host}:${auth_port}/v2.0"
+    set_or_update "quantum_admin_auth_url" "${keystone_url}"
     # Configure API server for quantum
     set_or_update "admin_tenant_name" "$service_tenant" "$QUANTUM_API_CONF" "filter:authtoken"
     set_or_update "admin_user" "$service_username" "$QUANTUM_API_CONF" "filter:authtoken"
     set_or_update "admin_password" "$service_password" "$QUANTUM_API_CONF" "filter:authtoken"
     set_or_update "auth_host" "$keystone_host" "$QUANTUM_API_CONF" "filter:authtoken"
     set_or_update "auth_port" "$auth_port" "$QUANTUM_API_CONF" "filter:authtoken"
+    # Save a local copy of the credentials for later use
+    cat > /etc/quantum/novarc << EOF
+export OS_USERNAME=${service_username}
+export OS_PASSWORD=${service_password}
+export OS_TENANT_NAME=${service_tenant}
+export OS_AUTH_URL=${keystone_url}
+EOF
   fi
 
   service_ctl all restart
+  
+  if [ "$NET_MANAGER" == "Quantum" ]; then
+    configure_quantum_networking
+  fi
 }
 
 volume_joined() {
@@ -287,7 +317,7 @@ compute_joined() {
     rids=$(relation-ids identity-service)
     for rid in $rids; do
       for unit in $(relation-list -r $rid); do
-        keystone_host=$(relation-get -r $rid keystone_host $unit)
+        keystone_host=$(relation-get -r $rid auth_host $unit)
         if [ -n "$keystone_host" ]; then
           relation-set \
             keystone_host=$keystone_host \
@@ -300,7 +330,6 @@ compute_joined() {
     done
     relation-set quantum_host=$(unit-get private-address)
   fi
-  relation-set ec2_host=$(unit-get private-address)
 }
 
 quantum_joined() {
@@ -308,7 +337,7 @@ quantum_joined() {
   rids=$(relation-ids identity-service)
   for rid in $rids; do
     for unit in $(relation-list -r $rid); do
-      keystone_host=$(relation-get -r $rid keystone_host $unit)
+      keystone_host=$(relation-get -r $rid auth_host $unit)
       if [ -n "$keystone_host" ]; then
         relation-set \
           keystone_host=$keystone_host \
@@ -320,6 +349,7 @@ quantum_joined() {
       fi
     done
   done
+  relation-set quantum_host=$(unit-get private-address)
 }
 
 arg0=$(basename $0)
@@ -327,6 +357,7 @@ case $arg0 in
   "start"|"stop") service_ctl all $arg0 ;;
   "install") install_hook ;;
   "config-changed") config_changed ;;
+  "upgrade-charm") upgrade_charm ;; 
   "amqp-relation-joined") amqp_joined ;;
   "amqp-relation-changed") amqp_changed ;;
   "shared-db-relation-joined") db_joined ;;
