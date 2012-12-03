@@ -1,4 +1,3 @@
-ensemble: formula
 name: nova-cloud-controller
 maintainer: Adam Gandelman <adamg@canonical.com>
 summary: "Openstack nova controller node."

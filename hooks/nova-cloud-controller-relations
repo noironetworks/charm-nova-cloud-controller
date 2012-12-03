@@ -12,7 +12,7 @@ fi
 function install_hook {
   juju-log "$CHARM: Installing nova packages"
   apt-get -y install python-software-properties || exit 1
-  configure_install_source $(config-get openstack-origin)
+  configure_install_source "$(config-get openstack-origin)"
   apt-get update || exit 1
 
   DEBIAN_FRONTEND=noninteractive apt-get -y \
@@ -295,8 +295,8 @@ volume_joined() {
   # configured in keystone.
   if [[ "$svc" == "nova-volume" ]] ; then
     apt-get -y install nova-api-os-volume
-    nova_vol_url="http://$(unit-get private-address):8776/v1/\$(tenant_id)s"
-    r_ids=$(relation-ids identity-service)
+    local nova_vol_url="http://$(unit-get private-address):8776/v1/\$(tenant_id)s"
+    local r_ids=$(relation-ids identity-service)
     for id in $r_ids ; do
       juju-log "$CHARM: Registering new endpoint for nova-volume API on "\
                "existing identity-service relation: $id"
@@ -306,6 +306,15 @@ volume_joined() {
         nova-volume_public_url="$nova_vol_url" \
         nova-volume_admin_url="$nova_vol_url" \
         nova-volume_internal_url="$nova_vol_url"
+    done
+  fi
+
+  if [[ "$svc" == "cinder" ]] ; then
+    # Compute nodes need to be notified to set their volume
+    # driver accordingly.
+    r_ids=$(relation-ids cloud-compute)
+    for id in $r_ids ; do
+      relation-set -r $id volume_service="cinder"
     done
   fi
 }
@@ -329,6 +338,14 @@ compute_joined() {
       done
     done
     relation-set quantum_host=$(unit-get private-address)
+  fi
+
+  # Compute's volume driver is dependent on volume service deployed.
+  local r_ids=$(relation-ids cinder-volume-service)
+  if [[ -n "$r_ids" ]] ; then
+    relation-set volume_service="cinder"
+  else
+    relation-set volume_service="nova-volume"
   fi
 }
 
