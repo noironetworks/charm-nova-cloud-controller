@@ -231,7 +231,7 @@ function keystone_changed {
 
   # Update keystone authentication configuration
   keystone_host=$(relation-get private-address)
-  set_or_update "keystone_ec2_url" "http://$(relation-get private-address):5000/v2.0/ec2tokens"
+  set_or_update "keystone_ec2_url" "http://$keystone_host:5000/v2.0/ec2tokens"
 
   if grep -q use_deprecated_auth $NOVA_CONF ; then
     juju-log "$CHARM - keystone_changed: Disabling '--use_deprecated_auth"
@@ -276,6 +276,19 @@ EOF
   
   if [ "$NET_MANAGER" == "Quantum" ]; then
     configure_quantum_networking
+    # ripple out changes to identity to connected services
+    # which use cloud-controller as source of information for
+    # keystone
+    r_ids="$(relation-ids cloud-compute) $(relation-ids quantum-network-service)"
+    for id in $r_ids ; do
+      relation-set -r $id \
+        keystone_host=$keystone_host \
+        auth_port=$auth_port \
+        service_port=$service_port \
+        service_username=$service_username \
+        service_password=$service_password \
+        service_tenant=$service_tenant
+    done
   fi
 }
 
