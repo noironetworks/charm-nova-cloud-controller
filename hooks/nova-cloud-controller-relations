@@ -344,6 +344,7 @@ compute_joined() {
           relation-set \
             keystone_host=$keystone_host \
             auth_port=$(relation-get -r $rid auth_port $unit) \
+            service_port=$(relation-get -r $rid service_port $unit) \
             service_username=$(relation-get -r $rid service_username $unit) \
             service_password=$(relation-get -r $rid service_password $unit) \
             service_tenant=$(relation-get -r $rid service_tenant $unit)
@@ -351,6 +352,7 @@ compute_joined() {
       done
     done
     relation-set quantum_host=$(unit-get private-address)
+    relation-set quantum_plugin=$(config-get quantum-plugin)
   fi
 
   # Compute's volume driver is dependent on volume service deployed.
@@ -380,6 +382,7 @@ quantum_joined() {
     done
   done
   relation-set quantum_host=$(unit-get private-address)
+  relation-set quantum_plugin=$(config-get quantum-plugin)
 }
 
 arg0=$(basename $0)
