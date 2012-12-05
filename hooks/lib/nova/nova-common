@@ -59,7 +59,7 @@ function configure_network_manager {
           set_or_update "tenant_network_type" "gre" $QUANTUM_PLUGIN_CONF "OVS"
           set_or_update "enable_tunneling" "True" $QUANTUM_PLUGIN_CONF "OVS"
           set_or_update "tunnel_id_ranges" "1:1000" $QUANTUM_PLUGIN_CONF "OVS"
-          set_or_update "local_ip" "$(unit-get private-address)" $QUANTUM_PLUGIN_CONF "OVS"
+          set_or_update "local_ip" "$(get_ip `unit-get private-address`)" $QUANTUM_PLUGIN_CONF "OVS"
       fi
       ;;
     *) juju-log "ERROR: Invalid network manager $1" && exit 1 ;;
