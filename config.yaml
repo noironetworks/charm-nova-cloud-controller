@@ -37,7 +37,15 @@ options:
   network-manager:
     default: FlatDHCPManager
     type: string
-    description: Network manager for nova-network
+    description: |
+      Network manager for the cloud; supports the following options
+      .
+        FlatDHCPManager (nova-network) (default)
+        FlatManager (nova-network)
+        Quantum (Full SDN solution)
+      .
+      When using the Quantum option you will most likely want to use
+      the quantum charm to provide L3 routing and DHCP Services.
   bridge-interface:
     default: br100
     type: string
@@ -50,6 +58,48 @@ options:
     default: 255.255.255.0
     type: string
     description: Netmask to be assigned to bridge interface
+  quantum-plugin:
+    default: ovs
+    type: string
+    description: |
+      Quantum plugin to use for network management; supports
+      .
+        ovs - OpenvSwitch Plugin
+      .
+      This configuration only has context when used with
+      network-manager Quantum.
+  conf-ext-net:
+    type: string
+    default: "no"
+    description: Configure external network for quantum using
+      network configuration below.  Only used when OpenvSwitch
+      plugin is configured.
+  ext-net-name:
+    type: string
+    default: ext_net
+    description: |
+      Name of external network configuration to create for
+      public access to instances/floating IP's.
+  ext-net-cidr:
+    type: string
+    default: 192.168.21.0/24
+    description: |
+      External network addressing
+  ext-net-gateway:
+    type: string
+    default: 192.168.21.1
+    description: |
+      IP of the public network gateway (i.e. external router)
+  pool-floating-start:
+    type: string
+    default: 192.168.21.130
+    description: |
+      Start of default floating IP range.
+  pool-floating-end:
+    type: string
+    default: 192.168.21.200
+    description: |
+      End of default floating IP range.
   config-flags:
     default: None
     type: string

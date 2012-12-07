@@ -18,7 +18,7 @@ function install_hook {
   DEBIAN_FRONTEND=noninteractive apt-get -y \
     install --no-install-recommends $PACKAGES || exit 1
 
-  configure_network_manager $(config-get network-manager)
+  configure_network_manager $NET_MANAGER
 
   # Configure any flags specified in deployment config
   set_config_flags
@@ -30,8 +30,21 @@ function install_hook {
   open-port 8774
   # object-store / s3
   open-port 3333
+  # Quantum API if configured
+  if [ "$NET_MANAGER" == "Quantum" ]; then
+    open-port 9696
+  fi
+
+  # Helpers for creating external and tenant networks
+  cp files/create_ext_net.py /usr/bin/quantum-ext-net
+  cp files/create_tenant_net.py /usr/bin/quantum-tenant-net
 
   service_ctl all stop
+}
+
+function upgrade_charm {
+  install_hook
+  service_ctl all start
 }
 
 function config_changed {
@@ -50,6 +63,11 @@ function config_changed {
   fi
 
   set_config_flags
+
+  if [ "$NET_MANAGER" == "Quantum" ]; then
+    configure_quantum_networking
+  fi
+
   service_ctl all restart
 }
 
@@ -84,6 +102,14 @@ function amqp_changed {
   set_or_update rabbit_userid $rabbit_user
   set_or_update rabbit_password $rabbit_password
   set_or_update rabbit_virtual_host $rabbit_vhost
+
+  if [ "$(config-get network-manager)" == "Quantum" ]; then
+    set_or_update rabbit_host "$rabbit_host" "$QUANTUM_CONF"
+    set_or_update rabbit_userid "$rabbit_user" "$QUANTUM_CONF"
+    set_or_update rabbit_password "$rabbit_password" "$QUANTUM_CONF"
+    set_or_update rabbit_virtual_host "$rabbit_vhost" "$QUANTUM_CONF"
+  fi
+
   service_ctl all restart
 }
 
@@ -95,12 +121,15 @@ function db_joined {
   local hostname=$(unit-get private-address)
   juju-log "$CHARM - db_joined: requesting database access to $nova_db for "\
            "$db_user@$hostname"
-  relation-set database=$nova_db username=$db_user hostname=$hostname
+  relation-set nova_database=$nova_db nova_username=$db_user nova_hostname=$hostname
+  if [ "$NET_MANAGER" == "Quantum" ]; then
+    relation-set quantum_database=quantum quantum_username=quantum quantum_hostname=$hostname
+  fi
 }
 
 function db_changed {
   local db_host=`relation-get private-address`
-  local db_password=`relation-get password`
+  local db_password=`relation-get nova_password`
 
   if [[ -z $db_host ]] || [[ -z $db_password ]] ; then
     juju-log "$CHARM - db_changed: db_host||db_password set, will retry."
@@ -112,9 +141,18 @@ function db_changed {
   juju-log "$CHARM - db_changed: Configuring nova.conf for access to $nova_db"
 
   set_or_update sql_connection "mysql://$db_user:$db_password@$db_host/$nova_db"
+
+  if [ "$NET_MANAGER" == "Quantum" ]; then
+    local quantum_db_password=`relation-get quantum_password`
+    set_or_update sql_connection "mysql://quantum:$quantum_db_password@$db_host/quantum?charset=utf8" \
+      $QUANTUM_PLUGIN_CONF "DATABASE"
+  fi
   service_ctl all stop
   /usr/bin/nova-manage db sync
   service_ctl all start
+  if [ "$NET_MANAGER" == "Quantum" ]; then
+    configure_quantum_networking
+  fi
   trigger_remote_service_restarts
 }
 
@@ -152,6 +190,15 @@ function keystone_joined {
     s3_admin_url="$s3_url" \
     s3_internal_url="$s3_url"
 
+  if [ "$(config-get network-manager)" == "Quantum" ]; then
+    quantum_url="http://$(unit-get private-address):9696"
+    relation-set quantum_service="quantum" \
+        quantum_region="RegionOne" \
+        quantum_public_url="$quantum_url" \
+        quantum_admin_url="$quantum_url" \
+        quantum_internal_url="$quantum_url"
+  fi
+
   # tack on an endpoint for nova-volume a relation exists.
   if [[ -n "$(relation-ids nova-volume-service)" ]] ; then
     nova_vol_url="http://$(unit-get private-address):8776/v1/\$(tenant_id)s"
@@ -184,7 +231,7 @@ function keystone_changed {
 
   # Update keystone authentication configuration
   keystone_host=$(relation-get private-address)
-  set_or_update "keystone_ec2_url" "http://$(relation-get private-address):5000/v2.0/ec2tokens"
+  set_or_update "keystone_ec2_url" "http://$keystone_host:5000/v2.0/ec2tokens"
 
   if grep -q use_deprecated_auth $NOVA_CONF ; then
     juju-log "$CHARM - keystone_changed: Disabling '--use_deprecated_auth"
@@ -201,7 +248,48 @@ function keystone_changed {
   set_or_update "admin_tenant_name" "$service_tenant" "$API_CONF"
   set_or_update "admin_user" "$service_username" "$API_CONF"
   set_or_update "admin_password" "$service_password" "$API_CONF"
+
+  if [ "$NET_MANAGER" == "Quantum" ]; then
+    # Configure Nova for quantum
+    keystone_url="http://${keystone_host}:${auth_port}/v2.0"
+    set_or_update "quantum_url" "http://$(unit-get private-address):9696"
+    set_or_update "quantum_admin_tenant_name" "${service_tenant}"
+    set_or_update "quantum_admin_username" "${service_username}"
+    set_or_update "quantum_admin_password" "${service_password}"
+    set_or_update "quantum_admin_auth_url" "${keystone_url}"
+    # Configure API server for quantum
+    set_or_update "admin_tenant_name" "$service_tenant" "$QUANTUM_API_CONF" "filter:authtoken"
+    set_or_update "admin_user" "$service_username" "$QUANTUM_API_CONF" "filter:authtoken"
+    set_or_update "admin_password" "$service_password" "$QUANTUM_API_CONF" "filter:authtoken"
+    set_or_update "auth_host" "$keystone_host" "$QUANTUM_API_CONF" "filter:authtoken"
+    set_or_update "auth_port" "$auth_port" "$QUANTUM_API_CONF" "filter:authtoken"
+    # Save a local copy of the credentials for later use
+    cat > /etc/quantum/novarc << EOF
+export OS_USERNAME=${service_username}
+export OS_PASSWORD=${service_password}
+export OS_TENANT_NAME=${service_tenant}
+export OS_AUTH_URL=${keystone_url}
+EOF
+  fi
+
   service_ctl all restart
+  
+  if [ "$NET_MANAGER" == "Quantum" ]; then
+    configure_quantum_networking
+    # ripple out changes to identity to connected services
+    # which use cloud-controller as source of information for
+    # keystone
+    r_ids="$(relation-ids cloud-compute) $(relation-ids quantum-network-service)"
+    for id in $r_ids ; do
+      relation-set -r $id \
+        keystone_host=$keystone_host \
+        auth_port=$auth_port \
+        service_port=$service_port \
+        service_username=$service_username \
+        service_password=$service_password \
+        service_tenant=$service_tenant
+    done
+  fi
 }
 
 volume_joined() {
@@ -245,10 +333,27 @@ volume_joined() {
 }
 
 compute_joined() {
-  # Inform remote unit of the network manager we've been configured to use.
-  # nova-compute should configure itself accordingly.
   relation-set network_manager=$(config-get network-manager)
   relation-set ec2_host=$(unit-get private-address)
+  if [ "$NET_MANAGER" == "Quantum" ]; then
+    rids=$(relation-ids identity-service)
+    for rid in $rids; do
+      for unit in $(relation-list -r $rid); do
+        keystone_host=$(relation-get -r $rid auth_host $unit)
+        if [ -n "$keystone_host" ]; then
+          relation-set \
+            keystone_host=$keystone_host \
+            auth_port=$(relation-get -r $rid auth_port $unit) \
+            service_port=$(relation-get -r $rid service_port $unit) \
+            service_username=$(relation-get -r $rid service_username $unit) \
+            service_password=$(relation-get -r $rid service_password $unit) \
+            service_tenant=$(relation-get -r $rid service_tenant $unit)
+        fi
+      done
+    done
+    relation-set quantum_host=$(unit-get private-address)
+    relation-set quantum_plugin=$(config-get quantum-plugin)
+  fi
 
   # Compute's volume driver is dependent on volume service deployed.
   local r_ids=$(relation-ids cinder-volume-service)
@@ -259,11 +364,33 @@ compute_joined() {
   fi
 }
 
+quantum_joined() {
+  # Tell quantum service about keystone
+  rids=$(relation-ids identity-service)
+  for rid in $rids; do
+    for unit in $(relation-list -r $rid); do
+      keystone_host=$(relation-get -r $rid auth_host $unit)
+      if [ -n "$keystone_host" ]; then
+        relation-set \
+          keystone_host=$keystone_host \
+          auth_port=$(relation-get -r $rid auth_port $unit) \
+          service_port=$(relation-get -r $rid service_port $unit) \
+          service_username=$(relation-get -r $rid service_username $unit) \
+          service_password=$(relation-get -r $rid service_password $unit) \
+          service_tenant=$(relation-get -r $rid service_tenant $unit)
+      fi
+    done
+  done
+  relation-set quantum_host=$(unit-get private-address)
+  relation-set quantum_plugin=$(config-get quantum-plugin)
+}
+
 arg0=$(basename $0)
 case $arg0 in
   "start"|"stop") service_ctl all $arg0 ;;
   "install") install_hook ;;
   "config-changed") config_changed ;;
+  "upgrade-charm") upgrade_charm ;; 
   "amqp-relation-joined") amqp_joined ;;
   "amqp-relation-changed") amqp_changed ;;
   "shared-db-relation-joined") db_joined ;;
@@ -275,5 +402,6 @@ case $arg0 in
   "cinder-volume-service-relation-joined") volume_joined ;;
   "nova-volume-service-relation-joined") volume_joined ;;
   "cloud-compute-relation-joined") compute_joined ;;
+  "quantum-network-service-relation-joined") quantum_joined ;;
   *) exit 0 ;;
 esac

@@ -22,3 +22,5 @@ requires:
     interface: cinder
   nova-volume-service:
     interface: nova-volume
+  quantum-network-service:
+    interface: quantum
