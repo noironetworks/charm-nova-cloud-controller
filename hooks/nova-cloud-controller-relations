@@ -230,8 +230,9 @@ function keystone_changed {
   set_or_update "auth_strategy" "keystone"
 
   # Update keystone authentication configuration
-  keystone_host=$(relation-get private-address)
-  set_or_update "keystone_ec2_url" "http://$keystone_host:5000/v2.0/ec2tokens"
+  service_host=$(relation-get service_host)
+  auth_host=$(relation-get auth_host)
+  set_or_update "keystone_ec2_url" "http://$service_host:$service_port/v2.0/ec2tokens"
 
   if grep -q use_deprecated_auth $NOVA_CONF ; then
     juju-log "$CHARM - keystone_changed: Disabling '--use_deprecated_auth"
@@ -239,11 +240,11 @@ function keystone_changed {
   fi
 
   # update keystone authtoken settings accordingly
-  set_or_update "service_host" "$keystone_host" "$API_CONF"
+  set_or_update "service_host" "$service_host" "$API_CONF"
   set_or_update "service_port" "$service_port" "$API_CONF"
-  set_or_update "auth_host" "$keystone_host" "$API_CONF"
+  set_or_update "auth_host" "$auth_host" "$API_CONF"
   set_or_update "auth_port" "$auth_port" "$API_CONF"
-  set_or_update "auth_uri" "http://$keystone_host:$service_port/" "$API_CONF"
+  set_or_update "auth_uri" "http://$service_host:$service_port/" "$API_CONF"
   set_or_update "admin_token" "$token" "$API_CONF"
   set_or_update "admin_tenant_name" "$service_tenant" "$API_CONF"
   set_or_update "admin_user" "$service_username" "$API_CONF"
@@ -251,7 +252,7 @@ function keystone_changed {
 
   if [ "$NET_MANAGER" == "Quantum" ]; then
     # Configure Nova for quantum
-    keystone_url="http://${keystone_host}:${auth_port}/v2.0"
+    keystone_url="http://${auth_host}:${auth_port}/v2.0"
     set_or_update "quantum_url" "http://$(unit-get private-address):9696"
     set_or_update "quantum_admin_tenant_name" "${service_tenant}"
     set_or_update "quantum_admin_username" "${service_username}"
@@ -261,7 +262,7 @@ function keystone_changed {
     set_or_update "admin_tenant_name" "$service_tenant" "$QUANTUM_API_CONF" "filter:authtoken"
     set_or_update "admin_user" "$service_username" "$QUANTUM_API_CONF" "filter:authtoken"
     set_or_update "admin_password" "$service_password" "$QUANTUM_API_CONF" "filter:authtoken"
-    set_or_update "auth_host" "$keystone_host" "$QUANTUM_API_CONF" "filter:authtoken"
+    set_or_update "auth_host" "$auth_host" "$QUANTUM_API_CONF" "filter:authtoken"
     set_or_update "auth_port" "$auth_port" "$QUANTUM_API_CONF" "filter:authtoken"
     # Save a local copy of the credentials for later use
     cat > /etc/quantum/novarc << EOF
@@ -282,7 +283,7 @@ EOF
     r_ids="$(relation-ids cloud-compute) $(relation-ids quantum-network-service)"
     for id in $r_ids ; do
       relation-set -r $id \
-        keystone_host=$keystone_host \
+        keystone_host=$auth_host \
         auth_port=$auth_port \
         service_port=$service_port \
         service_username=$service_username \
