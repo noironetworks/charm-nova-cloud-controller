@@ -364,6 +364,21 @@ compute_joined() {
   fi
 }
 
+compute_changed() {
+  local migration_auth="$(relation-get migration_auth_type)"
+  [[ -z "$migration_auth" ]] &&
+    juju-log "$CHARM: compute_changed - Peer not ready or "\
+             "no migration auth. configured." && exit 0
+
+  case "$migration_auth" in
+    "ssh") ssh_compute add ;;
+  esac
+}
+
+compute_departed() {
+  ssh_compute remove
+}
+
 quantum_joined() {
   # Tell quantum service about keystone
   rids=$(relation-ids identity-service)
@@ -390,7 +405,7 @@ case $arg0 in
   "start"|"stop") service_ctl all $arg0 ;;
   "install") install_hook ;;
   "config-changed") config_changed ;;
-  "upgrade-charm") upgrade_charm ;; 
+  "upgrade-charm") upgrade_charm ;;
   "amqp-relation-joined") amqp_joined ;;
   "amqp-relation-changed") amqp_changed ;;
   "shared-db-relation-joined") db_joined ;;
@@ -402,6 +417,8 @@ case $arg0 in
   "cinder-volume-service-relation-joined") volume_joined ;;
   "nova-volume-service-relation-joined") volume_joined ;;
   "cloud-compute-relation-joined") compute_joined ;;
+  "cloud-compute-relation-changed") compute_changed ;;
+  "cloud-compute-relation-departed") compute_departed ;;
   "quantum-network-service-relation-joined") quantum_joined ;;
   *) exit 0 ;;
 esac
