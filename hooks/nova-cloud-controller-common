@@ -37,7 +37,7 @@ if [ "$NET_MANAGER" == "Quantum" ]; then
     esac
 fi
 
-NOVA_CONF=$(config-get nova-config)
+NOVA_CONF="/etc/nova/nova.conf"
 API_CONF="/etc/nova/api-paste.ini"
 QUANTUM_CONF="/etc/quantum/quantum.conf"
 QUANTUM_API_CONF="/etc/quantum/api-paste.ini"
