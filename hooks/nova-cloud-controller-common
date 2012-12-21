@@ -13,7 +13,7 @@ if [[ -n "$n_vol" ]] ; then
   dpkg -l | grep -q nova-api-os-volume || apt-get -y install nova-api-os-volume
 fi
 
-PACKAGES="$SERVICES python-mysqldb python-keystone apache2 uuid"
+PACKAGES="$SERVICES python-mysqldb python-keystone apache2 uuid charm-helper-sh"
 
 NET_MANAGER=$(config-get network-manager)
 if [ "$NET_MANAGER" == "Quantum" ]; then
