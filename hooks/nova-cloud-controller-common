@@ -3,50 +3,94 @@
 CHARM="nova-cloud-controller"
 CONF_DIR="/etc/nova"
 
-SERVICES="nova-api-ec2 nova-api-os-compute nova-objectstore nova-cert nova-scheduler"
-
-# If we have a relation to nova-volume-service, we'll also manage its API
-# endpoint here.
-n_vol=$(relation-ids nova-volume-service)
-if [[ -n "$n_vol" ]] ; then
-  SERVICES="$SERVICES nova-api-os-volume"
-  dpkg -l | grep -q nova-api-os-volume || apt-get -y install nova-api-os-volume
-fi
-
-PACKAGES="$SERVICES python-mysqldb python-keystone apache2 uuid charm-helper-sh"
-
-NET_MANAGER=$(config-get network-manager)
-if [ "$NET_MANAGER" == "Quantum" ]; then
-    SERVICES="$SERVICES quantum-server"
-    PACKAGES="$PACKAGES quantum-server"
-    QUANTUM_PLUGIN=$(config-get quantum-plugin)
-    case $QUANTUM_PLUGIN in
-        "ovs")
-            PACKAGES="$PACKAGES quantum-plugin-openvswitch"
-            QUANTUM_CORE_PLUGIN="quantum.plugins.openvswitch.ovs_quantum_plugin.OVSQuantumPluginV2"
-            QUANTUM_PLUGIN_CONF="/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini"
-            ;;
-        "nvp")
-            PACKAGES="$PACKAGES quantum-plugin-nicira"
-            QUANTUM_CORE_PLUGIN="quantum.plugins.nicira.nicira_nvp_plugin.QuantumPlugin.NvpPluginV2"
-            QUANTUM_PLUGIN_CONF="/etc/quantum/plugins/nicira/nvp.ini"
-            ;;
-        *)
-            juju-log "Unrecognised plugin for quantum: $QUANTUM_PLUGIN" && exit 1
-            ;;
-    esac
-fi
-
 NOVA_CONF="/etc/nova/nova.conf"
 API_CONF="/etc/nova/api-paste.ini"
 QUANTUM_CONF="/etc/quantum/quantum.conf"
 QUANTUM_API_CONF="/etc/quantum/api-paste.ini"
+
+NET_MANAGER=$(config-get network-manager)
 
 if [[ -e $CHARM_DIR/lib/nova/nova-common ]] ; then
   . $CHARM_DIR/lib/nova/nova-common
 else
   juju-log "Couldn't load $CHARM_DIR/lib/nova/nova-common" && exit 1
 fi
+
+function determine_services {
+  # Sets the global $SERVICES which contains a list of all services
+  # managed by the charm.  This changes based on OpenStack release.
+  # Currently, the services also determines what ends up in $PACKAGES.
+
+  # base c-c services supported across all os releases since essex.
+  SERVICES="nova-api-ec2 nova-api-os-compute nova-objectstore nova-cert nova-scheduler"
+
+  # determine additional services, dependent on what version of OS.
+  local install_src="$(config-get openstack-origin)"
+  install_src=$(get_os_codename_install_source "$install_src")
+  local os_vers=$(get_os_codename_package "nova-common")
+  if [[ "$os_vers" == "none" ]] ; then
+    [[ "$install_src" == "unknown" ]] && echo "$SERVICES" && return 0
+  fi
+
+  os_vers="$install_src"
+  if [[ "$os_vers" != "essex" ]] && [[ "$os_vers" != "folsom" ]] ; then
+    # nova-conductor was introduced in grizzly.
+    SERVICES="$SERVICES nova-conductor"
+  else
+      local n_vol=$(relation-ids nova-volume-service)
+      if [[ -n "$n_vol" ]] ; then
+        # nova-volume was dropped in G but may still be deployed for E + F,
+        # but should only be managed when a relation to nova-volume exists.
+        SERVICES="$SERVICES nova-api-os-volume"
+        # need to also ensure the package gets installed here.  if the relation
+        # is introduced during another hook, a call to 'service_ctl all' will
+        # require it to be there.
+        dpkg -l | grep -q nova-api-os-volume ||
+          apt-get -y install nova-api-os-volume
+      fi
+  fi
+
+  # quantum is really only supported for folsom and beyond.
+  if [[ "$NET_MANAGER" == "Quantum" ]] ; then
+    [[ "$os_vers" == "essex" ]] &&
+      error_out "Quantum network manager only supported for Folsom + beyond."
+    SERVICES="$SERVICES quantum-server"
+  fi
+}
+
+function determine_packages {
+  # Derive a list of packages based on what our service needs are.  This changes
+  # depending on several factors.
+  determine_services
+  PACKAGES="$SERVICES python-mysqldb python-keystone apache2 uuid charm-helper-sh"
+
+  if echo $PACKAGES | grep -q "quantum-server" ; then
+    case "$(config-get quantum-plugin)" in
+      "ovs") PACKAGES="$PACKAGES quantum-plugin-openvswitch" ;;
+      "nvp") PACKAGES="$PACKAGES quantum-plugin-nicira" ;;
+    esac
+  fi
+  echo "DETERMINED PACKAGES: $PACKAGES"
+}
+
+function determine_quantum_config {
+  # Set QUANTUM_PLUGIN and point QUANTUM_CORE_PLUGIN and QUANTUM_PLUGIN_CONF
+  # to the correct files based on configuration.
+  QUANTUM_PLUGIN=${QUANTUM_PLUGIN:-$(config-get quantum-plugin)}
+  case "$QUANTUM_PLUGIN" in
+    "ovs")
+      QUANTUM_CORE_PLUGIN="quantum.plugins.openvswitch.ovs_quantum_plugin.OVSQuantumPluginV2"
+      QUANTUM_PLUGIN_CONF="/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini"
+      ;;
+    "nvp")
+      QUANTUM_CORE_PLUGIN="quantum.plugins.nicira.nicira_nvp_plugin.QuantumPlugin.NvpPluginV2"
+      QUANTUM_PLUGIN_CONF="/etc/quantum/plugins/nicira/nvp.ini"
+      ;;
+  *)
+    juju-log "Unrecognised plugin for quantum: $QUANTUM_PLUGIN" && exit 1
+    ;;
+  esac
+}
 
 function configure_quantum_networking {
   if [ "$(config-get conf-ext-net)" != "no" ] &&

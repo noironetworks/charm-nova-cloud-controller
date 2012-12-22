@@ -15,6 +15,7 @@ function install_hook {
   configure_install_source "$(config-get openstack-origin)"
   apt-get update || exit 1
 
+  determine_packages
   DEBIAN_FRONTEND=noninteractive apt-get -y \
     install --no-install-recommends $PACKAGES || exit 1
 
@@ -59,6 +60,7 @@ function config_changed {
   if dpkg --compare-versions $(get_os_version_codename "$cur") lt \
                              $(get_os_version_codename "$available") ; then
     juju-log "$CHARM: Upgrading OpenStack release: $cur -> $available."
+    determine_packages
     do_openstack_upgrade "$install_src" $PACKAGES
   fi
 
@@ -68,6 +70,7 @@ function config_changed {
     configure_quantum_networking
   fi
 
+  determine_services
   service_ctl all restart
 }
 
@@ -110,7 +113,7 @@ function amqp_changed {
     set_or_update rabbit_virtual_host "$rabbit_vhost" "$QUANTUM_CONF"
   fi
 
-  service_ctl all restart
+  determine_services && service_ctl all restart
 }
 
 function db_joined {
@@ -147,6 +150,7 @@ function db_changed {
     set_or_update sql_connection "mysql://quantum:$quantum_db_password@$db_host/quantum?charset=utf8" \
       $QUANTUM_PLUGIN_CONF "DATABASE"
   fi
+  determine_services
   service_ctl all stop
   /usr/bin/nova-manage db sync
   service_ctl all start
@@ -162,7 +166,7 @@ function image-service_changed {
     juju-log "$CHARM - image-service_changed: Peer not ready?" && exit 0
   set_or_update glance_api_servers $api_server
   set_or_update image_service "nova.image.glance.GlanceImageService"
-  service_ctl all restart
+  determine_services && service_ctl all restart
 }
 
 function keystone_joined {
@@ -272,8 +276,8 @@ export OS_AUTH_URL=${keystone_url}
 EOF
   fi
 
-  service_ctl all restart
-  
+  determine_services && service_ctl all restart
+
   if [ "$NET_MANAGER" == "Quantum" ]; then
     configure_quantum_networking
     # ripple out changes to identity to connected services
@@ -301,7 +305,7 @@ volume_joined() {
   esac
 
   configure_volume_service "$svc"
-  service_ctl all restart
+  deteremine_services && service_ctl all restart
 
   # The nova-volume API can be hosted here alongside the other
   # nova API services, but there needs to be a new endpoint
@@ -402,7 +406,7 @@ quantum_joined() {
 
 arg0=$(basename $0)
 case $arg0 in
-  "start"|"stop") service_ctl all $arg0 ;;
+  "start"|"stop") determine_services ; service_ctl all $arg0 ;;
   "install") install_hook ;;
   "config-changed") config_changed ;;
   "upgrade-charm") upgrade_charm ;;
