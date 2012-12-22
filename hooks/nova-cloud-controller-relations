@@ -304,6 +304,14 @@ volume_joined() {
     *) svc="nova-volume" ;;
   esac
 
+  local cur_vers=$(get_os_codename_package "nova-common")
+  if [[ "$cur_vers" != "essex" ]] && [[ "$cur_vers" != "folsom" ]] &&
+     [[ "$svc" == "nova-volume" ]] ; then
+    juju-log "$CHARM: WARNING nova-volume is only supported on Essex "\
+             "and Folsom.  Ignoring new relation to nova-volume service."
+    exit 0
+  fi
+
   configure_volume_service "$svc"
   deteremine_services && service_ctl all restart
 
@@ -359,13 +367,20 @@ compute_joined() {
     relation-set quantum_plugin=$(config-get quantum-plugin)
   fi
 
-  # Compute's volume driver is dependent on volume service deployed.
-  local r_ids=$(relation-ids cinder-volume-service)
-  if [[ -n "$r_ids" ]] ; then
-    relation-set volume_service="cinder"
-  else
-    relation-set volume_service="nova-volume"
-  fi
+  # volume driver is dependent on os version, or presence
+  # of cinder (on folsom, at least)
+  local cur_vers=$(get_os_codename_package "nova-common")
+  local vol_drv="cinder"
+  case "$cur_vers" in
+    "essex")
+      vol_drv="nova-volume"
+      ;;
+    "folsom")
+      local r_ids=$(relation-get cinder-volume-service)
+      [[ -z "$r_ids" ]] && vol_drv="nova-volume"
+      ;;
+  esac
+  relation-set volume_service="$vol_drv"
 }
 
 compute_changed() {
