@@ -24,3 +24,10 @@ requires:
     interface: nova-volume
   quantum-network-service:
     interface: quantum
+  ha:
+    interface: hacluster
+    scope: container
+peers:
+  cluster:
+    interface: nova-ha
+
