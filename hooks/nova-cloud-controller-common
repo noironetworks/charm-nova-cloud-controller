@@ -70,7 +70,7 @@ function determine_packages {
       "nvp") PACKAGES="$PACKAGES quantum-plugin-nicira" ;;
     esac
   fi
-  echo "DETERMINED PACKAGES: $PACKAGES"
+  juju-log "$CHARM: Determined required packages: $PACKAGES."
 }
 
 function determine_quantum_config {
@@ -93,6 +93,7 @@ function determine_quantum_config {
 }
 
 function configure_quantum_networking {
+  determine_quantum_config
   if [ "$(config-get conf-ext-net)" != "no" ] &&
      [ "$QUANTUM_PLUGIN" == "ovs" ] &&
      [ -f /etc/quantum/novarc ] &&

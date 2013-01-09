@@ -19,6 +19,9 @@ function install_hook {
   DEBIAN_FRONTEND=noninteractive apt-get -y \
     install --no-install-recommends $PACKAGES || exit 1
 
+  if [[ "$NET_MANAGER" == "Quantum" ]] ; then
+    determine_quantum_config
+  fi
   configure_network_manager $NET_MANAGER
 
   # Configure any flags specified in deployment config
@@ -147,6 +150,7 @@ function db_changed {
 
   if [ "$NET_MANAGER" == "Quantum" ]; then
     local quantum_db_password=`relation-get quantum_password`
+    determine_quantum_config
     set_or_update sql_connection "mysql://quantum:$quantum_db_password@$db_host/quantum?charset=utf8" \
       $QUANTUM_PLUGIN_CONF "DATABASE"
   fi
