@@ -62,7 +62,7 @@ function determine_packages {
   # Derive a list of packages based on what our service needs are.  This changes
   # depending on several factors.
   determine_services
-  PACKAGES="$SERVICES python-mysqldb python-keystone apache2 uuid charm-helper-sh"
+  PACKAGES="$SERVICES python-mysqldb python-keystone uuid charm-helper-sh"
 
   if echo $PACKAGES | grep -q "quantum-server" ; then
     case "$(config-get quantum-plugin)" in
@@ -212,16 +212,9 @@ function ssh_compute {
   fi
 
   local sunit=$(echo $JUJU_REMOTE_UNIT | cut -d/ -f1)
-  mkdir -p /var/www/compute_ssh/$sunit
-  cp /etc/nova/compute_ssh/$sunit/known_hosts \
-    /var/www/compute_ssh/$sunit/known_hosts
-  cp /etc/nova/compute_ssh/$sunit/authorized_keys \
-    /var/www/compute_ssh/$sunit/authorized_keys
 
-  # MD5 sums should trigger new relation changes only when necessary
+  # base64 encodings should trigger new relation events as needed.
   relation-set \
-    known_hosts_url="http://$(unit-get private-address)/compute_ssh/$sunit/known_hosts" \
-    known_hosts_md5="$(md5sum /var/www/compute_ssh/$sunit/known_hosts | awk '{ print $1 }')" \
-    authorized_keys_url="http://$(unit-get private-address)/compute_ssh/$sunit/authorized_keys" \
-    authorized_keys_md5="$(md5sum /var/www/compute_ssh/$sunit/authorized_keys | awk '{ print $1 }')"
+    known_hosts="$(base64 /etc/nova/compute_ssh/$sunit/known_hosts)" \
+    authorized_keys="$(base64 /etc/nova/compute_ssh/$sunit/authorized_keys)"
 }
