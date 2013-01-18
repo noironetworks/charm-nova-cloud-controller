@@ -14,10 +14,6 @@ options:
       Note that updating this setting to a source that is known to
       provide a later version of OpenStack will trigger a software
       upgrade.
-  nova-config:
-    default: /etc/nova/nova.conf
-    type: string
-    description: Full path to nova.conf
   rabbit-user:
     default: nova
     type: string
@@ -124,7 +120,7 @@ options:
       with the other members of the HA Cluster.
   ha-mcastport:
     type: int
-    default: 5408
+    default: 5404
     description: |
        Default multicast port number that will be used to communicate between
        HA Cluster nodes.

@@ -15,9 +15,13 @@ function install_hook {
   configure_install_source "$(config-get openstack-origin)"
   apt-get update || exit 1
 
+  determine_packages
   DEBIAN_FRONTEND=noninteractive apt-get -y \
     install --no-install-recommends $PACKAGES || exit 1
 
+  if [[ "$NET_MANAGER" == "Quantum" ]] ; then
+    determine_quantum_config
+  fi
   configure_network_manager $NET_MANAGER
 
   # Configure any flags specified in deployment config
@@ -59,6 +63,7 @@ function config_changed {
   if dpkg --compare-versions $(get_os_version_codename "$cur") lt \
                              $(get_os_version_codename "$available") ; then
     juju-log "$CHARM: Upgrading OpenStack release: $cur -> $available."
+    determine_packages
     do_openstack_upgrade "$install_src" $PACKAGES
   fi
 
@@ -70,6 +75,7 @@ function config_changed {
     configure_quantum_networking
   fi
 
+  determine_services
   service_ctl all restart
 }
 
@@ -124,7 +130,7 @@ function amqp_changed {
     set_or_update rabbit_virtual_host "$rabbit_vhost" "$QUANTUM_CONF"
   fi
 
-  service_ctl all restart
+  determine_services && service_ctl all restart
 }
 
 function db_joined {
@@ -158,9 +164,11 @@ function db_changed {
 
   if [ "$NET_MANAGER" == "Quantum" ]; then
     local quantum_db_password=`relation-get quantum_password`
+    determine_quantum_config
     set_or_update sql_connection "mysql://quantum:$quantum_db_password@$db_host/quantum?charset=utf8" \
       $QUANTUM_PLUGIN_CONF "DATABASE"
   fi
+  determine_services
   service_ctl all stop
   /usr/bin/nova-manage db sync
   service_ctl all start
@@ -176,7 +184,7 @@ function image-service_changed {
     juju-log "$CHARM - image-service_changed: Peer not ready?" && exit 0
   set_or_update glance_api_servers $api_server
   set_or_update image_service "nova.image.glance.GlanceImageService"
-  service_ctl all restart
+  determine_services && service_ctl all restart
 }
 
 function keystone_joined {
@@ -305,8 +313,8 @@ export OS_AUTH_URL=${keystone_url}
 EOF
   fi
 
-  service_ctl all restart
-  
+  determine_services && service_ctl all restart
+
   if [ "$NET_MANAGER" == "Quantum" ]; then
     configure_quantum_networking
     # ripple out changes to identity to connected services
@@ -333,8 +341,16 @@ volume_joined() {
     *) svc="nova-volume" ;;
   esac
 
+  local cur_vers=$(get_os_codename_package "nova-common")
+  if [[ "$cur_vers" != "essex" ]] && [[ "$cur_vers" != "folsom" ]] &&
+     [[ "$svc" == "nova-volume" ]] ; then
+    juju-log "$CHARM: WARNING nova-volume is only supported on Essex "\
+             "and Folsom.  Ignoring new relation to nova-volume service."
+    exit 0
+  fi
+
   configure_volume_service "$svc"
-  service_ctl all restart
+  deteremine_services && service_ctl all restart
 
   # The nova-volume API can be hosted here alongside the other
   # nova API services, but there needs to be a new endpoint
@@ -366,6 +382,10 @@ volume_joined() {
 }
 
 compute_joined() {
+  if is_clustered && ! is_leader 'res_nova_vip'; then
+    # Clustered and not current leader - do nothing
+    return 0
+  fi
   relation-set network_manager=$(config-get network-manager)
   relation-set ec2_host=$(unit-get private-address)
   if [ "$NET_MANAGER" == "Quantum" ]; then
@@ -384,21 +404,55 @@ compute_joined() {
         fi
       done
     done
-    relation-set quantum_host=$(unit-get private-address)
-    relation-set quantum_plugin=$(config-get quantum-plugin)
+    if is_clustered; then
+      quantum_host=$(config-get vip)
+      quantum_port=19696
+    else
+      quantum_host=$(unit-get private-address)
+      quantum_port=9696
+    fi
+    relation-set quantum_host=$quantum_host \
+                 quantum_port=$quantum_port \
+                 quantum_plugin=$(config-get quantum-plugin)
   fi
 
-  # Compute's volume driver is dependent on volume service deployed.
-  local r_ids=$(relation-ids cinder-volume-service)
-  if [[ -n "$r_ids" ]] ; then
-    relation-set volume_service="cinder"
-  else
-    relation-set volume_service="nova-volume"
-  fi
+  # volume driver is dependent on os version, or presence
+  # of cinder (on folsom, at least)
+  local cur_vers=$(get_os_codename_package "nova-common")
+  local vol_drv="cinder"
+  case "$cur_vers" in
+    "essex")
+      vol_drv="nova-volume"
+      ;;
+    "folsom")
+      local r_ids=$(relation-get cinder-volume-service)
+      [[ -z "$r_ids" ]] && vol_drv="nova-volume"
+      ;;
+  esac
+  relation-set volume_service="$vol_drv"
+}
+
+compute_changed() {
+  local migration_auth="$(relation-get migration_auth_type)"
+  [[ -z "$migration_auth" ]] &&
+    juju-log "$CHARM: compute_changed - Peer not ready or "\
+             "no migration auth. configured." && exit 0
+
+  case "$migration_auth" in
+    "ssh") ssh_compute add ;;
+  esac
+}
+
+compute_departed() {
+  ssh_compute remove
 }
 
 function quantum_joined() {
   # Tell quantum service about keystone
+  if is_clustered && ! is_leader 'res_nova_vip'; then
+    # Clustered and not current leader - do nothing
+    return 0
+  fi
   rids=$(relation-ids identity-service)
   for rid in $rids; do
     for unit in $(relation-list -r $rid); do
@@ -414,8 +468,16 @@ function quantum_joined() {
       fi
     done
   done
-  relation-set quantum_host=$(unit-get private-address)
-  relation-set quantum_plugin=$(config-get quantum-plugin)
+  if is_clustered; then
+    quantum_host=$(config-get vip)
+    quantum_port=19696
+  else
+    quantum_host=$(unit-get private-address)
+    quantum_port=9696
+  fi
+  relation-set quantum_host=$quantum_host \
+               quantum_port=$quantum_port \
+               quantum_plugin=$(config-get quantum-plugin)
 }
 
 function cluster_changed() {
@@ -494,15 +556,24 @@ function ha_relation_changed() {
           nova-volume_internal_url="$nova_vol_url"
       fi
     done
+    if [ "$(config-get network-manager)" == "Quantum" ]; then
+      # Let gateway nodes use the new HA address for the 
+      # quantum API server
+      for r_id in `relation-ids quantum-network-service`; do
+        relation-set -r $r_id \
+          quantum_host=$address
+          quantum_port=19696
+      done
+    fi
   fi
 }
 
 arg0=$(basename $0)
 case $arg0 in
-  "start"|"stop") service_ctl all $arg0 ;;
+  "start"|"stop") determine_services ; service_ctl all $arg0 ;;
   "install") install_hook ;;
   "config-changed") config_changed ;;
-  "upgrade-charm") upgrade_charm ;; 
+  "upgrade-charm") upgrade_charm ;;
   "amqp-relation-joined") amqp_joined ;;
   "amqp-relation-changed") amqp_changed ;;
   "shared-db-relation-joined") db_joined ;;
@@ -514,6 +585,8 @@ case $arg0 in
   "cinder-volume-service-relation-joined") volume_joined ;;
   "nova-volume-service-relation-joined") volume_joined ;;
   "cloud-compute-relation-joined") compute_joined ;;
+  "cloud-compute-relation-changed") compute_changed ;;
+  "cloud-compute-relation-departed") compute_departed ;;
   "quantum-network-service-relation-joined") quantum_joined ;;
   "cluster-relation-changed") cluster_changed ;;
   "cluster-relation-departed") cluster_changed ;;
