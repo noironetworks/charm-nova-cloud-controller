@@ -215,17 +215,17 @@ function keystone_joined {
 
   # these are the default endpoints
   relation-set nova_service="nova" \
-    nova_region="RegionOne" \
+    nova_region="$(config-get region)" \
     nova_public_url="$nova_url" \
     nova_admin_url="$nova_url" \
     nova_internal_url="$nova_url" \
     ec2_service="ec2" \
-    ec2_region="RegionOne" \
+    ec2_region="$(config-get region)" \
     ec2_public_url="$ec2_url" \
     ec2_admin_url="$ec2_url" \
     ec2_internal_url="$ec2_url" \
     s3_service="s3" \
-    s3_region="RegionOne" \
+    s3_region="$(config-get region)" \
     s3_public_url="$s3_url" \
     s3_admin_url="$s3_url" \
     s3_internal_url="$s3_url"
@@ -233,7 +233,7 @@ function keystone_joined {
   if [ "$(config-get network-manager)" == "Quantum" ]; then
     quantum_url="http://$address:$quantum_port"
     relation-set quantum_service="quantum" \
-        quantum_region="RegionOne" \
+        quantum_region="$(config-get region)" \
         quantum_public_url="$quantum_url" \
         quantum_admin_url="$quantum_url" \
         quantum_internal_url="$quantum_url"
@@ -243,7 +243,7 @@ function keystone_joined {
   if [[ -n "$(relation-ids nova-volume-service)" ]] ; then
     nova_vol_url="http://$address:$vol_port/v1/\$(tenant_id)s"
     relation-set nova-volume_service="nova-volume" \
-      nova-volume_region="RegionOne" \
+      nova-volume_region="$(config-get region)" \
       nova-volume_public_url="$nova_vol_url" \
       nova-volume_admin_url="$nova_vol_url" \
       nova-volume_internal_url="$nova_vol_url"
@@ -364,7 +364,7 @@ volume_joined() {
                "existing identity-service relation: $id"
       nova_vol_url="http://$(unit-get private-address):8776/v1/\$(tenant_id)s"
       relation-set -r $id nova-volume_service="nova-volume" \
-        nova-volume_region="RegionOne" \
+        nova-volume_region="$(config-get region)" \
         nova-volume_public_url="$nova_vol_url" \
         nova-volume_admin_url="$nova_vol_url" \
         nova-volume_internal_url="$nova_vol_url"
