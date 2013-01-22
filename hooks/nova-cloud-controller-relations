@@ -258,6 +258,7 @@ function keystone_changed {
   service_username=$(relation-get service_username)
   service_password=$(relation-get service_password)
   service_tenant=$(relation-get service_tenant)
+  region=$(config-get region)
 
   [[ -z "$token" ]] || [[ -z "$service_port" ]] || [[ -z "$auth_port" ]] ||
     [[ -z "$service_username" ]] || [[ -z "$service_password" ]] ||
@@ -329,7 +330,8 @@ EOF
         service_port=$service_port \
         service_username=$service_username \
         service_password=$service_password \
-        service_tenant=$service_tenant
+        service_tenant=$service_tenant \
+        region=$region
     done
   fi
 }
