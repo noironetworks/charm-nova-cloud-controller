@@ -212,20 +212,21 @@ function keystone_joined {
   nova_url="http://$address:$nova_port/v1.1/\$(tenant_id)s"
   ec2_url="http://$address:$ec2_port/services/Cloud"
   s3_url="http://$address:$s3_port"
+  region="$(config-get region)"
 
   # these are the default endpoints
   relation-set nova_service="nova" \
-    nova_region="$(config-get region)" \
+    nova_region="$region" \
     nova_public_url="$nova_url" \
     nova_admin_url="$nova_url" \
     nova_internal_url="$nova_url" \
     ec2_service="ec2" \
-    ec2_region="$(config-get region)" \
+    ec2_region="$region" \
     ec2_public_url="$ec2_url" \
     ec2_admin_url="$ec2_url" \
     ec2_internal_url="$ec2_url" \
     s3_service="s3" \
-    s3_region="$(config-get region)" \
+    s3_region="$region" \
     s3_public_url="$s3_url" \
     s3_admin_url="$s3_url" \
     s3_internal_url="$s3_url"
@@ -233,7 +234,7 @@ function keystone_joined {
   if [ "$(config-get network-manager)" == "Quantum" ]; then
     quantum_url="http://$address:$quantum_port"
     relation-set quantum_service="quantum" \
-        quantum_region="$(config-get region)" \
+        quantum_region="$region" \
         quantum_public_url="$quantum_url" \
         quantum_admin_url="$quantum_url" \
         quantum_internal_url="$quantum_url"
@@ -243,7 +244,7 @@ function keystone_joined {
   if [[ -n "$(relation-ids nova-volume-service)" ]] ; then
     nova_vol_url="http://$address:$vol_port/v1/\$(tenant_id)s"
     relation-set nova-volume_service="nova-volume" \
-      nova-volume_region="$(config-get region)" \
+      nova-volume_region="$region" \
       nova-volume_public_url="$nova_vol_url" \
       nova-volume_admin_url="$nova_vol_url" \
       nova-volume_internal_url="$nova_vol_url"
