@@ -52,7 +52,8 @@ if __name__ == '__main__':
     quantum = client.Client(username=os.environ['OS_USERNAME'],
                             password=os.environ['OS_PASSWORD'],
                             tenant_name=os.environ['OS_TENANT_NAME'],
-                            auth_url=os.environ['OS_AUTH_URL'])
+                            auth_url=os.environ['OS_AUTH_URL'],
+                            region_name=os.environ['OS_REGION_NAME'])
 
     networks = quantum.list_networks(name=net_name)
     if len(networks['networks']) == 0:

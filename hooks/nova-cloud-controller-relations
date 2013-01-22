@@ -312,6 +312,7 @@ export OS_USERNAME=${service_username}
 export OS_PASSWORD=${service_password}
 export OS_TENANT_NAME=${service_tenant}
 export OS_AUTH_URL=${keystone_url}
+export OS_REGION_NAME=$region
 EOF
   fi
 
