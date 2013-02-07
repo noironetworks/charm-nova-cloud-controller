@@ -429,7 +429,7 @@ compute_joined() {
       vol_drv="nova-volume"
       ;;
     "folsom")
-      local r_ids=$(relation-get cinder-volume-service)
+      local r_ids=$(relation-ids cinder-volume-service)
       [[ -z "$r_ids" ]] && vol_drv="nova-volume"
       ;;
   esac
