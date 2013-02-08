@@ -481,7 +481,8 @@ function quantum_joined() {
   fi
   relation-set quantum_host=$quantum_host \
                quantum_port=$quantum_port \
-               quantum_plugin=$(config-get quantum-plugin)
+               quantum_plugin=$(config-get quantum-plugin) \
+               region=$(config-get region)
 }
 
 function cluster_changed() {
