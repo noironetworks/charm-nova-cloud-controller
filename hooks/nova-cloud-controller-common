@@ -219,3 +219,65 @@ function ssh_compute {
     known_hosts="$(base64 /etc/nova/compute_ssh/$sunit/known_hosts)" \
     authorized_keys="$(base64 /etc/nova/compute_ssh/$sunit/authorized_keys)"
 }
+
+configure_https() {
+  # setup https termination for all api services, depending on what is running
+  # and topology of current deployment.
+  local clustered=""
+  ( [[ -n "$(peer_units)" ]] || is_clustered ) && clustered="1"
+  local services=""
+  local ssl_port_maps=""
+  local haproxy_port_maps=""
+  local next_server=""
+  local api_port=""
+
+  # upstartService:defaultPort:configOption
+  local svcs="nova-api-ec2:8773:ec2_listen_port
+              nova-api-os-compute:8774:osapi_compute_listen_port
+              nova-objectstore:3333:s3_listen_port"
+  [[ "$NET_MANAGER" == "Quantum" ]] &&
+    svcs="$svcs quantum-server:9696:bind_port"
+
+  for s in $svcs ; do
+    local service=$(echo $s | cut -d: -f1)
+    local port=$(echo $s | cut -d: -f2)
+    local opt=$(echo $s | cut -d: -f3)
+    if [[ -n "$clustered" ]] ; then
+      next_server="$(determine_haproxy_port $port)"
+      api_port="$(determine_api_port $port)"
+      haproxy_port_maps="$haproxy_port_maps $service:$next_server:$api_port"
+    else
+      api_port="$(determine_api_port $port)"
+      next_server="$api_port"
+    fi
+    set_or_update "$opt" "$api_port"
+    ssl_port_maps="$ssl_port_maps $port:$next_server"
+  done
+
+  # make sure all backend api servers are bound to new backend port
+  # before setting up any frontends.
+  for s in $svcs ; do
+    local service=$(echo $s | cut -d: -f1)
+    service_ctl $service restart
+  done
+
+  [[ -n "$haproxy_port_maps" ]] && configure_haproxy $haproxy_port_maps
+  setup_https $ssl_port_maps
+
+  # another restart to ensure api servers are now bound to frontend ports
+  # that may have just been disabled.
+  for s in $svcs ; do
+    local service=$(echo $s | cut -d: -f1)
+    service_ctl $service restart
+  done
+
+  local r_id=""
+  # (re)configure ks endpoint accordingly
+  for r_id in "$(relation-ids identity-service)" ; do
+    keystone_joined "$r_id"
+  done
+  # pass on possibly updated quantum URL + ca_cert to compute nodes.
+  for r_id in "$(relation-ids cloud-compute)" ; do
+    compute_joined "$r_id"
+  done
+}
