@@ -172,7 +172,9 @@ function db_changed {
   fi
   determine_services
   service_ctl all stop
-  /usr/bin/nova-manage db sync
+
+  eligible_leader 'res_nova_vip' && /usr/bin/nova-manage db sync
+
   service_ctl all start
   if [ "$NET_MANAGER" == "Quantum" ]; then
     configure_quantum_networking
