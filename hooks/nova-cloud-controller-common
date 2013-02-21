@@ -273,11 +273,11 @@ configure_https() {
 
   local r_id=""
   # (re)configure ks endpoint accordingly
-  for r_id in "$(relation-ids identity-service)" ; do
+  for r_id in $(relation-ids identity-service) ; do
     keystone_joined "$r_id"
   done
   # pass on possibly updated quantum URL + ca_cert to compute nodes.
-  for r_id in "$(relation-ids cloud-compute)" ; do
+  for r_id in $(relation-ids cloud-compute) ; do
     compute_joined "$r_id"
   done
 }
