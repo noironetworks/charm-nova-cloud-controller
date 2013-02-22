@@ -286,6 +286,7 @@ function keystone_changed {
   set_or_update "service_port" "$service_port" "$API_CONF"
   set_or_update "auth_host" "$auth_host" "$API_CONF"
   set_or_update "auth_port" "$auth_port" "$API_CONF"
+  # XXX http hard-coded
   set_or_update "auth_uri" "http://$service_host:$service_port/" "$API_CONF"
   set_or_update "admin_token" "$token" "$API_CONF"
   set_or_update "admin_tenant_name" "$service_tenant" "$API_CONF"
@@ -332,7 +333,10 @@ EOF
         service_username=$service_username \
         service_password=$service_password \
         service_tenant=$service_tenant \
-        region=$region
+        region=$region \
+        # XXX http hard-coded
+        auth_uri="http://$service_host:$service_port/"
+
     done
   fi
 }
@@ -390,24 +394,24 @@ compute_joined() {
     # Clustered and not current leader - do nothing
     return 0
   fi
+
   relation-set network_manager=$(config-get network-manager)
   relation-set ec2_host=$(unit-get private-address)
+
+  local sect="filter:authtoken"
+  keystone_host=$(local_config_get $API_CONF auth_host $sect)
   if [ "$NET_MANAGER" == "Quantum" ]; then
-    rids=$(relation-ids identity-service)
-    for rid in $rids; do
-      for unit in $(relation-list -r $rid); do
-        keystone_host=$(relation-get -r $rid auth_host $unit)
-        if [ -n "$keystone_host" ]; then
-          relation-set \
-            keystone_host=$keystone_host \
-            auth_port=$(relation-get -r $rid auth_port $unit) \
-            service_port=$(relation-get -r $rid service_port $unit) \
-            service_username=$(relation-get -r $rid service_username $unit) \
-            service_password=$(relation-get -r $rid service_password $unit) \
-            service_tenant=$(relation-get -r $rid service_tenant $unit)
-        fi
-      done
-    done
+    if [ -n "$keystone_host" ]; then
+      relation-set \
+        keystone_host=$keystone_host \
+        auth_port=$(local_config_get $API_CONF auth_port $sect) \
+        service_port=$(local_config_get $API_CONF service_port $sect) \
+        service_username=$(local_config_get $API_CONF admin_user $sect) \
+        service_password=$(local_config_get $API_CONF admin_password $sect) \
+        service_tenant=$(local_config_get $API_CONF admin_tenant_name $sect) \
+        auth_uri=$(local_config_get $API_CONF auth_uri $sect)
+    fi
+
     if is_clustered; then
       quantum_host=$(config-get vip)
       quantum_port=19696
@@ -415,6 +419,7 @@ compute_joined() {
       quantum_host=$(unit-get private-address)
       quantum_port=9696
     fi
+
     relation-set quantum_host=$quantum_host \
                  quantum_port=$quantum_port \
                  quantum_plugin=$(config-get quantum-plugin)
@@ -457,21 +462,20 @@ function quantum_joined() {
     # Clustered and not current leader - do nothing
     return 0
   fi
-  rids=$(relation-ids identity-service)
-  for rid in $rids; do
-    for unit in $(relation-list -r $rid); do
-      keystone_host=$(relation-get -r $rid auth_host $unit)
-      if [ -n "$keystone_host" ]; then
-        relation-set \
-          keystone_host=$keystone_host \
-          auth_port=$(relation-get -r $rid auth_port $unit) \
-          service_port=$(relation-get -r $rid service_port $unit) \
-          service_username=$(relation-get -r $rid service_username $unit) \
-          service_password=$(relation-get -r $rid service_password $unit) \
-          service_tenant=$(relation-get -r $rid service_tenant $unit)
-      fi
-    done
-  done
+
+  local sect="filter:authtoken"
+  keystone_host=$(local_config_get $API_CONF auth_host $sect)
+  if [ -n "$keystone_host" ]; then
+    relation-set \
+      keystone_host=$keystone_host \
+      auth_port=$(local_config_get $API_CONF auth_port $sect) \
+      service_port=$(local_config_get $API_CONF service_port $sect) \
+      service_username=$(local_config_get $API_CONF admin_user $sect) \
+      service_password=$(local_config_get $API_CONF admin_password $sect) \
+      service_tenant=$(local_config_get $API_CONF admin_tenant_name $sect) \
+      auth_uri=$(local_config_get $API_CONF auth_uri $sect)
+  fi
+
   if is_clustered; then
     quantum_host=$(config-get vip)
     quantum_port=19696
@@ -479,6 +483,7 @@ function quantum_joined() {
     quantum_host=$(unit-get private-address)
     quantum_port=9696
   fi
+
   relation-set quantum_host=$quantum_host \
                quantum_port=$quantum_port \
                quantum_plugin=$(config-get quantum-plugin) \
@@ -552,7 +557,7 @@ function ha_relation_changed() {
           quantum_admin_url="$quantum_url" \
           quantum_internal_url="$quantum_url"
       fi
-      
+
       if [[ -n "$(relation-ids nova-volume-service)" ]] ; then
         nova_vol_url="http://$address:18776/v1/\$(tenant_id)s"
         relation-set -r $r_id \
