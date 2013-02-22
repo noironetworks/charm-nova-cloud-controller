@@ -547,6 +547,7 @@ function ha_relation_changed() {
     https && local scheme="https" || local scheme="http"
     for r_id in `relation-ids identity-service`; do
       local address=$(config-get vip)
+      local region=$(config-get region)
       local nova_url="$scheme://$address:8774/v1.1/\$(tenant_id)s"
       local ec2_url="$scheme://$address:8773/services/Cloud"
       local s3_url="$scheme://$address:3333"
@@ -554,18 +555,22 @@ function ha_relation_changed() {
       local nova_vol_url="$scheme://$address:8776/v1/\$(tenant_id)s"
 
       relation-set -r $r_id \
+        nova_region="$region" \
         nova_public_url="$nova_url" \
         nova_admin_url="$nova_url" \
         nova_internal_url="$nova_url" \
+        ec2_region="$region" \
         ec2_public_url="$ec2_url" \
         ec2_admin_url="$ec2_url" \
         ec2_internal_url="$ec2_url" \
+        s3_region="$region" \
         s3_public_url="$s3_url" \
         s3_admin_url="$s3_url" \
         s3_internal_url="$s3_url"
 
       if [ "$(config-get network-manager)" == "Quantum" ]; then
         relation-set -r $r_id \
+          quantum_region="$region" \
           quantum_public_url="$quantum_url" \
           quantum_admin_url="$quantum_url" \
           quantum_internal_url="$quantum_url"
@@ -573,6 +578,7 @@ function ha_relation_changed() {
 
       if [[ -n "$(relation-ids nova-volume-service)" ]] ; then
         relation-set -r $r_id \
+          nova-volume_region="$region" \
           nova-volume_public_url="$nova_vol_url" \
           nova-volume_admin_url="$nova_vol_url" \
           nova-volume_internal_url="$nova_vol_url"
@@ -583,7 +589,7 @@ function ha_relation_changed() {
       # quantum API server
       for r_id in `relation-ids quantum-network-service`; do
         relation-set -r $r_id \
-          quantum_url="$quantum_url"
+          quantum_url="$quantum_url" region="$region"
       done
     fi
   fi
