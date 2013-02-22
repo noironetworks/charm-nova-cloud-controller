@@ -201,10 +201,11 @@ function keystone_joined {
     local host=$(unit-get private-address)
   https && local scheme="https" || local scheme="http"
 
-  nova_url="$scheme://$host:8774/v1.1/\$(tenant_id)s"
-  ec2_url="$scheme://$host:8773/services/Cloud"
-  s3_url="$scheme://$host:3333"
-  region="$(config-get region)"
+  local nova_url="$scheme://$host:8774/v1.1/\$(tenant_id)s"
+  local ec2_url="$scheme://$host:8773/services/Cloud"
+  local s3_url="$scheme://$host:3333"
+  local region="$(config-get region)"
+  local quantum_url="$scheme://$host:9696"
 
   # these are the default endpoints
   relation-set nova_service="nova" \
@@ -224,7 +225,6 @@ function keystone_joined {
     s3_internal_url="$s3_url"
 
   if [ "$(config-get network-manager)" == "Quantum" ]; then
-    quantum_url="$scheme://$host:$quantum_port"
     relation-set quantum_service="quantum" \
         quantum_region="$region" \
         quantum_public_url="$quantum_url" \
@@ -278,6 +278,7 @@ function keystone_changed {
   set_or_update "service_port" "$service_port" "$API_CONF"
   set_or_update "auth_host" "$auth_host" "$API_CONF"
   set_or_update "auth_port" "$auth_port" "$API_CONF"
+  # XXX http hard-coded
   set_or_update "auth_uri" "http://$service_host:$service_port/" "$API_CONF"
   set_or_update "admin_token" "$token" "$API_CONF"
   set_or_update "admin_tenant_name" "$service_tenant" "$API_CONF"
@@ -315,7 +316,7 @@ EOF
     # ripple out changes to identity to connected services
     # which use cloud-controller as source of information for
     # keystone
-    r_ids="$(relation-ids cloud-compute) $(relation-ids quantum-network-service)"
+    local r_ids="$(relation-ids cloud-compute) $(relation-ids quantum-network-service)"
     for id in $r_ids ; do
       relation-set -r $id \
         keystone_host=$auth_host \
@@ -324,7 +325,10 @@ EOF
         service_username=$service_username \
         service_password=$service_password \
         service_tenant=$service_tenant \
-        region=$region
+        region=$region \
+        # XXX http hard-coded
+        auth_uri="http://$service_host:$service_port/"
+
     done
   fi
   configure_https
@@ -381,8 +385,9 @@ volume_joined() {
 compute_joined() {
   local r_id="$1"
   [[ -n "$r_id" ]] && r_id="-r $r_id"
-  eligible_leader || return 0
+  eligible_leader 'res_nova_vip' || return 0
   relation-set $r_id network_manager=$(config-get network-manager)
+  # XXX Should point to VIP if clustered, or this may not even be needed.
   relation-set $r_id ec2_host=$(unit-get private-address)
 
   local sect="filter:authtoken"
@@ -398,14 +403,17 @@ compute_joined() {
         service_password=$(local_config_get $API_CONF admin_password $sect) \
         service_tenant=$(local_config_get $API_CONF admin_tenant_name $sect) \
         auth_uri=$(local_config_get $API_CONF auth_uri $sect)
-    fi
 
+    fi
     is_clustered && local host=$(config-get vip) ||
       local host=$(unit-get private-address)
     https && local scheme="https" || local scheme="http"
     local quantum_url="$scheme:$host:9696"
+
     relation-set $r_id quantum_url=$quantum_url \
-                 quantum_plugin=$(config-get quantum-plugin)
+                       quantum_plugin=$(config-get quantum-plugin) \
+                       region=$(config-get region)
+
   fi
 
   # must pass on the keystone CA certficiate, if it exists.
@@ -464,17 +472,15 @@ function quantum_joined() {
       auth_uri=$(local_config_get $API_CONF auth_uri $sect)
   fi
 
-  if is_clustered; then
-    quantum_host=$(config-get vip)
-    quantum_port=19696
-  else
-    quantum_host=$(unit-get private-address)
-    quantum_port=9696
-  fi
-  relation-set quantum_host=$quantum_host \
-               quantum_port=$quantum_port \
-               quantum_plugin=$(config-get quantum-plugin) \
-               region=$(config-get region)
+  is_clustered && local host=$(config-get vip) ||
+    local host=$(unit-get private-address)
+  https && local scheme="https" || local scheme="http"
+  local quantum_url="$scheme:$host:9696"
+
+  relation-set $r_id quantum_url=$quantum_url \
+                     quantum_plugin=$(config-get quantum-plugin) \
+                     region=$(config-get region)
+
 }
 
 function cluster_changed() {
@@ -540,10 +546,13 @@ function ha_relation_changed() {
   if [ -n "$clustered" ] && is_leader 'res_nova_vip'; then
     https && local scheme="https" || local scheme="http"
     for r_id in `relation-ids identity-service`; do
-      address=$(config-get vip)
-      nova_url="$scheme://$address:8774/v1.1/\$(tenant_id)s"
-      ec2_url="$scheme://$address:8773/services/Cloud"
-      s3_url="$scheme://$address:3333"
+      local address=$(config-get vip)
+      local nova_url="$scheme://$address:8774/v1.1/\$(tenant_id)s"
+      local ec2_url="$scheme://$address:8773/services/Cloud"
+      local s3_url="$scheme://$address:3333"
+      local quantum_url="$scheme://$address:9696"
+      local nova_vol_url="$scheme://$address:8776/v1/\$(tenant_id)s"
+
       relation-set -r $r_id \
         nova_public_url="$nova_url" \
         nova_admin_url="$nova_url" \
@@ -556,7 +565,6 @@ function ha_relation_changed() {
         s3_internal_url="$s3_url"
 
       if [ "$(config-get network-manager)" == "Quantum" ]; then
-        quantum_url="$scheme://$address:9696"
         relation-set -r $r_id \
           quantum_public_url="$quantum_url" \
           quantum_admin_url="$quantum_url" \
@@ -564,7 +572,6 @@ function ha_relation_changed() {
       fi
 
       if [[ -n "$(relation-ids nova-volume-service)" ]] ; then
-        nova_vol_url="$scheme://$address:8776/v1/\$(tenant_id)s"
         relation-set -r $r_id \
           nova-volume_public_url="$nova_vol_url" \
           nova-volume_admin_url="$nova_vol_url" \
@@ -572,12 +579,11 @@ function ha_relation_changed() {
       fi
     done
     if [ "$(config-get network-manager)" == "Quantum" ]; then
-      # Let gateway nodes use the new HA address for the 
+      # Let gateway nodes use the new HA address for the
       # quantum API server
       for r_id in `relation-ids quantum-network-service`; do
         relation-set -r $r_id \
-          quantum_host=$address
-          quantum_port=9696
+          quantum_url="$quantum_url"
       done
     fi
   fi

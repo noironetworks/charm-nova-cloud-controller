@@ -494,11 +494,11 @@ is_leader() {
   hostname=`hostname`
   if [ -x /usr/sbin/crm ]; then
     if crm resource show $1 | grep -q $hostname; then
-      juju-log "$hostname is cluster leader"
+      juju-log "$hostname is cluster leader."
       return 0
     fi
   fi
-  juju-log "$hostname is not cluster leader"
+  juju-log "$hostname is not cluster leader."
   return 1
 }
 
