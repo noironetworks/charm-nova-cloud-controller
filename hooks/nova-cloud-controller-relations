@@ -385,22 +385,6 @@ compute_joined() {
   relation-set $r_id network_manager=$(config-get network-manager)
   relation-set $r_id ec2_host=$(unit-get private-address)
 
-  # Fish out keystone data to be passed onto compute, needed for
-  # quantum + https.
-  local rid=""
-  for rid in $(relation-ids identity-service) ; do
-    for unit in $(relation-list -r $rid); do
-      local keystone_host=$(relation-get -r $rid auth_host $unit)
-      local auth_port=$(relation-get -r $rid auth_port $unit)
-      local service_port=$(relation-get -r $rid service_port $unit)
-      local service_username=$(relation-get -r $rid service_username $unit)
-      local service_password=$(relation-get -r $rid service_password $unit)
-      local service_tenant=$(relation-get -r $rid service_tenant $unit)
-      local https_keystone=$(relation-get -r $rid https_keystone $unit)
-      local ca_cert=$(relation-get -r $rid ca_cert $unit)
-   done
-  done
-
   local sect="filter:authtoken"
   keystone_host=$(local_config_get $API_CONF auth_host $sect)
 
