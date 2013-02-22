@@ -401,15 +401,19 @@ compute_joined() {
    done
   done
 
+  local sect="filter:authtoken"
+  keystone_host=$(local_config_get $API_CONF auth_host $sect)
+
   if [ "$NET_MANAGER" == "Quantum" ]; then
     if [[ -n "$keystone_host" ]]; then
       relation-set $r_id \
         keystone_host=$keystone_host \
-        auth_port=$auth_port \
-        service_port=$service_port \
-        service_username=$service_username \
-        service_password=$service_password \
-        service_tenant=$service_tenant
+        auth_port=$(local_config_get $API_CONF auth_port $sect) \
+        service_port=$(local_config_get $API_CONF service_port $sect) \
+        service_username=$(local_config_get $API_CONF admin_user $sect) \
+        service_password=$(local_config_get $API_CONF admin_password $sect) \
+        service_tenant=$(local_config_get $API_CONF admin_tenant_name $sect) \
+        auth_uri=$(local_config_get $API_CONF auth_uri $sect)
     fi
 
     is_clustered && local host=$(config-get vip) ||
@@ -421,8 +425,12 @@ compute_joined() {
   fi
 
   # must pass on the keystone CA certficiate, if it exists.
-  if [[ -n "$keystone_host" ]] && [[ -n "$https_keystone" ]] ; then
-    relation-set $r_id https_keystone="True" ca_cert="$ca_cert"
+  cert="/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt"
+  if [[ -n "$keystone_host" ]] &&
+     [[ -e $cert ]] ;
+     then
+    cert=$(cat $cert | base64)
+    relation-set $r_id ca_cert="$cert"
   fi
 
   # volume driver is dependent on os version, or presence
@@ -458,21 +466,20 @@ compute_departed() {
 function quantum_joined() {
   # Tell quantum service about keystone
   eligible_leader || return 0
-  rids=$(relation-ids identity-service)
-  for rid in $rids; do
-    for unit in $(relation-list -r $rid); do
-      keystone_host=$(relation-get -r $rid auth_host $unit)
-      if [ -n "$keystone_host" ]; then
-        relation-set \
-          keystone_host=$keystone_host \
-          auth_port=$(relation-get -r $rid auth_port $unit) \
-          service_port=$(relation-get -r $rid service_port $unit) \
-          service_username=$(relation-get -r $rid service_username $unit) \
-          service_password=$(relation-get -r $rid service_password $unit) \
-          service_tenant=$(relation-get -r $rid service_tenant $unit)
-      fi
-    done
-  done
+
+  local sect="filter:authtoken"
+  keystone_host=$(local_config_get $API_CONF auth_host $sect)
+  if [ -n "$keystone_host" ]; then
+    relation-set \
+      keystone_host=$keystone_host \
+      auth_port=$(local_config_get $API_CONF auth_port $sect) \
+      service_port=$(local_config_get $API_CONF service_port $sect) \
+      service_username=$(local_config_get $API_CONF admin_user $sect) \
+      service_password=$(local_config_get $API_CONF admin_password $sect) \
+      service_tenant=$(local_config_get $API_CONF admin_tenant_name $sect) \
+      auth_uri=$(local_config_get $API_CONF auth_uri $sect)
+  fi
+
   if is_clustered; then
     quantum_host=$(config-get vip)
     quantum_port=19696
