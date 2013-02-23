@@ -273,6 +273,10 @@ function keystone_changed {
     sed -i '/--use_deprecated_auth/d' $NOVA_CONF
   fi
 
+  is_clustered && local host=$(config-get vip) ||
+    local host=$(unit-get private-address)
+  https && local scheme="https" || local scheme="http"
+
   # update keystone authtoken settings accordingly
   set_or_update "service_host" "$service_host" "$API_CONF"
   set_or_update "service_port" "$service_port" "$API_CONF"
@@ -288,7 +292,7 @@ function keystone_changed {
   if [ "$NET_MANAGER" == "Quantum" ]; then
     # Configure Nova for quantum
     keystone_url="http://${auth_host}:${auth_port}/v2.0"
-    set_or_update "quantum_url" "http://$(unit-get private-address):9696"
+    set_or_update "quantum_url" "$scheme://$host:9696"
     set_or_update "quantum_admin_tenant_name" "${service_tenant}"
     set_or_update "quantum_admin_username" "${service_username}"
     set_or_update "quantum_admin_password" "${service_password}"
@@ -500,7 +504,12 @@ function cluster_changed() {
     local next_server="$(determine_haproxy_port $port)"
     local api_port="$(determine_api_port $port)"
     local haproxy_port_maps="$haproxy_port_maps $service:$next_server:$api_port"
-    set_or_update "$opt" "$api_port"
+    if [[ "$service" == "quantum-server" ]] ; then
+      set_or_update "$opt" "$api_port" "$QUANTUM_CONF"
+    else
+      set_or_update "$opt" "$api_port"
+    fi
+
     service_ctl $service restart
   done
   configure_haproxy $haproxy_port_maps

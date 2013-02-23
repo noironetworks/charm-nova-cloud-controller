@@ -250,7 +250,11 @@ configure_https() {
       api_port="$(determine_api_port $port)"
       next_server="$api_port"
     fi
-    set_or_update "$opt" "$api_port"
+    if [[ "$service" == "quantum-server" ]] ; then
+      set_or_update "$opt" "$api_port" "$QUANTUM_CONF"
+    else
+      set_or_update "$opt" "$api_port"
+    fi
     ssl_port_maps="$ssl_port_maps $port:$next_server"
   done
 
