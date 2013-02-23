@@ -479,7 +479,7 @@ function quantum_joined() {
   is_clustered && local host=$(config-get vip) ||
     local host=$(unit-get private-address)
   https && local scheme="https" || local scheme="http"
-  local quantum_url="$scheme:$host:9696"
+  local quantum_url="$scheme://$host:9696"
 
   relation-set $r_id quantum_url=$quantum_url \
                      quantum_plugin=$(config-get quantum-plugin) \
