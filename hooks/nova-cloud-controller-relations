@@ -555,14 +555,17 @@ function ha_relation_changed() {
       local nova_vol_url="$scheme://$address:8776/v1/\$(tenant_id)s"
 
       relation-set -r $r_id \
+        nova_service="nova" \
         nova_region="$region" \
         nova_public_url="$nova_url" \
         nova_admin_url="$nova_url" \
         nova_internal_url="$nova_url" \
+        ec2_service="ec2" \
         ec2_region="$region" \
         ec2_public_url="$ec2_url" \
         ec2_admin_url="$ec2_url" \
         ec2_internal_url="$ec2_url" \
+        s3_service="s3" \
         s3_region="$region" \
         s3_public_url="$s3_url" \
         s3_admin_url="$s3_url" \
@@ -570,6 +573,7 @@ function ha_relation_changed() {
 
       if [ "$(config-get network-manager)" == "Quantum" ]; then
         relation-set -r $r_id \
+          quantum_service="quantum" \
           quantum_region="$region" \
           quantum_public_url="$quantum_url" \
           quantum_admin_url="$quantum_url" \
@@ -578,6 +582,7 @@ function ha_relation_changed() {
 
       if [[ -n "$(relation-ids nova-volume-service)" ]] ; then
         relation-set -r $r_id \
+          nova-volume_service="nova-volume" \
           nova-volume_region="$region" \
           nova-volume_public_url="$nova_vol_url" \
           nova-volume_admin_url="$nova_vol_url" \
