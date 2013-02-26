@@ -460,11 +460,13 @@ compute_departed() {
 function quantum_joined() {
   # Tell quantum service about keystone
   eligible_leader || return 0
+  local r_id="$1"
+  [[ -n "$r_id" ]] && r_id="-r $r_id"
 
   local sect="filter:authtoken"
   keystone_host=$(local_config_get $API_CONF auth_host $sect)
   if [ -n "$keystone_host" ]; then
-    relation-set \
+    relation-set $r_id \
       keystone_host=$keystone_host \
       auth_port=$(local_config_get $API_CONF auth_port $sect) \
       service_port=$(local_config_get $API_CONF service_port $sect) \
@@ -478,7 +480,7 @@ function quantum_joined() {
   cert="/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt"
   if [[ -n "$keystone_host" ]] && [[ -e $cert ]] ; then
     cert=$(cat $cert | base64)
-    relation-set ca_cert="$cert"
+    relation-set $r_id ca_cert="$cert"
   fi
 
   is_clustered && local host=$(config-get vip) ||
@@ -486,9 +488,9 @@ function quantum_joined() {
   https && local scheme="https" || local scheme="http"
   local quantum_url="$scheme://$host:9696"
 
-  relation-set quantum_url=$quantum_url \
-               quantum_plugin=$(config-get quantum-plugin) \
-               region=$(config-get region)
+  relation-set $r_id quantum_url=$quantum_url \
+                     quantum_plugin=$(config-get quantum-plugin) \
+                     region=$(config-get region)
 
 }
 

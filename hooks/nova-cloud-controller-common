@@ -284,4 +284,8 @@ configure_https() {
   for r_id in $(relation-ids cloud-compute) ; do
     compute_joined "$r_id"
   done
+  # update the quantum relation, as well.
+  for r_id in $(relation-ids quantum-network-service) ; do
+    quantum_joined "$r_id"
+  done
 }
