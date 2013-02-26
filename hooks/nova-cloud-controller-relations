@@ -422,9 +422,7 @@ compute_joined() {
 
   # must pass on the keystone CA certficiate, if it exists.
   cert="/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt"
-  if [[ -n "$keystone_host" ]] &&
-     [[ -e $cert ]] ;
-     then
+  if [[ -n "$keystone_host" ]] && [[ -e $cert ]] ; then
     cert=$(cat $cert | base64)
     relation-set $r_id ca_cert="$cert"
   fi
@@ -476,14 +474,21 @@ function quantum_joined() {
       auth_uri=$(local_config_get $API_CONF auth_uri $sect)
   fi
 
+  # must pass on the keystone CA certficiate, if it exists.
+  cert="/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt"
+  if [[ -n "$keystone_host" ]] && [[ -e $cert ]] ; then
+    cert=$(cat $cert | base64)
+    relation-set ca_cert="$cert"
+  fi
+
   is_clustered && local host=$(config-get vip) ||
     local host=$(unit-get private-address)
   https && local scheme="https" || local scheme="http"
   local quantum_url="$scheme://$host:9696"
 
-  relation-set $r_id quantum_url=$quantum_url \
-                     quantum_plugin=$(config-get quantum-plugin) \
-                     region=$(config-get region)
+  relation-set quantum_url=$quantum_url \
+               quantum_plugin=$(config-get quantum-plugin) \
+               region=$(config-get region)
 
 }
 
