@@ -543,7 +543,7 @@ function ha_relation_joined() {
     relation-set corosync_bindiface=$corosync_bindiface \
       corosync_mcastport=$corosync_mcastport \
       resources="$resources" resource_params="$resource_params" \
-      init_services="$init_services" clones="$groups"
+      init_services="$init_services" clones="$clones"
   else
     juju-log "Insufficient configuration data to configure hacluster"
     exit 1
