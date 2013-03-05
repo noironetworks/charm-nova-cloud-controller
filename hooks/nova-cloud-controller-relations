@@ -77,6 +77,17 @@ function config_changed {
 
   determine_services
   service_ctl all restart
+
+  # Save our scriptrc env variables for health checks
+  declare -a env_vars=(
+      "OPENSTACK_PORT_MCASTPORT=$(config-get ha-mcastport)"
+      'OPENSTACK_SERVICE_API_EC2=nova-api-ec2'
+      'OPENSTACK_SERVICE_API_OS_COMPUTE=nova-api-os-compute'
+      'OPENSTACK_SERVICE_CERT=nova-cert'
+      'OPENSTACK_SERVICE_CONDUCTOR=nova-conductor'
+      'OPENSTACK_SERVICE_OBJECTSTORE=nova-objectstore'
+      'OPENSTACK_SERVICE_SCHEDULER=nova-scheduler'
+  save_script_rc ${env_vars[@]}
 }
 
 function amqp_joined {
