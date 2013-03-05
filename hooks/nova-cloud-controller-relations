@@ -86,7 +86,7 @@ function config_changed {
       'OPENSTACK_SERVICE_CERT=nova-cert'
       'OPENSTACK_SERVICE_CONDUCTOR=nova-conductor'
       'OPENSTACK_SERVICE_OBJECTSTORE=nova-objectstore'
-      'OPENSTACK_SERVICE_SCHEDULER=nova-scheduler'
+      'OPENSTACK_SERVICE_SCHEDULER=nova-scheduler')
   save_script_rc ${env_vars[@]}
 }
 
