@@ -368,7 +368,8 @@ EOF
   # if this changed event happens as a result of clustered VIP
   # reconfigure, configure_https needs to update VIP certificate
   # before quantumclient is used.
-  [[ -n "$clustered" ]] && configure_quantum_networking
+  [[ "$NET_MANAGER" == "Quantum" ]] && [[ -n "$clustered" ]] &&
+    eligible_leader 'res_nova_vip' && configure_quantum_networking
 }
 
 volume_joined() {
