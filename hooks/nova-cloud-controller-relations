@@ -133,6 +133,12 @@ function amqp_changed {
   fi
 
   determine_services && service_ctl all restart
+
+  if [ "$NET_MANAGER" == "Quantum" ] && \
+     eligible_leader 'res_nova_vip' || \
+     ! is_clustered; then
+    configure_quantum_networking
+  fi
 }
 
 function db_joined {
@@ -176,9 +182,13 @@ function db_changed {
   eligible_leader 'res_nova_vip' && /usr/bin/nova-manage db sync
 
   service_ctl all start
-  if [ "$NET_MANAGER" == "Quantum" ]; then
+
+  if [ "$NET_MANAGER" == "Quantum" ] && \
+     eligible_leader 'res_nova_vip' || \
+     ! is_clustered; then
     configure_quantum_networking
   fi
+
   trigger_remote_service_restarts
 }
 

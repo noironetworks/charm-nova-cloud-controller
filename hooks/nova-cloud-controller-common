@@ -97,6 +97,7 @@ function configure_quantum_networking {
   if [ "$(config-get conf-ext-net)" != "no" ] &&
      [ "$QUANTUM_PLUGIN" == "ovs" ] &&
      [ -f /etc/quantum/novarc ] &&
+     [ -n "$(relation-ids amqp)" ] &&
      [ -n "$(relation-ids shared-db)" ]; then
     juju-log "Configuring external networking for quantum"
     # Use helper to create external network gateway
