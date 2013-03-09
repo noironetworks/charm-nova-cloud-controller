@@ -296,7 +296,10 @@ function keystone_changed {
     sed -i '/--use_deprecated_auth/d' $NOVA_CONF
   fi
 
-  is_clustered && local host=$(config-get vip) ||
+  local clustered=""
+  is_clustered && clustered="1"
+
+  [[ -n "$clustered" ]]  && local host=$(config-get vip) ||
     local host=$(unit-get private-address)
   https && local scheme="https" || local scheme="http"
 
@@ -339,7 +342,9 @@ EOF
   determine_services && service_ctl all restart
 
   if [ "$NET_MANAGER" == "Quantum" ]; then
-    configure_quantum_networking
+    # if first time here, config quantum before setting up
+    # https.
+    [[ -z "$clustered" ]] && configure_quantum_networking
     # ripple out changes to identity to connected services
     # which use cloud-controller as source of information for
     # keystone
@@ -359,6 +364,11 @@ EOF
     done
   fi
   configure_https
+
+  # if this changed event happens as a result of clustered VIP
+  # reconfigure, configure_https needs to update VIP certificate
+  # before quantumclient is used.
+  [[ -n "$clustered" ]] && configure_quantum_networking
 }
 
 volume_joined() {
