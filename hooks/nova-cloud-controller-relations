@@ -210,18 +210,25 @@ function keystone_joined {
   is_clustered && local host=$(config-get vip) ||
     local host=$(unit-get private-address)
 
-  # determine https status based only on config at this point,
-  # insepcting KS relation is not reliable.  if KS has mulitple
-  # units, multiple relation-joineds are fired, resulting in the
-  # endpoint being configured in catalog as https before https
-  # is actually setup on this end. ends with failure to configure
-  # quantum network, if its enabled.
-  # if specified in config, https will have already been setup in
-  # install or config-changed.
-  local scheme="http"
-  if [[ -n "$(config-get ssl_cert)" ]] &&
-     [[ -n "$(config-get ssl_key)" ]] ; then
-    scheme="https"
+  if [[ "$arg0" == "identity-service-relation-joined" ]] ; then
+    # determine https status based only on config at this point,
+    # insepcting KS relation is not reliable.  if KS has mulitple
+    # units, multiple relation-joineds are fired, resulting in the
+    # endpoint being configured in catalog as https before https
+    # is actually setup on this end. ends with failure to configure
+    # quantum network, if its enabled.
+    # if specified in config, https will have already been setup in
+    # install or config-changed.
+    if [[ -n "$(config-get ssl_cert)" ]] &&
+       [[ -n "$(config-get ssl_key)" ]] ; then
+      local scheme="https"
+    else
+      local scheme="http"
+    fi
+  else
+    # this function is called from other hook contexts, use normal method
+    # for determining https
+    https && scheme="https" || scheme="http"
   fi
 
   local nova_url="$scheme://$host:8774/v1.1/\$(tenant_id)s"
