@@ -344,7 +344,7 @@ EOF
   if [ "$NET_MANAGER" == "Quantum" ]; then
     # if first time here, config quantum before setting up
     # https.
-    [[ -z "$clustered" ]] && configure_quantum_networking
+    [[ -z "$clustered" ]] && eligible_leader && configure_quantum_networking
     # ripple out changes to identity to connected services
     # which use cloud-controller as source of information for
     # keystone
