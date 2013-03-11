@@ -44,6 +44,7 @@ function install_hook {
   cp files/create_tenant_net.py /usr/bin/quantum-tenant-net
 
   service_ctl all stop
+  configure_https
 }
 
 function upgrade_charm {
@@ -70,13 +71,14 @@ function config_changed {
   set_config_flags
 
   if [ "$NET_MANAGER" == "Quantum" ] && \
-     is_clustered && is_leader 'res_nova_vip' || \
+     eligible_leader 'res_nova_vip' || \
      ! is_clustered; then
     configure_quantum_networking
   fi
 
   determine_services
   service_ctl all restart
+  configure_https
 }
 
 function amqp_joined {
@@ -131,6 +133,12 @@ function amqp_changed {
   fi
 
   determine_services && service_ctl all restart
+
+  if [ "$NET_MANAGER" == "Quantum" ] && \
+     eligible_leader 'res_nova_vip' || \
+     ! is_clustered; then
+    configure_quantum_networking
+  fi
 }
 
 function db_joined {
@@ -170,11 +178,17 @@ function db_changed {
   fi
   determine_services
   service_ctl all stop
-  /usr/bin/nova-manage db sync
+
+  eligible_leader 'res_nova_vip' && /usr/bin/nova-manage db sync
+
   service_ctl all start
-  if [ "$NET_MANAGER" == "Quantum" ]; then
+
+  if [ "$NET_MANAGER" == "Quantum" ] && \
+     eligible_leader 'res_nova_vip' || \
+     ! is_clustered; then
     configure_quantum_networking
   fi
+
   trigger_remote_service_restarts
 }
 
@@ -191,28 +205,37 @@ function keystone_joined {
   # we need to get two entries into keystone's catalog, nova + ec2
   # group, them by prepending $service_ to each setting. the keystone
   # charm will assemble settings into corresponding catalog entries
-  if is_clustered && is_leader 'res_nova_vip'; then
-    address=$(config-get vip)
-    nova_port=18774
-    ec2_port=18773
-    s3_port=13333
-    quantum_port=19696
-    vol_port=18776
-  elif ! is_clustered; then
-    address=$(unit-get private-address)
-    nova_port=8774
-    ec2_port=8773
-    s3_port=3333
-    quantum_port=9696
-    vol_port=8776
+  eligible_leader 'res_nova_vip' || return 0
+
+  is_clustered && local host=$(config-get vip) ||
+    local host=$(unit-get private-address)
+
+  if [[ "$arg0" == "identity-service-relation-joined" ]] ; then
+    # determine https status based only on config at this point,
+    # insepcting KS relation is not reliable.  if KS has mulitple
+    # units, multiple relation-joineds are fired, resulting in the
+    # endpoint being configured in catalog as https before https
+    # is actually setup on this end. ends with failure to configure
+    # quantum network, if its enabled.
+    # if specified in config, https will have already been setup in
+    # install or config-changed.
+    if [[ -n "$(config-get ssl_cert)" ]] &&
+       [[ -n "$(config-get ssl_key)" ]] ; then
+      local scheme="https"
+    else
+      local scheme="http"
+    fi
   else
-    # Not the leader and clustered - no action required
-    return 0
+    # this function is called from other hook contexts, use normal method
+    # for determining https
+    https && scheme="https" || scheme="http"
   fi
-  nova_url="http://$address:$nova_port/v1.1/\$(tenant_id)s"
-  ec2_url="http://$address:$ec2_port/services/Cloud"
-  s3_url="http://$address:$s3_port"
-  region="$(config-get region)"
+
+  local nova_url="$scheme://$host:8774/v1.1/\$(tenant_id)s"
+  local ec2_url="$scheme://$host:8773/services/Cloud"
+  local s3_url="$scheme://$host:3333"
+  local region="$(config-get region)"
+  local quantum_url="$scheme://$host:9696"
 
   # these are the default endpoints
   relation-set nova_service="nova" \
@@ -232,7 +255,6 @@ function keystone_joined {
     s3_internal_url="$s3_url"
 
   if [ "$(config-get network-manager)" == "Quantum" ]; then
-    quantum_url="http://$address:$quantum_port"
     relation-set quantum_service="quantum" \
         quantum_region="$region" \
         quantum_public_url="$quantum_url" \
@@ -242,7 +264,7 @@ function keystone_joined {
 
   # tack on an endpoint for nova-volume a relation exists.
   if [[ -n "$(relation-ids nova-volume-service)" ]] ; then
-    nova_vol_url="http://$address:$vol_port/v1/\$(tenant_id)s"
+    nova_vol_url="$scheme://$host:$vol_port/v1/\$(tenant_id)s"
     relation-set nova-volume_service="nova-volume" \
       nova-volume_region="$region" \
       nova-volume_public_url="$nova_vol_url" \
@@ -281,6 +303,13 @@ function keystone_changed {
     sed -i '/--use_deprecated_auth/d' $NOVA_CONF
   fi
 
+  local clustered=""
+  is_clustered && clustered="1"
+
+  [[ -n "$clustered" ]]  && local host=$(config-get vip) ||
+    local host=$(unit-get private-address)
+  https && local scheme="https" || local scheme="http"
+
   # update keystone authtoken settings accordingly
   set_or_update "service_host" "$service_host" "$API_CONF"
   set_or_update "service_port" "$service_port" "$API_CONF"
@@ -296,7 +325,7 @@ function keystone_changed {
   if [ "$NET_MANAGER" == "Quantum" ]; then
     # Configure Nova for quantum
     keystone_url="http://${auth_host}:${auth_port}/v2.0"
-    set_or_update "quantum_url" "http://$(unit-get private-address):9696"
+    set_or_update "quantum_url" "$scheme://$host:9696"
     set_or_update "quantum_admin_tenant_name" "${service_tenant}"
     set_or_update "quantum_admin_username" "${service_username}"
     set_or_update "quantum_admin_password" "${service_password}"
@@ -320,11 +349,15 @@ EOF
   determine_services && service_ctl all restart
 
   if [ "$NET_MANAGER" == "Quantum" ]; then
-    configure_quantum_networking
+    # if first time here, config quantum before setting up
+    # https.
+    if [[ -z "$clustered" ]] && eligible_leader ; then
+      configure_quantum_networking
+    fi
     # ripple out changes to identity to connected services
     # which use cloud-controller as source of information for
     # keystone
-    r_ids="$(relation-ids cloud-compute) $(relation-ids quantum-network-service)"
+    local r_ids="$(relation-ids cloud-compute) $(relation-ids quantum-network-service)"
     for id in $r_ids ; do
       relation-set -r $id \
         keystone_host=$auth_host \
@@ -338,6 +371,15 @@ EOF
         auth_uri="http://$service_host:$service_port/"
 
     done
+  fi
+  configure_https
+
+  # if this changed event happens as a result of clustered VIP
+  # reconfigure, configure_https needs to update VIP certificate
+  # before quantumclient is used.
+  if [[ "$NET_MANAGER" == "Quantum" ]] &&
+     [[ -n "$clustered" ]] && eligible_leader 'res_nova_vip' ; then
+      configure_quantum_networking
   fi
 }
 
@@ -390,19 +432,19 @@ volume_joined() {
 }
 
 compute_joined() {
-  if is_clustered && ! is_leader 'res_nova_vip'; then
-    # Clustered and not current leader - do nothing
-    return 0
-  fi
-
-  relation-set network_manager=$(config-get network-manager)
-  relation-set ec2_host=$(unit-get private-address)
+  local r_id="$1"
+  [[ -n "$r_id" ]] && r_id="-r $r_id"
+  eligible_leader 'res_nova_vip' || return 0
+  relation-set $r_id network_manager=$(config-get network-manager)
+  # XXX Should point to VIP if clustered, or this may not even be needed.
+  relation-set $r_id ec2_host=$(unit-get private-address)
 
   local sect="filter:authtoken"
   keystone_host=$(local_config_get $API_CONF auth_host $sect)
+
   if [ "$NET_MANAGER" == "Quantum" ]; then
-    if [ -n "$keystone_host" ]; then
-      relation-set \
+    if [[ -n "$keystone_host" ]]; then
+      relation-set $r_id \
         keystone_host=$keystone_host \
         auth_port=$(local_config_get $API_CONF auth_port $sect) \
         service_port=$(local_config_get $API_CONF service_port $sect) \
@@ -410,19 +452,24 @@ compute_joined() {
         service_password=$(local_config_get $API_CONF admin_password $sect) \
         service_tenant=$(local_config_get $API_CONF admin_tenant_name $sect) \
         auth_uri=$(local_config_get $API_CONF auth_uri $sect)
-    fi
 
-    if is_clustered; then
-      quantum_host=$(config-get vip)
-      quantum_port=19696
-    else
-      quantum_host=$(unit-get private-address)
-      quantum_port=9696
     fi
+    is_clustered && local host=$(config-get vip) ||
+      local host=$(unit-get private-address)
+    https && local scheme="https" || local scheme="http"
+    local quantum_url="$scheme://$host:9696"
 
-    relation-set quantum_host=$quantum_host \
-                 quantum_port=$quantum_port \
-                 quantum_plugin=$(config-get quantum-plugin)
+    relation-set $r_id quantum_url=$quantum_url \
+                       quantum_plugin=$(config-get quantum-plugin) \
+                       region=$(config-get region)
+
+  fi
+
+  # must pass on the keystone CA certficiate, if it exists.
+  cert="/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt"
+  if [[ -n "$keystone_host" ]] && [[ -e $cert ]] ; then
+    cert=$(cat $cert | base64)
+    relation-set $r_id ca_cert="$cert"
   fi
 
   # volume driver is dependent on os version, or presence
@@ -434,11 +481,10 @@ compute_joined() {
       vol_drv="nova-volume"
       ;;
     "folsom")
-      local r_ids=$(relation-ids cinder-volume-service)
-      [[ -z "$r_ids" ]] && vol_drv="nova-volume"
+      [[ -z "$(relation-ids cinder-volume-service)" ]] && vol_drv="nova-volume"
       ;;
   esac
-  relation-set volume_service="$vol_drv"
+  relation-set $r_id volume_service="$vol_drv"
 }
 
 compute_changed() {
@@ -458,15 +504,14 @@ compute_departed() {
 
 function quantum_joined() {
   # Tell quantum service about keystone
-  if is_clustered && ! is_leader 'res_nova_vip'; then
-    # Clustered and not current leader - do nothing
-    return 0
-  fi
+  eligible_leader || return 0
+  local r_id="$1"
+  [[ -n "$r_id" ]] && r_id="-r $r_id"
 
   local sect="filter:authtoken"
   keystone_host=$(local_config_get $API_CONF auth_host $sect)
   if [ -n "$keystone_host" ]; then
-    relation-set \
+    relation-set $r_id \
       keystone_host=$keystone_host \
       auth_port=$(local_config_get $API_CONF auth_port $sect) \
       service_port=$(local_config_get $API_CONF service_port $sect) \
@@ -476,24 +521,51 @@ function quantum_joined() {
       auth_uri=$(local_config_get $API_CONF auth_uri $sect)
   fi
 
-  if is_clustered; then
-    quantum_host=$(config-get vip)
-    quantum_port=19696
-  else
-    quantum_host=$(unit-get private-address)
-    quantum_port=9696
+  # must pass on the keystone CA certficiate, if it exists.
+  cert="/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt"
+  if [[ -n "$keystone_host" ]] && [[ -e $cert ]] ; then
+    cert=$(cat $cert | base64)
+    relation-set $r_id ca_cert="$cert"
   fi
 
-  relation-set quantum_host=$quantum_host \
-               quantum_port=$quantum_port \
-               quantum_plugin=$(config-get quantum-plugin) \
-               region=$(config-get region)
+  is_clustered && local host=$(config-get vip) ||
+    local host=$(unit-get private-address)
+  https && local scheme="https" || local scheme="http"
+  local quantum_url="$scheme://$host:9696"
+
+  relation-set $r_id quantum_host="$host" quantum_port="9696" \
+                     quantum_url=$quantum_url \
+                     quantum_plugin=$(config-get quantum-plugin) \
+                     region=$(config-get region)
+
 }
 
 function cluster_changed() {
-  configure_haproxy "quantum_api:9696" "nova_api:8774" \
-                    "ec2_api:8773" "s3_api:3333" \
-                    "volume_api:8776"
+  [[ -z "$(peer_units)" ]] &&
+    juju-log "cluster_changed() with no peers." && exit 0
+  # upstartService:defaultPort:configOption
+  local svcs="nova-api-ec2:8773:ec2_listen_port
+              nova-api-os-compute:8774:osapi_compute_listen_port
+              nova-objectstore:3333:s3_listen_port"
+  [[ "$NET_MANAGER" == "Quantum" ]] &&
+    svcs="$svcs quantum-server:9696:bind_port"
+
+  for s in $svcs ; do
+    local service=$(echo $s | cut -d: -f1)
+    local port=$(echo $s | cut -d: -f2)
+    local opt=$(echo $s | cut -d: -f3)
+    local next_server="$(determine_haproxy_port $port)"
+    local api_port="$(determine_api_port $port)"
+    local haproxy_port_maps="$haproxy_port_maps $service:$next_server:$api_port"
+    if [[ "$service" == "quantum-server" ]] ; then
+      set_or_update "$opt" "$api_port" "$QUANTUM_CONF"
+    else
+      set_or_update "$opt" "$api_port"
+    fi
+
+    service_ctl $service restart
+  done
+  configure_haproxy $haproxy_port_maps
 }
 
 function ha_relation_joined() {
@@ -518,13 +590,13 @@ function ha_relation_joined() {
     init_services="{
 'res_nova_haproxy':'haproxy'
 }"
-    groups="{
-'grp_nova_haproxy':'res_nova_vip res_nova_haproxy'
+    clones="{
+'cl_nova_haproxy':'res_nova_haproxy'
 }"
     relation-set corosync_bindiface=$corosync_bindiface \
       corosync_mcastport=$corosync_mcastport \
       resources="$resources" resource_params="$resource_params" \
-      init_services="$init_services" groups="$groups"
+      init_services="$init_services" clones="$clones"
   else
     juju-log "Insufficient configuration data to configure hacluster"
     exit 1
@@ -534,45 +606,58 @@ function ha_relation_joined() {
 function ha_relation_changed() {
   local clustered=`relation-get clustered`
   if [ -n "$clustered" ] && is_leader 'res_nova_vip'; then
+    https && local scheme="https" || local scheme="http"
     for r_id in `relation-ids identity-service`; do
-      address=$(config-get vip)
-      nova_url="http://$address:18774/v1.1/\$(tenant_id)s"
-      ec2_url="http://$address:18773/services/Cloud"
-      s3_url="http://$address:13333"
+      local address=$(config-get vip)
+      local region=$(config-get region)
+      local nova_url="$scheme://$address:8774/v1.1/\$(tenant_id)s"
+      local ec2_url="$scheme://$address:8773/services/Cloud"
+      local s3_url="$scheme://$address:3333"
+      local quantum_url="$scheme://$address:9696"
+      local nova_vol_url="$scheme://$address:8776/v1/\$(tenant_id)s"
+
       relation-set -r $r_id \
+        nova_service="nova" \
+        nova_region="$region" \
         nova_public_url="$nova_url" \
         nova_admin_url="$nova_url" \
         nova_internal_url="$nova_url" \
+        ec2_service="ec2" \
+        ec2_region="$region" \
         ec2_public_url="$ec2_url" \
         ec2_admin_url="$ec2_url" \
         ec2_internal_url="$ec2_url" \
+        s3_service="s3" \
+        s3_region="$region" \
         s3_public_url="$s3_url" \
         s3_admin_url="$s3_url" \
         s3_internal_url="$s3_url"
 
       if [ "$(config-get network-manager)" == "Quantum" ]; then
-        quantum_url="http://$address:19696"
         relation-set -r $r_id \
+          quantum_service="quantum" \
+          quantum_region="$region" \
           quantum_public_url="$quantum_url" \
           quantum_admin_url="$quantum_url" \
           quantum_internal_url="$quantum_url"
       fi
 
       if [[ -n "$(relation-ids nova-volume-service)" ]] ; then
-        nova_vol_url="http://$address:18776/v1/\$(tenant_id)s"
         relation-set -r $r_id \
+          nova-volume_service="nova-volume" \
+          nova-volume_region="$region" \
           nova-volume_public_url="$nova_vol_url" \
           nova-volume_admin_url="$nova_vol_url" \
           nova-volume_internal_url="$nova_vol_url"
       fi
     done
     if [ "$(config-get network-manager)" == "Quantum" ]; then
-      # Let gateway nodes use the new HA address for the 
+      # Let gateway nodes use the new HA address for the
       # quantum API server
       for r_id in `relation-ids quantum-network-service`; do
         relation-set -r $r_id \
-          quantum_host=$address
-          quantum_port=19696
+          quantum_host="$address" quantum_port="9696" \
+          quantum_url="$quantum_url" region="$region"
       done
     fi
   fi
