@@ -95,18 +95,19 @@ function determine_quantum_config {
 function configure_quantum_networking {
   determine_quantum_config
   if [ "$(config-get conf-ext-net)" != "no" ] &&
-     [ "$QUANTUM_PLUGIN" == "ovs" ] &&
      [ -f /etc/quantum/novarc ] &&
      [ -n "$(relation-ids amqp)" ] &&
      [ -n "$(relation-ids shared-db)" ]; then
     juju-log "Configuring external networking for quantum"
-    # Use helper to create external network gateway
-    # and router using generated credentials
-    . /etc/quantum/novarc
-    quantum-ext-net -g $(config-get ext-net-gateway) \
-                    -c $(config-get ext-net-cidr) \
-                    -f $(config-get pool-floating-start):$(config-get pool-floating-end) \
-                    $(config-get ext-net-name)
+    if eligible_leader "res_nova_vip"; then
+      # Use helper to create external network gateway
+      # and router using generated credentials
+      . /etc/quantum/novarc
+      quantum-ext-net -g $(config-get ext-net-gateway) \
+                      -c $(config-get ext-net-cidr) \
+                      -f $(config-get pool-floating-start):$(config-get pool-floating-end) \
+                      $(config-get ext-net-name)
+    fi
     set_or_update "default_floating_pool" "$(config-get ext-net-name)"
   fi
 }
