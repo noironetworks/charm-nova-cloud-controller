@@ -70,9 +70,7 @@ function config_changed {
 
   set_config_flags
 
-  if [ "$NET_MANAGER" == "Quantum" ] && \
-     eligible_leader 'res_nova_vip' || \
-     ! is_clustered; then
+  if [ "$NET_MANAGER" == "Quantum" ]; then
     configure_quantum_networking
   fi
 
@@ -134,9 +132,7 @@ function amqp_changed {
 
   determine_services && service_ctl all restart
 
-  if [ "$NET_MANAGER" == "Quantum" ] && \
-     eligible_leader 'res_nova_vip' || \
-     ! is_clustered; then
+  if [ "$NET_MANAGER" == "Quantum" ]; then
     configure_quantum_networking
   fi
 }
@@ -156,7 +152,7 @@ function db_joined {
 }
 
 function db_changed {
-  local db_host=`relation-get private-address`
+  local db_host=`relation-get db_host`
   local db_password=`relation-get nova_password`
 
   if [[ -z $db_host ]] || [[ -z $db_password ]] ; then
@@ -183,9 +179,7 @@ function db_changed {
 
   service_ctl all start
 
-  if [ "$NET_MANAGER" == "Quantum" ] && \
-     eligible_leader 'res_nova_vip' || \
-     ! is_clustered; then
+  if [ "$NET_MANAGER" == "Quantum" ]; then
     configure_quantum_networking
   fi
 
@@ -351,9 +345,7 @@ EOF
   if [ "$NET_MANAGER" == "Quantum" ]; then
     # if first time here, config quantum before setting up
     # https.
-    if [[ -z "$clustered" ]] && eligible_leader ; then
-      configure_quantum_networking
-    fi
+    configure_quantum_networking
     # ripple out changes to identity to connected services
     # which use cloud-controller as source of information for
     # keystone
@@ -377,8 +369,7 @@ EOF
   # if this changed event happens as a result of clustered VIP
   # reconfigure, configure_https needs to update VIP certificate
   # before quantumclient is used.
-  if [[ "$NET_MANAGER" == "Quantum" ]] &&
-     [[ -n "$clustered" ]] && eligible_leader 'res_nova_vip' ; then
+  if [[ "$NET_MANAGER" == "Quantum" ]]; then
       configure_quantum_networking
   fi
 }
