@@ -547,7 +547,7 @@ function cluster_changed() {
     local opt=$(echo $s | cut -d: -f3)
     local next_server="$(determine_haproxy_port $port)"
     local api_port="$(determine_api_port $port)"
-    local haproxy_port_maps="$haproxy_port_maps $service:$next_server:$api_port"
+    local haproxy_port_maps="$haproxy_port_maps $service:$next_server:$api_port:http"
     if [[ "$service" == "quantum-server" ]] ; then
       set_or_update "$opt" "$api_port" "$QUANTUM_CONF"
     else
