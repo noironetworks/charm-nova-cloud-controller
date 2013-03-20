@@ -402,7 +402,7 @@ volume_joined() {
   fi
 
   configure_volume_service "$svc"
-  deteremine_services && service_ctl all restart
+  determine_services && service_ctl all restart
 
   # The nova-volume API can be hosted here alongside the other
   # nova API services, but there needs to be a new endpoint
