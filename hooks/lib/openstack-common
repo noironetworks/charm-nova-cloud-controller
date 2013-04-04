@@ -49,9 +49,10 @@ function service_ctl {
       juju-log "$CHARM: service_ctl ERROR - Service $i failed to $action"
     fi
   done
-  # all configs should have been reloaded on restart, reset flag if its
-  # being used.
-  if [[ "$action" == "restart" ]] && [[ -n "$CONFIG_CHANGED" ]]; then
+  # all configs should have been reloaded on restart of all services, reset
+  # flag if its being used.
+  if [[ "$action" == "restart" ]] && [[ -n "$CONFIG_CHANGED" ]] &&
+     [[ "$ctl" == "all" ]]; then
     CONFIG_CHANGED="False"
   fi
 }
