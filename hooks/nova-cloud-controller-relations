@@ -183,12 +183,11 @@ function db_changed {
     set_or_update sql_connection "mysql://quantum:$quantum_db_password@$db_host/quantum?charset=utf8" \
       $QUANTUM_PLUGIN_CONF "DATABASE"
   fi
-  determine_services
-  service_ctl all stop
 
   eligible_leader 'res_nova_vip' && /usr/bin/nova-manage db sync
 
-  service_ctl all start
+  determine_services
+  service_ctl all restart
 
   if [ "$NET_MANAGER" == "Quantum" ]; then
     configure_quantum_networking
