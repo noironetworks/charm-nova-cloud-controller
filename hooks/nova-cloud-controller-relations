@@ -268,7 +268,7 @@ function keystone_joined {
 
   # tack on an endpoint for nova-volume a relation exists.
   if [[ -n "$(relation-ids nova-volume-service)" ]] ; then
-    nova_vol_url="$scheme://$host:$vol_port/v1/\$(tenant_id)s"
+    nova_vol_url="$scheme://$host:8776/v1/\$(tenant_id)s"
     relation-set nova-volume_service="nova-volume" \
       nova-volume_region="$region" \
       nova-volume_public_url="$nova_vol_url" \
