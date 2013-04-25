@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-HOOKS_DIR=$(dirname $0)
+HOOKS_DIR="$CHARM_DIR/hooks"
 arg0=$(basename $0)
 
 if [[ -e $HOOKS_DIR/nova-cloud-controller-common ]] ; then
