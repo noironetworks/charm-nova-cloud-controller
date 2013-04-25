@@ -762,7 +762,6 @@ function save_script_rc {
      exit 1
   fi
   # our default unit_path
-  mkdir -p "$CHARM_DIR/scripts"
   unit_path="$CHARM_DIR/scripts/scriptrc"
   echo $unit_path
   tmp_rc="/tmp/${JUJU_UNIT_NAME/\//-}rc"
