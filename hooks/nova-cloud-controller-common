@@ -7,13 +7,13 @@ NOVA_CONF="/etc/nova/nova.conf"
 API_CONF="/etc/nova/api-paste.ini"
 QUANTUM_CONF="/etc/quantum/quantum.conf"
 QUANTUM_API_CONF="/etc/quantum/api-paste.ini"
-
+HOOKS_DIR="$CHARM_DIR/hooks"
 NET_MANAGER=$(config-get network-manager)
 
-if [[ -e $CHARM_DIR/lib/nova/nova-common ]] ; then
-  . $CHARM_DIR/lib/nova/nova-common
+if [[ -e $HOOKS_DIR/lib/nova/nova-common ]] ; then
+  . $HOOKS_DIR/lib/nova/nova-common
 else
-  juju-log "Couldn't load $CHARM_DIR/lib/nova/nova-common" && exit 1
+  juju-log "Couldn't load $HOOKS_DIR/lib/nova/nova-common" && exit 1
 fi
 
 function determine_services {
