@@ -200,6 +200,12 @@ function image-service_changed {
   local api_server=$(relation-get glance-api-server)
   [[ -z $api_server ]] &&
     juju-log "$CHARM - image-service_changed: Peer not ready?" && exit 0
+
+  if [[ "$(get_os_codename_package nova-common)" == "essex" ]] ; then
+    # essex needs glance_api_servers urls stripped of protocol.
+    api_server="$(echo $api_server | awk '{gsub(/http:\/\/|https:\/\//,"")}1')"
+  fi
+
   set_or_update glance_api_servers $api_server
   set_or_update image_service "nova.image.glance.GlanceImageService"
   determine_services && service_ctl all restart
