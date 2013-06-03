@@ -3,63 +3,291 @@
 CHARM="nova-cloud-controller"
 CONF_DIR="/etc/nova"
 
-SERVICES="nova-api-ec2 nova-api-os-compute nova-objectstore nova-cert nova-scheduler"
-
-# If we have a relation to nova-volume-service, we'll also manage its API
-# endpoint here.
-n_vol=$(relation-ids nova-volume-service)
-if [[ -n "$n_vol" ]] ; then
-  SERVICES="$SERVICES nova-api-os-volume"
-  dpkg -l | grep -q nova-api-os-volume || apt-get -y install nova-api-os-volume
-fi
-
-PACKAGES="$SERVICES python-mysqldb python-keystone uuid"
-
-NET_MANAGER=$(config-get network-manager)
-if [ "$NET_MANAGER" == "Quantum" ]; then
-    SERVICES="$SERVICES quantum-server"
-    PACKAGES="$PACKAGES quantum-server"
-    QUANTUM_PLUGIN=$(config-get quantum-plugin)
-    case $QUANTUM_PLUGIN in
-        "ovs")
-            PACKAGES="$PACKAGES quantum-plugin-openvswitch"
-            QUANTUM_CORE_PLUGIN="quantum.plugins.openvswitch.ovs_quantum_plugin.OVSQuantumPluginV2"
-            QUANTUM_PLUGIN_CONF="/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini"
-            ;;
-        "nvp")
-            PACKAGES="$PACKAGES quantum-plugin-nicira"
-            QUANTUM_CORE_PLUGIN="quantum.plugins.nicira.nicira_nvp_plugin.QuantumPlugin.NvpPluginV2"
-            QUANTUM_PLUGIN_CONF="/etc/quantum/plugins/nicira/nvp.ini"
-            ;;
-        *)
-            juju-log "Unrecognised plugin for quantum: $QUANTUM_PLUGIN" && exit 1
-            ;;
-    esac
-fi
-
-NOVA_CONF=$(config-get nova-config)
+NOVA_CONF="/etc/nova/nova.conf"
 API_CONF="/etc/nova/api-paste.ini"
 QUANTUM_CONF="/etc/quantum/quantum.conf"
 QUANTUM_API_CONF="/etc/quantum/api-paste.ini"
+HOOKS_DIR="$CHARM_DIR/hooks"
+NET_MANAGER=$(config-get network-manager)
 
-if [[ -e $CHARM_DIR/lib/nova/nova-common ]] ; then
-  . $CHARM_DIR/lib/nova/nova-common
+if [[ -e $HOOKS_DIR/lib/nova/nova-common ]] ; then
+  . $HOOKS_DIR/lib/nova/nova-common
 else
-  juju-log "Couldn't load $CHARM_DIR/lib/nova/nova-common" && exit 1
+  juju-log "Couldn't load $HOOKS_DIR/lib/nova/nova-common" && exit 1
 fi
 
+function determine_services {
+  # Sets the global $SERVICES which contains a list of all services
+  # managed by the charm.  This changes based on OpenStack release.
+  # Currently, the services also determines what ends up in $PACKAGES.
+
+  # base c-c services supported across all os releases since essex.
+  SERVICES="nova-api-ec2 nova-api-os-compute nova-objectstore nova-cert nova-scheduler"
+
+  # determine additional services, dependent on what version of OS.
+  local install_src="$(config-get openstack-origin)"
+  install_src=$(get_os_codename_install_source "$install_src")
+  local os_vers=$(get_os_codename_package "nova-common")
+  if [[ "$os_vers" == "none" ]] ; then
+    [[ "$install_src" == "unknown" ]] && echo "$SERVICES" && return 0
+  fi
+
+  os_vers="$install_src"
+  if [[ "$os_vers" != "essex" ]] && [[ "$os_vers" != "folsom" ]] ; then
+    # nova-conductor was introduced in grizzly.
+    SERVICES="$SERVICES nova-conductor"
+  else
+      local n_vol=$(relation-ids nova-volume-service)
+      if [[ -n "$n_vol" ]] ; then
+        # nova-volume was dropped in G but may still be deployed for E + F,
+        # but should only be managed when a relation to nova-volume exists.
+        SERVICES="$SERVICES nova-api-os-volume"
+        # need to also ensure the package gets installed here.  if the relation
+        # is introduced during another hook, a call to 'service_ctl all' will
+        # require it to be there.
+        dpkg -l | grep -q nova-api-os-volume ||
+          apt-get -y install nova-api-os-volume
+      fi
+  fi
+
+  # quantum is really only supported for folsom and beyond.
+  if [[ "$NET_MANAGER" == "Quantum" ]] ; then
+    [[ "$os_vers" == "essex" ]] &&
+      error_out "Quantum network manager only supported for Folsom + beyond."
+    SERVICES="$SERVICES quantum-server"
+  fi
+}
+
+function determine_packages {
+  # Derive a list of packages based on what our service needs are.  This changes
+  # depending on several factors.
+  determine_services
+  PACKAGES="$SERVICES python-mysqldb python-keystone uuid charm-helper-sh haproxy"
+
+  if echo $PACKAGES | grep -q "quantum-server" ; then
+    case "$(config-get quantum-plugin)" in
+      "ovs") PACKAGES="$PACKAGES quantum-plugin-openvswitch" ;;
+      "nvp") PACKAGES="$PACKAGES quantum-plugin-nicira" ;;
+    esac
+  fi
+  juju-log "$CHARM: Determined required packages: $PACKAGES."
+}
+
+function determine_quantum_config {
+  # Set QUANTUM_PLUGIN and point QUANTUM_CORE_PLUGIN and QUANTUM_PLUGIN_CONF
+  # to the correct files based on configuration.
+  QUANTUM_PLUGIN=${QUANTUM_PLUGIN:-$(config-get quantum-plugin)}
+  case "$QUANTUM_PLUGIN" in
+    "ovs")
+      QUANTUM_CORE_PLUGIN="quantum.plugins.openvswitch.ovs_quantum_plugin.OVSQuantumPluginV2"
+      QUANTUM_PLUGIN_CONF="/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini"
+      ;;
+    "nvp")
+      QUANTUM_CORE_PLUGIN="quantum.plugins.nicira.nicira_nvp_plugin.QuantumPlugin.NvpPluginV2"
+      QUANTUM_PLUGIN_CONF="/etc/quantum/plugins/nicira/nvp.ini"
+      ;;
+  *)
+    juju-log "Unrecognised plugin for quantum: $QUANTUM_PLUGIN" && exit 1
+    ;;
+  esac
+}
+
 function configure_quantum_networking {
+  determine_quantum_config
   if [ "$(config-get conf-ext-net)" != "no" ] &&
-     [ "$QUANTUM_PLUGIN" == "ovs" ] &&
      [ -f /etc/quantum/novarc ] &&
+     [ -n "$(relation-ids amqp)" ] &&
      [ -n "$(relation-ids shared-db)" ]; then
     juju-log "Configuring external networking for quantum"
-    # Use helper to create external network gateway
-    # and router using generated credentials
-    . /etc/quantum/novarc
-    quantum-ext-net -g $(config-get ext-net-gateway) \
-                    -c $(config-get ext-net-cidr) \
-                    -f $(config-get pool-floating-start):$(config-get pool-floating-end) \
-                    $(config-get ext-net-name)
+    if eligible_leader "res_nova_vip"; then
+      # Use helper to create external network gateway
+      # and router using generated credentials
+      . /etc/quantum/novarc
+      quantum-ext-net -g $(config-get ext-net-gateway) \
+                      -c $(config-get ext-net-cidr) \
+                      -f $(config-get pool-floating-start):$(config-get pool-floating-end) \
+                      $(config-get ext-net-name)
+    fi
+    set_or_update "default_floating_pool" "$(config-get ext-net-name)"
   fi
+}
+
+function ssh_authorized_keys {
+  local key="$1"
+  local action="$2"
+  local exists=""
+
+  local sunit=$(echo $JUJU_REMOTE_UNIT | cut -d/ -f1)
+  mkdir -p /etc/nova/compute_ssh/$sunit
+  local authorized_keys="/etc/nova/compute_ssh/$sunit/authorized_keys"
+
+  [[ -e "$authorized_keys" ]] &&
+    grep -q "^$key" $authorized_keys && exists="true"
+
+  if [[ "$action" == "add" ]] ; then
+    [[ -n "$exists" ]] &&
+      juju-log "$CHARM: SSH key already authorized for $JUJU_REMOTE_UNIT." &&
+        return 0
+
+    echo "$key" >>$authorized_keys
+    juju-log "$CHARM: Authorized new SSH key for $JUJU_REMOTE_UNIT."
+    return 0
+  elif [[ "$action" == "remove" ]] ; then
+    # we have no way of getting to the relation state during a departed hook.
+    # we only have the peer's unit name, so remove an authorized key based on
+    # its comment, which should can be derived from the remote unit name and
+    # gets passed in here from caller as key/$1
+    local key_ln=$(sed -n "\, ${key}$,=" $authorized_keys)
+    [[ -z "$key_ln" ]] &&
+      juju-log "$CHARM: Cannot remove SSH key for $key, not authorized?" &&
+        return 0
+
+    for ln in $key_ln ; do
+      sed -i "${ln}d" $authorized_keys
+      juju-log "$CHARM: Removed existing SSH key ($key) from authorized_keys."
+    done
+    return 0
+  else
+    error_out "$CHARM: ssh_authorize_keys() invalid action specified: $action."
+  fi
+}
+
+function ssh_known_hosts {
+  # Keeps the system-wide SSH known hosts file up to date with compute
+  # nodes host keys.
+  local host="$1"
+  local sunit=$(echo $JUJU_REMOTE_UNIT | cut -d/ -f1)
+  mkdir -p /etc/nova/compute_ssh/$sunit
+  local known_hosts="/etc/nova/compute_ssh/$sunit/known_hosts"
+  juju-log "$CHARM: Ensuring host is included and up to date in $known_hosts."
+
+  [[ ! -e $known_hosts ]] && touch $known_hosts
+
+  local remote_key=""
+  remote_key=$(ssh-keyscan -H -t rsa $host) ||
+    error_out "$CHARM: Couldn't obtain SSH host key from $host."
+  local existing=$(ssh-keygen -f $known_hosts -H -F $host | tail -n1)
+  if [[ -n "$existing" ]] ; then
+    juju-log "$CHARM: Found existing SSH known host key for $host."
+    [[ "$existing" == "$remote_key" ]] && echo "HI"
+    remote=$(echo $remote_key | awk '{ print $2" "$3 }')
+    existing=$(echo $existing | awk '{ print $2" "$3 }')
+    if [[ "$remote" == "$existing" ]] ; then
+      juju-log "$CHARM: SSH known host key for $host is up to date."
+      return 0
+    fi
+    juju-log "$CHARM: Removing outdated SSH host key for $host."
+    ssh-keygen -f $known_hosts -R $host
+  else
+    juju-log "$CHARM: No known hosts entry for $host."
+  fi
+  juju-log "$CHARM: Adding new SSH known hosts entry for $host."
+  echo $remote_key >>$known_hosts
+
+}
+
+function ssh_compute {
+  if [[ "$1" == "add" ]] ; then
+    local ssh_key=$(relation-get ssh_public_key)
+    [[ -z "$ssh_key" ]] &&
+      juju-log "$CHARM: ssh_compute peer not ready." && exit 0
+
+    ssh_authorized_keys "$ssh_key" "add"
+
+    # need to ensure known hosts entries for all possible addresses
+    . /usr/share/charm-helper/sh/net.sh
+    local known_hosts=""
+    local private_address=$(relation-get private-address)
+    known_hosts="$private_address"
+    if ! ch_is_ip "$private_address" ; then
+      known_hosts="$known_hosts $(get_ip $private_address)"
+      known_hosts="$known_hosts $(echo $private_address | cut -d. -f1)"
+    fi
+    for host in $known_hosts ; do
+      ssh_known_hosts "$host"
+    done
+  elif [[ "$1" == "remove" ]] ; then
+    # remove key by referencing remote unit, not entire key.
+    local remote_unit=$(echo $JUJU_REMOTE_UNIT | sed -e 's,/,-,g')
+    ssh_authorized_keys "$remote_unit" remove
+  else
+    error_out "ssh_compute: Invalid parameter: $1."
+  fi
+
+  local sunit=$(echo $JUJU_REMOTE_UNIT | cut -d/ -f1)
+
+  # base64 encodings should trigger new relation events as needed.
+  relation-set \
+    known_hosts="$(base64 /etc/nova/compute_ssh/$sunit/known_hosts)" \
+    authorized_keys="$(base64 /etc/nova/compute_ssh/$sunit/authorized_keys)"
+}
+
+configure_https() {
+  # setup https termination for all api services, depending on what is running
+  # and topology of current deployment.
+  local clustered=""
+  ( [[ -n "$(peer_units)" ]] || is_clustered ) && clustered="1"
+  local services=""
+  local ssl_port_maps=""
+  local haproxy_port_maps=""
+  local next_server=""
+  local api_port=""
+
+  # upstartService:defaultPort:configOption
+  local svcs="nova-api-ec2:8773:ec2_listen_port
+              nova-api-os-compute:8774:osapi_compute_listen_port
+              nova-objectstore:3333:s3_listen_port"
+  [[ "$NET_MANAGER" == "Quantum" ]] &&
+    svcs="$svcs quantum-server:9696:bind_port"
+
+  for s in $svcs ; do
+    local service=$(echo $s | cut -d: -f1)
+    local port=$(echo $s | cut -d: -f2)
+    local opt=$(echo $s | cut -d: -f3)
+    if [[ -n "$clustered" ]] ; then
+      next_server="$(determine_haproxy_port $port)"
+      api_port="$(determine_api_port $port)"
+      haproxy_port_maps="$haproxy_port_maps $service:$next_server:$api_port"
+    else
+      api_port="$(determine_api_port $port)"
+      next_server="$api_port"
+    fi
+    if [[ "$service" == "quantum-server" ]] ; then
+      set_or_update "$opt" "$api_port" "$QUANTUM_CONF"
+    else
+      set_or_update "$opt" "$api_port"
+    fi
+    ssl_port_maps="$ssl_port_maps $port:$next_server"
+  done
+
+  # make sure all backend api servers are bound to new backend port
+  # before setting up any frontends.
+  for s in $svcs ; do
+    local service=$(echo $s | cut -d: -f1)
+    service_ctl $service restart
+  done
+
+  [[ -n "$haproxy_port_maps" ]] && configure_haproxy $haproxy_port_maps
+  setup_https $ssl_port_maps
+
+  # another restart to ensure api servers are now bound to frontend ports
+  # that may have just been disabled.
+  for s in $svcs ; do
+    local service=$(echo $s | cut -d: -f1)
+    service_ctl $service restart
+  done
+
+  local r_id=""
+  # (re)configure ks endpoint accordingly
+  for r_id in $(relation-ids identity-service) ; do
+    keystone_joined "$r_id"
+  done
+  # pass on possibly updated quantum URL + ca_cert to compute nodes.
+  for r_id in $(relation-ids cloud-compute) ; do
+    compute_joined "$r_id"
+  done
+  # update the quantum relation, as well.
+  for r_id in $(relation-ids quantum-network-service) ; do
+    quantum_joined "$r_id"
+  done
 }
