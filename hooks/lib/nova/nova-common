@@ -94,6 +94,15 @@ function configure_network_manager {
           set_or_update "tunnel_id_ranges" "1:1000" $QUANTUM_PLUGIN_CONF "OVS"
           set_or_update "local_ip" "$local_ip" $QUANTUM_PLUGIN_CONF "OVS"
       fi
+      if [ "$(config-get quantum-security-groups)" == "yes" ]; then
+          set_or_update "security_group_api" "quantum"
+          set_or_update "firewall_driver" "nova.virt.firewall.NoopFirewallDriver"
+          if [ "$QUANTUM_PLUGIN" == "ovs" ]; then
+              set_or_update "firewall_driver" \
+                "quantum.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver" \
+                $QUANTUM_PLUGIN_CONF "SECURITYGROUP"
+          fi
+      fi
       ;;
     *) juju-log "ERROR: Invalid network manager $1" && exit 1 ;;
   esac
