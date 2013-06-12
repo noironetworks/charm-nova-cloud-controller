@@ -88,6 +88,9 @@ function configure_network_manager {
       set_or_update "quantum_auth_strategy" "keystone"
       set_or_update "core_plugin" "$QUANTUM_CORE_PLUGIN" "$QUANTUM_CONF"
       set_or_update "bind_host" "0.0.0.0" "$QUANTUM_CONF"
+      # Configure per-tenant managed quotas
+      set_or_update "quota_driver" "quantum.db.quota_db.DbQuotaDriver" \
+                    "$QUANTUM_CONF" "QUOTAS"
       if [ "$QUANTUM_PLUGIN" == "ovs" ]; then
           set_or_update "tenant_network_type" "gre" $QUANTUM_PLUGIN_CONF "OVS"
           set_or_update "enable_tunneling" "True" $QUANTUM_PLUGIN_CONF "OVS"
@@ -103,6 +106,9 @@ function configure_network_manager {
                 "quantum.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver" \
                 $QUANTUM_PLUGIN_CONF "SECURITYGROUP"
           fi
+          # Ensure that security_group_* is included in quota'ed resources
+          set_or_update "quota_items" "network,subnet,port,security_group,security_group_rule" \
+                        $QUANTUM_CONF "QUOTAS"
       fi
       ;;
     *) juju-log "ERROR: Invalid network manager $1" && exit 1 ;;
