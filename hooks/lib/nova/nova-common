@@ -88,16 +88,20 @@ function configure_network_manager {
       set_or_update "quantum_auth_strategy" "keystone"
       set_or_update "core_plugin" "$QUANTUM_CORE_PLUGIN" "$QUANTUM_CONF"
       set_or_update "bind_host" "0.0.0.0" "$QUANTUM_CONF"
-      # Configure per-tenant managed quotas
-      set_or_update "quota_driver" "quantum.db.quota_db.DbQuotaDriver" \
-                    "$QUANTUM_CONF" "QUOTAS"
+      local cur_vers="$(get_os_codename_package "nova-common")"
+      if [ "$cur_vers" > "folsom" ]; then
+        # Configure per-tenant managed quotas - >= grizzly only
+        set_or_update "quota_driver" "quantum.db.quota_db.DbQuotaDriver" \
+                      "$QUANTUM_CONF" "QUOTAS"
+      fi
       if [ "$QUANTUM_PLUGIN" == "ovs" ]; then
           set_or_update "tenant_network_type" "gre" $QUANTUM_PLUGIN_CONF "OVS"
           set_or_update "enable_tunneling" "True" $QUANTUM_PLUGIN_CONF "OVS"
           set_or_update "tunnel_id_ranges" "1:1000" $QUANTUM_PLUGIN_CONF "OVS"
           set_or_update "local_ip" "$local_ip" $QUANTUM_PLUGIN_CONF "OVS"
       fi
-      if [ "$(config-get quantum-security-groups)" == "yes" ]; then
+      if [ "$(config-get quantum-security-groups)" == "yes" ] && \
+         [ "$cur_vers" > "folsom" ]; then
           set_or_update "security_group_api" "quantum"
           set_or_update "firewall_driver" "nova.virt.firewall.NoopFirewallDriver"
           set_or_update "allow_overlapping_ips" "True" $QUANTUM_CONF
