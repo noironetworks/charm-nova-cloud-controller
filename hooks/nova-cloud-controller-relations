@@ -459,7 +459,6 @@ compute_joined() {
         service_password=$(local_config_get $API_CONF admin_password $sect) \
         service_tenant=$(local_config_get $API_CONF admin_tenant_name $sect) \
         auth_uri=$(local_config_get $API_CONF auth_uri $sect)
-
     fi
     is_clustered && local host=$(config-get vip) ||
       local host=$(unit-get private-address)
@@ -468,7 +467,8 @@ compute_joined() {
 
     relation-set $r_id quantum_url=$quantum_url \
                        quantum_plugin=$(config-get quantum-plugin) \
-                       region=$(config-get region)
+                       region=$(config-get region) \
+                       quantum_security_groups=$(config-get quantum-security-groups)
 
   fi
 

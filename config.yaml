@@ -64,6 +64,13 @@ options:
       .
       This configuration only has context when used with
       network-manager Quantum.
+  quantum-security-groups:
+    type: string
+    default: "no"
+    description: |
+      Use quantum for security group management.
+      .
+      Only supported for >= grizzly.
   conf-ext-net:
     type: string
     default: "no"
