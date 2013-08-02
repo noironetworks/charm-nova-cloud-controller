@@ -56,6 +56,12 @@ function determine_services {
       error_out "Quantum network manager only supported for Folsom + beyond."
     SERVICES="$SERVICES quantum-server"
   fi
+
+  # if we have a nova-compute-vmware relation, we should restart nova-compute
+  # to pick up database/rabbit config changes in main nova.conf
+  if [[ -n "$(relation-ids vmware)" ]] ; then
+    SERVICES="$SERVICES nova-compute"
+  fi
 }
 
 function determine_packages {
