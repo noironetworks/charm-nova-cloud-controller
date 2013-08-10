@@ -8,6 +8,7 @@ TO_PATCH = [
     'config',
     'log',
     'get_os_codename_package',
+    'network_manager',
     'relation_ids',
     'remote_unit',
     '_save_script_rc',
@@ -30,6 +31,24 @@ ssh-rsa BBBBB3NzaC1yc2EBBBBDBQBBBBBBBQC27Us7lSjCpa7bumXBgc nova-compute-2
 ssh-rsa CCCCB3NzaC1yc2ECCCCDCQCBCCCBCQC27Us7lSjCpa7bumXCgc nova-compute-3
 """
 
+BASE_ENDPOINTS = {
+    'ec2_admin_url': 'http://foohost.com:8773/services/Cloud',
+    'ec2_internal_url': 'http://foohost.com:8773/services/Cloud',
+    'ec2_public_url': 'http://foohost.com:8773/services/Cloud',
+    'ec2_region': 'RegionOne',
+    'ec2_service': 'ec2',
+    'nova_admin_url': 'http://foohost.com:8774/v1.1/\$tenant_id)s',
+    'nova_internal_url': 'http://foohost.com:8774/v1.1/\$tenant_id)s',
+    'nova_public_url': 'http://foohost.com:8774/v1.1/\$tenant_id)s',
+    'nova_region': 'RegionOne',
+    'nova_service': 'nova',
+    's3_admin_url': 'http://foohost.com:3333',
+    's3_internal_url': 'http://foohost.com:3333',
+    's3_public_url': 'http://foohost.com:3333',
+    's3_region': 'RegionOne',
+    's3_service': 's3'
+}
+
 
 class NovaCCUtilsTests(CharmTestCase):
     def setUp(self):
@@ -37,12 +56,24 @@ class NovaCCUtilsTests(CharmTestCase):
         self.config.side_effect = self.test_config.get
 
     def test_resource_map_quantum(self):
+        self.network_manager.return_value = 'quantum'
         self.relation_ids.return_value = []
         self.test_config.set('network-manager', 'Quantum')
         _map = utils.resource_map()
         confs = [
             '/etc/quantum/quantum.conf',
             '/etc/quantum/api-paste.ini'
+        ]
+        [self.assertIn(q_conf, _map.keys()) for q_conf in confs]
+
+    def test_resource_map_neutron(self):
+        self.network_manager.return_value = 'neutron'
+        self.relation_ids.return_value = []
+        self.test_config.set('network-manager', 'Quantum')
+        _map = utils.resource_map()
+        confs = [
+            '/etc/neutron/neutron.conf',
+            '/etc/neutron/api-paste.ini'
         ]
         [self.assertIn(q_conf, _map.keys()) for q_conf in confs]
 
@@ -53,10 +84,18 @@ class NovaCCUtilsTests(CharmTestCase):
                       _map['/etc/nova/nova.conf']['services'])
 
     def test_determine_packages_quantum(self):
+        self.network_manager.return_value = 'quantum'
         self.relation_ids.return_value = []
         self.test_config.set('network-manager', 'Quantum')
         pkgs = utils.determine_packages()
         self.assertIn('quantum-server', pkgs)
+
+    def test_determine_packages_neutron(self):
+        self.network_manager.return_value = 'neutron'
+        self.relation_ids.return_value = []
+        self.test_config.set('network-manager', 'Quantum')
+        pkgs = utils.determine_packages()
+        self.assertIn('neutron-server', pkgs)
 
     def test_determine_packages_nova_volume(self):
         self.relation_ids.return_value = ['nova-volume-service:0']
@@ -216,3 +255,40 @@ class NovaCCUtilsTests(CharmTestCase):
             _file.readlines.return_value = AUTHORIZED_KEYS.split('\n')
             utils.ssh_compute_remove()
             _file.write.assert_called_with(keys_removed)
+
+    def test_network_manager_untranslated(self):
+        self.test_config.set('network-manager', 'foo')
+        self.get_os_codename_package.return_value = 'folsom'
+
+    def test_determine_endpoints_base(self):
+        self.relation_ids.return_value = []
+        self.assertEquals(
+            BASE_ENDPOINTS, utils.determine_endpoints('http://foohost.com'))
+
+    def test_determine_endpoints_nova_volume(self):
+        self.relation_ids.return_value = ['nova-volume-service/0']
+        endpoints = deepcopy(BASE_ENDPOINTS)
+        endpoints.update({
+            'nova-volume_admin_url':
+            'http://foohost.com:8774/v1/\$(tenant_id)s',
+            'nova-volume_internal_url':
+            'http://foohost.com:8774/v1/\$(tenant_id)s',
+            'nova-volume_public_url':
+            'http://foohost.com:8774/v1/\$(tenant_id)s',
+            'nova-volume_region': 'RegionOne',
+            'nova-volume_service': 'nova-volume'})
+        self.assertEquals(
+            endpoints, utils.determine_endpoints('http://foohost.com'))
+
+    def test_determine_endpoints_quantum_neutron(self):
+        self.relation_ids.return_value = []
+        self.network_manager.return_value = 'quantum'
+        endpoints = deepcopy(BASE_ENDPOINTS)
+        endpoints.update({
+            'quantum_admin_url': 'http://foohost.com:9696',
+            'quantum_internal_url': 'http://foohost.com:9696',
+            'quantum_public_url': 'http://foohost.com:9696',
+            'quantum_region': 'RegionOne',
+            'quantum_service': 'quantum'})
+        self.assertEquals(
+            endpoints, utils.determine_endpoints('http://foohost.com'))

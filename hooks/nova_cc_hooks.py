@@ -39,7 +39,7 @@ from nova_cc_utils import (
     ssh_compute_remove,
     ssh_known_hosts_b64,
     ssh_authorized_keys_b64,
-    quantum_plugin,
+    network_plugin,
     register_configs,
     restart_map,
     volume_service,
@@ -47,8 +47,8 @@ from nova_cc_utils import (
 )
 
 from misc_utils import (
-    quantum_enabled,
-    quantum_attribute,
+    network_manager,
+    network_plugin_attribute,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -93,9 +93,10 @@ def amqp_changed():
         log('amqp relation incomplete. Peer not ready?')
         return
     CONFIGS.write('/etc/nova/nova.conf')
-    if quantum_enabled():
+    if network_manager() == 'quantum':
         CONFIGS.write('/etc/quantum/quantum.conf')
-    # XXX Configure quantum networking (after-restart!?)
+    if network_manager() == 'neutron':
+        CONFIGS.write('/etc/neutron/neutron.conf')
 
 
 @hooks.hook('shared-db-relation-joined')
@@ -103,8 +104,10 @@ def db_joined():
     relation_set(nova_database=config('database'),
                  nova_username=config('database-user'),
                  nova_hostname=unit_get('private-address'))
-    if quantum_enabled():
+    if network_manager() in ['quantum', 'neutron']:
         # request a database created for quantum if needed.
+        # XXX: Name relation setting neutron_* or keep quantum_* for
+        #      upgrades with existing relations?
         relation_set(quantum_database=config('database'),
                      quantum_username=config('database-user'),
                      quantum_hostname=unit_get('private-address'))
@@ -118,9 +121,9 @@ def db_changed():
         return
     CONFIGS.write('/etc/nova/nova.conf')
 
-    if quantum_enabled():
-        plugin = quantum_plugin()
-        CONFIGS.write(quantum_attribute(plugin, 'config'))
+    if network_manager() in ['neutron', 'quantum']:
+        plugin = network_plugin()
+        CONFIGS.write(network_plugin_attribute(plugin, 'config'))
 
     if eligible_leader(CLUSTER_RES):
         migrate_database()
@@ -139,7 +142,8 @@ def image_service_changed():
 @hooks.hook('identity-service-relation-joined')
 @restart_on_change(restart_map())
 def identity_joined(rid=None):
-    relation_set(rid=rid, **determine_endpoints())
+    base_url = canonical_url(CONFIGS)
+    relation_set(rid=rid, **determine_endpoints(base_url))
 
 
 @hooks.hook('identity-service-relation-changed')
@@ -149,8 +153,10 @@ def identity_changed():
         log('identity-service relation incomplete. Peer not ready?')
         return
     CONFIGS.write('/etc/nova/api-paste.ini')
-    if quantum_enabled():
+    if network_manager() == 'quantum':
         CONFIGS.write('/etc/quantum/api-paste.ini')
+    if network_manager() == 'neutron':
+        CONFIGS.write('/etc/neutron/api-paste.ini')
     # XXX configure quantum networking
 
 
@@ -196,11 +202,12 @@ def compute_joined(rid=None):
 
     ks_auth_config = _auth_config()
 
-    if quantum_enabled():
+    if network_manager() in ['quantum', 'neutron']:
         if ks_auth_config:
             rel_settings.update(ks_auth_config)
             rel_settings.update({
-                'quantum_plugin': quantum_plugin(),
+                # XXX: Rename these relations settings?
+                'quantum_plugin': network_plugin(),
                 'region': config('region'),
                 'quantum_security_groups': config('quantum_security_groups'),
             })
@@ -228,13 +235,18 @@ def compute_departed():
     ssh_compute_remove()
 
 
-@hooks.hook('quantum-network-service-relation-joined')
+@hooks.hook('neutron-network-service-relation-joined',
+            'quantum-network-service-relation-joined')
 def quantum_joined(rid=None):
     if not eligible_leader():
         return
 
-    # XXX TODO: Need to add quantum/quantum compat. for pkg naming
-    required_pkg = filter_installed_packages(['quantum-server'])
+    if network_manager() == 'quantum':
+        pkg = 'quantum-server'
+    else:
+        pkg = 'neutron-server'
+
+    required_pkg = filter_installed_packages([pkg])
     if required_pkg:
         apt_install(required_pkg)
 

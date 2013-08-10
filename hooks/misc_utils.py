@@ -12,7 +12,10 @@ from charmhelpers.contrib.openstack import context
 
 from charmhelpers.core.host import apt_install, filter_installed_packages
 
-from charmhelpers.contrib.openstack.utils import get_os_codename_package
+from charmhelpers.contrib.openstack.utils import (
+    get_os_codename_package,
+    get_os_codename_install_source,
+)
 
 
 def _save_flag_file(path, data):
@@ -88,6 +91,7 @@ class QuantumPluginContext(context.OSContextGenerator):
         return ctxt
 
 
+# legacy
 QUANTUM_PLUGINS = {
     'ovs': {
         'config': '/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini',
@@ -105,20 +109,67 @@ QUANTUM_PLUGINS = {
 }
 
 
-def quantum_enabled():
+NEUTRON_PLUGINS = {
+    'ovs': {
+        'config': '/etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini',
+        'contexts': [context.SharedDBContext(),
+                     QuantumPluginContext()],
+        'services': ['neutron-plugin-openvswitch-agent'],
+        'packages': ['neutron-plugin-openvswitch-agent',
+                     'openvswitch-datapath-dkms'],
+    },
+    'nvp': {
+        'config': '/etc/neutron/plugins/nicira/nvp.ini',
+        'services': [],
+        'packages': ['neutron-plugin-nicira'],
+    }
+}
+
+
+def _net_manager_enabled(manager):
     manager = config('network-manager')
     if not manager:
         return False
-    return manager.lower() == 'quantum'
+    return manager.lower() == manager
 
 
-def quantum_attribute(plugin, attr):
+def network_plugin_attribute(plugin, attr):
+    manager = network_manager()
+    if manager == 'quantum':
+        plugins = QUANTUM_PLUGINS
+    else:
+        plugins = NEUTRON_PLUGINS
     try:
-        _plugin = QUANTUM_PLUGINS[plugin]
+        _plugin = plugins[plugin]
     except KeyError:
-        log('Unrecognised plugin for quantum: %s' % plugin, level=ERROR)
+        log('Unrecognised plugin for %s: %s' % (manager, plugin), level=ERROR)
         raise
     try:
         return _plugin[attr]
     except KeyError:
         return None
+
+
+def network_manager():
+    '''
+    Deals with the renaming of Quantum to Neutron in H and any situations
+    that require compatability (eg, deploying H with network-manager=quantum,
+    upgrading from G).
+    '''
+    release = (get_os_codename_package('nova-common', fatal=False) or
+               get_os_codename_install_source() or 'essex')
+    manager = config('network-manager').lower()
+
+    if manager not in ['quantum', 'neutron']:
+        return manager
+
+    if release in ['essex']:
+        # E does not support neutron
+        log('Neutron networking not supported in Essex.', level=ERROR)
+        raise
+    elif release in ['folsom', 'grizzly']:
+        # neutron is named quantum in F and G
+        return 'quantum'
+    else:
+        # ensure accurate naming for all releases post-H
+        return 'neutron'

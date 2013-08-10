@@ -8,6 +8,8 @@ from copy import deepcopy
 
 from charmhelpers.contrib.openstack import templating, context
 
+from charmhelpers.contrib.hahelpers.cluster import canonical_url
+
 from charmhelpers.contrib.openstack.utils import (
     get_os_codename_package,
     save_script_rc as _save_script_rc,
@@ -21,7 +23,10 @@ from charmhelpers.core.hookenv import (
     ERROR,
 )
 
+
 import nova_cc_context
+
+from misc_utils import network_manager
 
 TEMPLATES = 'templates/'
 
@@ -47,6 +52,7 @@ API_PORTS = {
     'nova-api-os-compute': 8774,
     'nova-api-os-volume': 8776,
     'nova-objectstore': 3333,
+    'neutron-server': 9696,
     'quantum-server': 9696,
 }
 
@@ -68,6 +74,14 @@ BASE_RESOURCE_MAP = OrderedDict([
     }),
     ('/etc/quantum/api-paste.ini', {
         'services': ['quantum-server'],
+        'contexts': [],
+    }),
+    ('/etc/neutron/neutron.conf', {
+        'services': ['neutron-server'],
+        'contexts': [],
+    }),
+    ('/etc/neutron/api-paste.ini', {
+        'services': ['neutron-server'],
         'contexts': [],
     }),
     ('/etc/haproxy/haproxy.cfg', {
@@ -100,12 +114,13 @@ def resource_map():
         resource_map['/etc/nova/nova.conf']['services'].append(
             'nova-api-os-volume')
 
-    if config('network-manager').lower() not in ['quantum', 'quantum']:
-        # pop out quantum resources if not deploying it. easier to
-        # remove it from the base ordered dict than add it in later
-        # and still preserve ordering for restart_map().
+    if network_manager() != 'quantum':
         [resource_map.pop(k) for k in list(resource_map.iterkeys())
          if 'quantum' in k]
+    if network_manager() != 'neutron':
+        [resource_map.pop(k) for k in list(resource_map.iterkeys())
+         if 'neutron' in k]
+
     return resource_map
 
 
@@ -133,8 +148,10 @@ def determine_ports():
                 pass
     return ports
 
-def network_manager():
-    pass
+
+def api_port(service):
+    return API_PORTS[service]
+
 
 def determine_packages():
     # currently all packages match service names
@@ -156,8 +173,10 @@ def save_script_rc():
     }
     if relation_ids('nova-volume-service'):
         env_vars['OPENSTACK_SERVICE_API_OS_VOL'] = 'nova-api-os-volume'
-    if config('network-manager').lower() in ['quantum', 'quantum']:
+    if network_manager() == 'quantum':
         env_vars['OPENSTACK_SERVICE_API_QUANTUM'] = 'quantum-server'
+    if network_manager() == 'neutron':
+        env_vars['OPENSTACK_SERVICE_API_NEUTRON'] = 'neutron-server'
     _save_script_rc(**env_vars)
 
 
@@ -166,10 +185,10 @@ def do_openstack_upgrade():
     pass
 
 
-def quantum_plugin():
-    plugin = config('quantum-plugin').lower()
-    if not plugin:
-        return config('quantum-plugin').lower()
+def network_plugin():
+    # quantum-plugin config setting can be safely overriden
+    # as we only supported OVS in G/quantum
+    return config('neutron-plugin') or config('quantum-plugin')
 
 
 def volume_service():
@@ -300,11 +319,61 @@ def ssh_compute_remove():
     key_name = remote_unit().replace('/', '-')
     with open(authorized_keys()) as _keys:
         keys = _keys.readlines()
-        print keys
     [keys.remove(key) for key in keys if key_name in key]
     with open(authorized_keys(), 'w') as _keys:
         _keys.write('\n'.join(keys))
 
 
-def determine_endpoints():
-    pass
+def determine_endpoints(url):
+    '''Generates a dictionary containing all relevant endpoints to be
+    passed to keystone as relation settings.'''
+    region = config('region')
+
+    # TODO: Configurable nova API version.
+    nova_url = ('%s:%s/v1.1/\$tenant_id)s' %
+                (url, api_port('nova-api-os-compute')))
+    ec2_url = '%s:%s/services/Cloud' % (url, api_port('nova-api-ec2'))
+    nova_volume_url = ('%s:%s/v1/\$(tenant_id)s' %
+                       (url, api_port('nova-api-os-compute')))
+    neutron_url = '%s:%s' % (url, api_port('neutron-server'))
+    s3_url = '%s:%s' % (url, api_port('nova-objectstore'))
+
+    # the base endpoints
+    endpoints = {
+        'nova_service': 'nova',
+        'nova_region': region,
+        'nova_public_url': nova_url,
+        'nova_admin_url': nova_url,
+        'nova_internal_url': nova_url,
+        'ec2_service': 'ec2',
+        'ec2_region': region,
+        'ec2_public_url': ec2_url,
+        'ec2_admin_url': ec2_url,
+        'ec2_internal_url': ec2_url,
+        's3_service': 's3',
+        's3_region': region,
+        's3_public_url': s3_url,
+        's3_admin_url': s3_url,
+        's3_internal_url': s3_url,
+    }
+
+    if relation_ids('nova-volume-service'):
+        endpoints.update({
+            'nova-volume_service': 'nova-volume',
+            'nova-volume_region': region,
+            'nova-volume_public_url': nova_volume_url,
+            'nova-volume_admin_url': nova_volume_url,
+            'nova-volume_internal_url': nova_volume_url,
+        })
+
+    # XXX: Keep these relations named quantum_*
+    if network_manager() in ['quantum', 'neutron']:
+        endpoints.update({
+            'quantum_service': 'quantum',
+            'quantum_region': region,
+            'quantum_public_url': neutron_url,
+            'quantum_admin_url': neutron_url,
+            'quantum_internal_url': neutron_url,
+        })
+
+    return endpoints
