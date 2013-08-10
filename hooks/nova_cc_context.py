@@ -1,11 +1,11 @@
+
+from misc_utils import network_manager
 from charmhelpers.core.hookenv import relation_ids, relation_set
 from charmhelpers.core.host import apt_install, filter_installed_packages
 from charmhelpers.contrib.openstack import context, utils
 
-#from charmhelpers.contrib.hahelpers.cluster import (
-#    determine_api_port,
-#    determine_haproxy_port,
-#)
+from charmhelpers.contrib.hahelpers.cluster import (
+    determine_api_port, determine_haproxy_port)
 
 
 class ApacheSSLContext(context.ApacheSSLContext):
@@ -44,15 +44,7 @@ class VolumeServiceContext(context.OSContextGenerator):
         return ctxt
 
 
-class NetworkManagerContext(context.OSContextGenerator):
-    interfaces = []
-    network_manager = None
-
-    def __call__(self):
-        return {}
-
-
-class HAProxyContext(context.OSContextGenerator):
+class HAProxyContext(context.HAProxyContext):
     interfaces = ['ceph']
 
     def __call__(self):
@@ -61,4 +53,45 @@ class HAProxyContext(context.OSContextGenerator):
         specific to this charm.
         Also used to extend nova.conf context with correct api_listening_ports
         '''
-        # TODO
+        from nova_cc_utils import api_port
+        ctxt = super(HAProxyContext, self).__call__()
+        if not ctxt:
+            # we do not have any other peers, do not load balance yet.
+            return {}
+
+        ctxt = {
+            'osapi_compute_listen_port': api_port('nova-api-os-compute'),
+            'ec2_listen_port': api_port('nova-api-ec2'),
+            's3_listen_port': api_port('nova-objectstore'),
+        }
+        port_mapping = {
+            'nova-api-os-compute': [
+                determine_haproxy_port(api_port('nova-api-os-compute')),
+                determine_api_port(api_port('nova-api-os-compute'))
+            ],
+            'nova-api-ec2': [
+                determine_haproxy_port(api_port('nova-api-ec2')),
+                determine_api_port(api_port('nova-api-ec2'))
+            ],
+            'nova-objectstore': [
+                determine_haproxy_port(api_port('nova-objectstore')),
+                determine_api_port(api_port('nova-objectstore'))
+            ],
+        }
+
+        if relation_ids('nova-volume-service'):
+            port_mapping.update({
+                'nova-api-ec2': [
+                    determine_haproxy_port(api_port('nova-api-ec2')),
+                    determine_api_port(api_port('nova-api-ec2'))]
+            })
+            ctxt['osapi_volume_listen_port'] = api_port('nova-api-os-volume')
+
+        if network_manager() in ['neutron', 'quantum']:
+            port_mapping.update({
+                'neutron-server': [
+                    determine_haproxy_port(api_port('neutron-server')),
+                    determine_api_port(api_port('neutron-server'))]
+            })
+            ctxt['bind_port'] = api_port('neutron-server')
+        ctxt['service_ports'] = port_mapping

@@ -360,7 +360,7 @@ def determine_endpoints(url):
             'nova-volume_internal_url': nova_volume_url,
         })
 
-    # XXX: Keep these relations named quantum_*
+    # XXX: Keep these relations named quantum_*??
     if network_manager() in ['quantum', 'neutron']:
         endpoints.update({
             'quantum_service': 'quantum',
