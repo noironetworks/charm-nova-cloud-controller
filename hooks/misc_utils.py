@@ -27,103 +27,179 @@ def _save_flag_file(path, data):
         out.write(data)
 
 
-class QuantumPluginContext(context.OSContextGenerator):
+class NeutronContext(object):
     interfaces = []
 
-    def _ensure_packages(self, packages):
+    @property
+    def plugin(self):
+        return None
+
+    @property
+    def network_manager(self):
+        return network_manager()
+
+    @property
+    def packages(self):
+        return network_plugin_attribute(self.plugin, 'packages')
+
+    @property
+    def neutron_security_groups(self):
+        return None
+
+    def _ensure_packages(self):
         '''Install but do not upgrade required plugin packages'''
-        required = filter_installed_packages(packages)
+        required = filter_installed_packages(self.packages)
         if required:
             apt_install(required, fatal=True)
 
-    def ovs_context(self):
-        q_driver = 'quantum.plugins.openvswitch.ovs_quantum_plugin.'\
-                   'OVSQuantumPluginV2'
-        q_fw_driver = 'quantum.agent.linux.iptables_firewall.'\
-                      'OVSHybridIptablesFirewallDriver'
-
-        if get_os_codename_package('nova-common') in ['essex', 'folsom']:
-            n_driver = 'nova.virt.libvirt.vif.LibvirtHybridOVSBridgeDriver'
-        else:
-            n_driver = 'nova.virt.libvirt.vif.LibvirtGenericVIFDriver'
-        n_fw_driver = 'nova.virt.firewall.NoopFirewallDriver'
-
+    def ovs_ctxt(self):
         ovs_ctxt = {
-            'quantum_plugin': 'ovs',
+            'neutron_plugin': 'ovs',
             # quantum.conf
-            'core_plugin': q_driver,
+            'core_plugin': network_plugin_attribute(self.plugin, 'driver'),
+            # NOTE: network api class in template for each release.
             # nova.conf
-            'libvirt_vif_driver': n_driver,
-            'libvirt_use_virtio_for_bridges': True,
+            #'libvirt_vif_driver': n_driver,
+            #'libvirt_use_virtio_for_bridges': True,
             # ovs config
-            'tenant_network_type': 'gre',
-            'enable_tunneling': True,
-            'tunnel_id_ranges': '1:1000',
             'local_ip': unit_private_ip(),
         }
 
-        q_sec_groups = relation_get('quantum_security_groups')
-        if q_sec_groups and q_sec_groups.lower() == 'yes':
-            ovs_ctxt['quantum_security_groups'] = True
-            # nova.conf
-            ovs_ctxt['nova_firewall_driver'] = n_fw_driver
-            # ovs conf
-            ovs_ctxt['ovs_firewall_driver'] = q_fw_driver
+        if self.neutron_security_groups:
+            ovs_ctxt['neutron_security_groups'] = True
+
+            fw_driver = ('%s.agent.linux.iptables_firewall.'
+                         'OVSHybridIptablesFirewallDriver' %
+                         self.network_manager)
+
+            ovs_ctxt.update({
+                # IN TEMPLATE:
+                #   - security_group_api=quantum in nova.conf for >= g
+                #  nova_firewall_driver=nova.virt.firewall.NoopFirewallDriver'
+                'neutron_firewall_driver': fw_driver,
+            })
 
         return ovs_ctxt
 
     def __call__(self):
-        from nova_compute_utils import quantum_attribute
 
-        plugin = relation_get('quantum_plugin')
-        if not plugin:
+        if self.network_manager not in ['quantum', 'neutron']:
             return {}
 
-        self._ensure_packages(quantum_attribute(plugin, 'packages'))
+        if not self.plugin:
+            return {}
 
-        ctxt = {}
+        self._ensure_packages()
 
-        if plugin == 'ovs':
-            ctxt.update(self.ovs_context())
+        ctxt = {'network_manager': self.network_manager}
 
-        _save_flag_file(path='/etc/nova/quantum_plugin.conf', data=plugin)
+        if self.plugin == 'ovs':
+            ctxt.update(self.ovs_ctxt())
 
+        _save_flag_file(path='/etc/nova/quantum_plugin.conf', data=self.plugin)
+        _save_flag_file(path='/etc/nova/neutron_plugin.conf', data=self.plugin)
         return ctxt
 
 
+class NeutronComputeContext(NeutronContext):
+    interfaces = []
+
+    @property
+    def plugin(self):
+        return relation_get('neutron_plugin') or relation_get('quantum_plugin')
+
+    @property
+    def network_manager(self):
+        return relation_get('network_manager')
+
+    @property
+    def neutron_security_groups(self):
+        groups = [relation_get('neutron_security_groups'),
+                  relation_get('quantum_security_groups')]
+        return ('yes' in groups or 'Yes' in groups)
+
+    def ovs_ctxt(self):
+        ctxt = super(NeutronComputeContext, self).ovs_ctxt()
+        if get_os_codename_package('nova-common') == 'folsom':
+            n_driver = 'nova.virt.libvirt.vif.LibvirtHybridOVSBridgeDriver'
+        else:
+            n_driver = 'nova.virt.libvirt.vif.LibvirtGenericVIFDriver'
+        ctxt.update({
+            'libvirt_vif_driver': n_driver,
+        })
+        return ctxt
+
+
+class NeutronCCContext(NeutronContext):
+    interfaces = []
+
+    @property
+    def plugin(self):
+        return network_plugin()
+
+    @property
+    def neutron_security_groups(self):
+        sec_groups = (config('neutron-security-groups') or
+                      config('quantum-security-groups'))
+        return sec_groups.lower() == 'yes'
+
+
 # legacy
-QUANTUM_PLUGINS = {
-    'ovs': {
-        'config': '/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini',
-        'contexts': [context.SharedDBContext(),
-                     QuantumPluginContext()],
-        'services': ['quantum-plugin-openvswitch-agent'],
-        'packages': ['quantum-plugin-openvswitch-agent',
-                     'openvswitch-datapath-dkms'],
-    },
-    'nvp': {
-        'config': '/etc/quantum/plugins/nicira/nvp.ini',
-        'services': [],
-        'packages': ['quantum-plugin-nicira'],
+def quantum_plugins():
+    return {
+        'ovs': {
+            'config': '/etc/quantum/plugins/openvswitch/'
+                      'ovs_quantum_plugin.ini',
+            'driver': 'quantum.plugins.openvswitch.ovs_quantum_plugin.'
+                      'OVSQuantumPluginV2',
+            'contexts': [
+                NeutronContext(),
+                context.SharedDBContext(user=config('neutron-database-user'),
+                                        database=config('neutron-database'),
+                                        relation_prefix='neutron')],
+            'services': ['quantum-plugin-openvswitch-agent'],
+            'packages': ['quantum-plugin-openvswitch-agent',
+                         'openvswitch-datapath-dkms'],
+        },
+        'nvp': {
+            'config': '/etc/quantum/plugins/nicira/nvp.ini',
+            'driver': 'quantum.plugins.nicira.nicira_nvp_plugin.'
+                      'QuantumPlugin.NvpPluginV2',
+            'services': [],
+            'packages': ['quantum-plugin-nicira'],
+        }
     }
-}
 
 
-NEUTRON_PLUGINS = {
-    'ovs': {
-        'config': '/etc/neutron/plugins/openvswitch/ovs_neutron_plugin.ini',
-        'contexts': [context.SharedDBContext(),
-                     QuantumPluginContext()],
-        'services': ['neutron-plugin-openvswitch-agent'],
-        'packages': ['neutron-plugin-openvswitch-agent',
-                     'openvswitch-datapath-dkms'],
-    },
-    'nvp': {
-        'config': '/etc/neutron/plugins/nicira/nvp.ini',
-        'services': [],
-        'packages': ['neutron-plugin-nicira'],
+def neutron_plugins():
+    return {
+        'ovs': {
+            'config': '/etc/neutron/plugins/openvswitch/'
+                      'ovs_neutron_plugin.ini',
+            'driver': 'neutron.plugins.openvswitch.ovs_neutron_plugin.'
+                      'OVSNeutronPluginV2',
+            'contexts': [
+                context.SharedDBContext(user=config('neutron-database-user'),
+                                        database=config('neutron-database'),
+                                        relation_prefix='neutron')],
+            'services': ['neutron-plugin-openvswitch-agent'],
+            'packages': ['neutron-plugin-openvswitch-agent',
+                         'openvswitch-datapath-dkms'],
+        },
+        'nvp': {
+            'config': '/etc/neutron/plugins/nicira/nvp.ini',
+            'driver': 'neutron.plugins.nicira.nicira_nvp_plugin.'
+                      'NeutronPlugin.NvpPluginV2',
+            'services': [],
+            'packages': ['neutron-plugin-nicira'],
+        }
     }
-}
+
+
+def network_plugin():
+    # quantum-plugin config setting can be safely overriden
+    # as we only supported OVS in G/neutron
+    return config('neutron-plugin') or config('quantum-plugin')
 
 
 def _net_manager_enabled(manager):
@@ -136,9 +212,12 @@ def _net_manager_enabled(manager):
 def network_plugin_attribute(plugin, attr):
     manager = network_manager()
     if manager == 'quantum':
-        plugins = QUANTUM_PLUGINS
+        plugins = quantum_plugins()
+    elif manager == 'neutron':
+        plugins = neutron_plugins()
     else:
-        plugins = NEUTRON_PLUGINS
+        log('Error: Network manager does not support plugins.')
+        raise Exception
     try:
         _plugin = plugins[plugin]
     except KeyError:

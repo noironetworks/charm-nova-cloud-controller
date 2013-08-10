@@ -8,8 +8,6 @@ from copy import deepcopy
 
 from charmhelpers.contrib.openstack import templating, context
 
-from charmhelpers.contrib.hahelpers.cluster import canonical_url
-
 from charmhelpers.contrib.openstack.utils import (
     get_os_codename_package,
     save_script_rc as _save_script_rc,
@@ -26,7 +24,7 @@ from charmhelpers.core.hookenv import (
 
 import nova_cc_context
 
-from misc_utils import network_manager
+from misc_utils import network_manager, NeutronCCContext
 
 TEMPLATES = 'templates/'
 
@@ -62,6 +60,7 @@ BASE_RESOURCE_MAP = OrderedDict([
         'contexts': [context.AMQPContext(),
                      context.SharedDBContext(),
                      context.ImageServiceContext(),
+                     NeutronCCContext(),
                      nova_cc_context.VolumeServiceContext()],
     }),
     ('/etc/nova/api-paste.ini', {
@@ -70,19 +69,20 @@ BASE_RESOURCE_MAP = OrderedDict([
     }),
     ('/etc/quantum/quantum.conf', {
         'services': ['quantum-server'],
-        'contexts': [],
+        'contexts': [context.AMQPContext(),
+                     nova_cc_context.HAProxyContext(),
+                     NeutronCCContext()],
     }),
     ('/etc/quantum/api-paste.ini', {
         'services': ['quantum-server'],
-        'contexts': [],
+        'contexts': [context.IdentityServiceContext()],
     }),
     ('/etc/neutron/neutron.conf', {
         'services': ['neutron-server'],
-        'contexts': [],
-    }),
-    ('/etc/neutron/api-paste.ini', {
-        'services': ['neutron-server'],
-        'contexts': [],
+        'contexts': [context.AMQPContext(),
+                     context.IdentityServiceContext(),
+                     NeutronCCContext(),
+                     nova_cc_context.HAProxyContext()],
     }),
     ('/etc/haproxy/haproxy.cfg', {
         'contexts': [context.HAProxyContext(),
@@ -183,12 +183,6 @@ def save_script_rc():
 def do_openstack_upgrade():
     # TODO
     pass
-
-
-def network_plugin():
-    # quantum-plugin config setting can be safely overriden
-    # as we only supported OVS in G/quantum
-    return config('neutron-plugin') or config('quantum-plugin')
 
 
 def volume_service():

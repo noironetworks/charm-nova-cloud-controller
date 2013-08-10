@@ -1,4 +1,3 @@
-
 from charmhelpers.core.hookenv import relation_ids, relation_set
 from charmhelpers.core.host import apt_install, filter_installed_packages
 from charmhelpers.contrib.openstack import context, utils
@@ -43,6 +42,14 @@ class VolumeServiceContext(context.OSContextGenerator):
             [relation_set(volume_service='cinder', rid=rid)
              for rid in relation_ids('cloud-compute')]
         return ctxt
+
+
+class NetworkManagerContext(context.OSContextGenerator):
+    interfaces = []
+    network_manager = None
+
+    def __call__(self):
+        return {}
 
 
 class HAProxyContext(context.OSContextGenerator):

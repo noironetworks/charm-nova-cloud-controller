@@ -2,7 +2,14 @@ from mock import patch, MagicMock
 from copy import deepcopy
 from unit_tests.test_utils import CharmTestCase, patch_open
 
+from charmhelpers.core import hookenv
+
+_conf = hookenv.config
+hookenv.config = MagicMock()
+
 import hooks.nova_cc_utils as utils
+
+hookenv.config = _conf
 
 TO_PATCH = [
     'config',
@@ -73,7 +80,6 @@ class NovaCCUtilsTests(CharmTestCase):
         _map = utils.resource_map()
         confs = [
             '/etc/neutron/neutron.conf',
-            '/etc/neutron/api-paste.ini'
         ]
         [self.assertIn(q_conf, _map.keys()) for q_conf in confs]
 

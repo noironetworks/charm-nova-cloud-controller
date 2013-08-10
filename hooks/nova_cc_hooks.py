@@ -39,7 +39,6 @@ from nova_cc_utils import (
     ssh_compute_remove,
     ssh_known_hosts_b64,
     ssh_authorized_keys_b64,
-    network_plugin,
     register_configs,
     restart_map,
     volume_service,
@@ -48,6 +47,7 @@ from nova_cc_utils import (
 
 from misc_utils import (
     network_manager,
+    network_plugin,
     network_plugin_attribute,
 )
 
@@ -77,7 +77,7 @@ def config_changed():
         do_openstack_upgrade()
     save_script_rc()
     configure_https()
-    # XXX configure quantum networking
+    CONFIGS.write_all()
 
 
 @hooks.hook('amqp-relation-joined')
@@ -105,12 +105,10 @@ def db_joined():
                  nova_username=config('database-user'),
                  nova_hostname=unit_get('private-address'))
     if network_manager() in ['quantum', 'neutron']:
-        # request a database created for quantum if needed.
-        # XXX: Name relation setting neutron_* or keep quantum_* for
-        #      upgrades with existing relations?
-        relation_set(quantum_database=config('database'),
-                     quantum_username=config('database-user'),
-                     quantum_hostname=unit_get('private-address'))
+        # XXX: Renaming relations from quantum_* to neutron_* here.
+        relation_set(neutron_database=config('neutron-database'),
+                     neutron_username=config('neutron-database-user'),
+                     neutron_hostname=unit_get('private-address'))
 
 
 @hooks.hook('shared-db-relation-changed')
@@ -123,6 +121,7 @@ def db_changed():
 
     if network_manager() in ['neutron', 'quantum']:
         plugin = network_plugin()
+        # DB config might have been moved to main neutron.conf in H?
         CONFIGS.write(network_plugin_attribute(plugin, 'config'))
 
     if eligible_leader(CLUSTER_RES):
@@ -156,7 +155,7 @@ def identity_changed():
     if network_manager() == 'quantum':
         CONFIGS.write('/etc/quantum/api-paste.ini')
     if network_manager() == 'neutron':
-        CONFIGS.write('/etc/neutron/api-paste.ini')
+        CONFIGS.write('/etc/neutron/neutron.conf')
     # XXX configure quantum networking
 
 
@@ -251,12 +250,12 @@ def quantum_joined(rid=None):
         apt_install(required_pkg)
 
     url = canonical_url(CONFIGS) + ':9696'
-
+    # XXX: Can we rename to neutron_*?
     rel_settings = {
         'quantum_host': urlparse(url).hostname,
         'quantum_url': url,
         'quantum_port': 9696,
-        'quantum_plugin': config('quantum-plugin'),
+        'quantum_plugin': network_plugin(),
         'region': config('region')
     }
 
