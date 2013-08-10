@@ -1,13 +1,15 @@
-from mock import patch, call
+from mock import patch, MagicMock
 from copy import deepcopy
-from unit_tests.test_utils import CharmTestCase
+from unit_tests.test_utils import CharmTestCase, patch_open
 
 import hooks.nova_cc_utils as utils
 
 TO_PATCH = [
     'config',
+    'log',
     'get_os_codename_package',
     'relation_ids',
+    'remote_unit',
     '_save_script_rc',
 ]
 
@@ -20,6 +22,13 @@ SCRIPTRC_ENV_VARS = {
     'OPENSTACK_SERVICE_OBJECTSTORE': 'nova-objectstore',
     'OPENSTACK_SERVICE_SCHEDULER': 'nova-scheduler',
 }
+
+
+AUTHORIZED_KEYS = """
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC27Us7lSjCpa7bumXAgc nova-compute-1
+ssh-rsa BBBBB3NzaC1yc2EBBBBDBQBBBBBBBQC27Us7lSjCpa7bumXBgc nova-compute-2
+ssh-rsa CCCCB3NzaC1yc2ECCCCDCQCBCCCBCQC27Us7lSjCpa7bumXCgc nova-compute-3
+"""
 
 
 class NovaCCUtilsTests(CharmTestCase):
@@ -106,3 +115,104 @@ class NovaCCUtilsTests(CharmTestCase):
 
     def test_determine_volume_service_grizzly_and_beyond(self):
         pass
+
+    @patch.object(utils, 'remove_known_host')
+    @patch.object(utils, 'ssh_known_host_key')
+    @patch('subprocess.check_output')
+    def test_add_known_host_exists(self, check_output, host_key, rm):
+        check_output.return_value = 'fookey'
+        host_key.return_value = 'fookey'
+        with patch_open() as (_open, _file):
+            utils.add_known_host('foohost')
+            self.assertFalse(rm.called)
+            self.assertFalse(_file.write.called)
+
+    @patch.object(utils, 'known_hosts')
+    @patch.object(utils, 'remove_known_host')
+    @patch.object(utils, 'ssh_known_host_key')
+    @patch('subprocess.check_output')
+    def test_add_known_host_exists_outdated(
+            self, check_output, host_key, rm, known_hosts):
+        check_output.return_value = 'fookey'
+        host_key.return_value = 'fookey_old'
+        with patch_open() as (_open, _file):
+            utils.add_known_host('foohost')
+            rm.assert_called_with('foohost')
+
+    @patch.object(utils, 'known_hosts')
+    @patch.object(utils, 'remove_known_host')
+    @patch.object(utils, 'ssh_known_host_key')
+    @patch('subprocess.check_output')
+    def test_add_known_host_exists_added(
+            self, check_output, host_key, rm, known_hosts):
+        check_output.return_value = 'fookey'
+        host_key.return_value = None
+        with patch_open() as (_open, _file):
+            _file.write = MagicMock()
+            utils.add_known_host('foohost')
+            self.assertFalse(rm.called)
+            _file.write.assert_called_with('fookey\n')
+
+    @patch('os.mkdir')
+    @patch('os.path.isdir')
+    def test_ssh_directory_for_unit(self, isdir, mkdir):
+        self.remote_unit.return_value = 'nova-compute/0'
+        isdir.return_value = False
+        self.assertEquals(utils.ssh_directory_for_unit(),
+                          '/etc/nova/compute_ssh/nova-compute')
+
+    @patch.object(utils, 'ssh_directory_for_unit')
+    def test_known_hosts(self, ssh_dir):
+        ssh_dir.return_value = '/tmp/foo'
+        self.assertEquals(utils.known_hosts(), '/tmp/foo/known_hosts')
+
+    @patch.object(utils, 'ssh_directory_for_unit')
+    def test_authorized_keys(self, ssh_dir):
+        ssh_dir.return_value = '/tmp/foo'
+        self.assertEquals(utils.authorized_keys(), '/tmp/foo/authorized_keys')
+
+    @patch.object(utils, 'known_hosts')
+    @patch('subprocess.check_call')
+    def test_remove_host_key(self, check_call, known_hosts):
+        known_hosts.return_value = '/tmp/known_hosts'
+        utils.remove_known_host('foo')
+        check_call.assert_called_with([
+            'ssh-kegen', '-f', known_hosts(), '-R', 'foo'])
+
+    @patch.object(utils, 'authorized_keys')
+    def test_ssh_authorized_key_exists(self, keys):
+        key = 'BBBBB3NzaC1yc2EBBBBDBQBBBBBBBQC27Us7lSjCpa7bumXBgc'
+        with patch_open() as (_open, _file):
+            _file.read.return_value = AUTHORIZED_KEYS
+            self.assertTrue(utils.ssh_authorized_key_exists(key))
+
+    @patch.object(utils, 'authorized_keys')
+    def test_ssh_authorized_key_doesnt_exist(self, keys):
+        key = ('xxxx')
+        with patch_open() as (_open, _file):
+            _file.read = MagicMock()
+            _file.readreturn_value = AUTHORIZED_KEYS
+            self.assertFalse(utils.ssh_authorized_key_exists(key))
+
+    @patch.object(utils, 'known_hosts')
+    @patch.object(utils, 'authorized_keys')
+    @patch('os.path.isfile')
+    def test_ssh_compute_remove(self, isfile, auth_key, known_host):
+        isfile.return_value = False
+        utils.ssh_compute_remove()
+        self.assertFalse(self.remote_unit.called)
+
+        keys_removed = (
+            "\nssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC27Us7lSjCpa7bumXAgc "
+            "nova-compute-1\n"
+            "ssh-rsa CCCCB3NzaC1yc2ECCCCDCQCBCCCBCQC27Us7lSjCpa7bumXCgc "
+            "nova-compute-3\n"
+        )
+        isfile.return_value = True
+        self.remote_unit.return_value = 'nova-compute/2'
+        with patch_open() as (_open, _file):
+            _file.readlines = MagicMock()
+            _file.write = MagicMock()
+            _file.readlines.return_value = AUTHORIZED_KEYS.split('\n')
+            utils.ssh_compute_remove()
+            _file.write.assert_called_with(keys_removed)

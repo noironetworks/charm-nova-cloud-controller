@@ -36,6 +36,9 @@ from nova_cc_utils import (
     migrate_database,
     save_script_rc,
     ssh_compute_add,
+    ssh_compute_remove,
+    ssh_known_hosts_b64,
+    ssh_authorized_keys_b64,
     quantum_plugin,
     register_configs,
     restart_map,
@@ -212,15 +215,25 @@ def compute_joined(rid=None):
 def compute_changed():
     migration_auth = relation_get('migration_auth_type')
     if migration_auth == 'ssh':
-        ssh_compute_add()
+        key = relation_get('ssh_public_key')
+        if not key:
+            log('SSH migration set but peer did not publish key.')
+            return
+        ssh_compute_add(key, unit_get('private-address'))
+        relation_set(known_hosts=ssh_known_hosts_b64(),
+                     authorized_keys=ssh_authorized_keys_b64())
 
 
-@hooks.hook('quantum-network-servicerelation-joined')
+def compute_departed():
+    ssh_compute_remove()
+
+
+@hooks.hook('quantum-network-service-relation-joined')
 def quantum_joined(rid=None):
     if not eligible_leader():
         return
 
-    # XXX TODO: Need to add neutron/quantum compat. for pkg naming
+    # XXX TODO: Need to add quantum/quantum compat. for pkg naming
     required_pkg = filter_installed_packages(['quantum-server'])
     if required_pkg:
         apt_install(required_pkg)

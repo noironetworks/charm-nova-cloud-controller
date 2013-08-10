@@ -15,7 +15,10 @@ from charmhelpers.contrib.openstack.utils import (
 
 from charmhelpers.core.hookenv import (
     config,
+    log,
     relation_ids,
+    remote_unit,
+    ERROR,
 )
 
 import nova_cc_context
@@ -81,6 +84,8 @@ BASE_RESOURCE_MAP = OrderedDict([
 
 CA_CERT_PATH = '/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt'
 
+NOVA_SSH_DIR = '/etc/nova/compute_ssh/'
+
 
 def resource_map():
     '''
@@ -95,7 +100,7 @@ def resource_map():
         resource_map['/etc/nova/nova.conf']['services'].append(
             'nova-api-os-volume')
 
-    if config('network-manager').lower() != 'quantum':
+    if config('network-manager').lower() not in ['quantum', 'quantum']:
         # pop out quantum resources if not deploying it. easier to
         # remove it from the base ordered dict than add it in later
         # and still preserve ordering for restart_map().
@@ -128,6 +133,8 @@ def determine_ports():
                 pass
     return ports
 
+def network_manager():
+    pass
 
 def determine_packages():
     # currently all packages match service names
@@ -149,7 +156,7 @@ def save_script_rc():
     }
     if relation_ids('nova-volume-service'):
         env_vars['OPENSTACK_SERVICE_API_OS_VOL'] = 'nova-api-os-volume'
-    if config('network-manager').lower() == 'quantum':
+    if config('network-manager').lower() in ['quantum', 'quantum']:
         env_vars['OPENSTACK_SERVICE_API_QUANTUM'] = 'quantum-server'
     _save_script_rc(**env_vars)
 
@@ -160,7 +167,9 @@ def do_openstack_upgrade():
 
 
 def quantum_plugin():
-    return config('quantum-plugin').lower()
+    plugin = config('quantum-plugin').lower()
+    if not plugin:
+        return config('quantum-plugin').lower()
 
 
 def volume_service():
@@ -204,8 +213,97 @@ def keystone_ca_cert_b64():
         return b64encode(_in.read())
 
 
-def ssh_compute_add():
-    pass
+def ssh_directory_for_unit():
+    remote_service = remote_unit().split('/')[0]
+    d = os.path.join(NOVA_SSH_DIR, remote_service)
+    if not os.path.isdir(d):
+        os.mkdir(d)
+    return d
+
+
+def known_hosts():
+    return os.path.join(ssh_directory_for_unit(), 'known_hosts')
+
+
+def authorized_keys():
+    return os.path.join(ssh_directory_for_unit(), 'authorized_keys')
+
+
+def ssh_known_host_key(host):
+    cmd = ['ssh-keygen', '-f', known_hosts(), '-H', '-F', host]
+    return subprocess.check_output(cmd).strip()
+
+
+def remove_known_host(host):
+    log('Removing SSH known host entry for compute host at %s' % host)
+    cmd = ['ssh-kegen', '-f', known_hosts(), '-R', host]
+    subprocess.check_call(cmd)
+
+
+def add_known_host(host):
+    '''Add variations of host to a known hosts file.'''
+    cmd = ['ssh-keyscan', '-H', '-t', 'rsa', host]
+    try:
+        remote_key = subprocess.check_output(cmd).strip()
+    except Exception as e:
+        log('Could not obtain SSH host key from %s' % host, level=ERROR)
+        raise e
+
+    current_key = ssh_known_host_key(host)
+    if current_key:
+        if remote_key == current_key:
+            log('Known host key for compute host %s up to date.' % host)
+            return
+        else:
+            remove_known_host(host)
+
+    log('Adding SSH host key to known hosts for compute node at %s.' % host)
+    with open(known_hosts(), 'a') as out:
+        out.write(remote_key + '\n')
+
+
+def ssh_authorized_key_exists(public_key):
+    with open(authorized_keys()) as keys:
+        return (' %s ' % public_key) in keys.read()
+
+
+def add_authorized_key(public_key):
+    with open(authorized_keys(), 'a') as keys:
+        keys.write(public_key + '\n')
+
+
+def ssh_compute_add(public_key, host):
+    if not ssh_known_host_key(host):
+        add_known_host(host)
+    if not ssh_authorized_key_exists(public_key):
+        log('Saving SSH authorized key for compute host at %s.' % host)
+        add_authorized_key(host)
+
+
+def ssh_known_hosts_b64():
+    with open(known_hosts()) as hosts:
+        return b64encode(hosts.read())
+
+
+def ssh_authorized_keys_b64():
+    with open(authorized_keys()) as keys:
+        return b64encode(keys.read())
+
+
+def ssh_compute_remove():
+    if not (os.path.isfile(authorized_keys()) or
+            os.path.isfile(known_hosts())):
+        return
+    # NOTE: compute names its ssh key as ${service}-{$unit_num}.  we dont
+    #       have access to relation settings from departed hooks, so
+    #       we need to remove key based on keyname only.
+    key_name = remote_unit().replace('/', '-')
+    with open(authorized_keys()) as _keys:
+        keys = _keys.readlines()
+        print keys
+    [keys.remove(key) for key in keys if key_name in key]
+    with open(authorized_keys(), 'w') as _keys:
+        _keys.write('\n'.join(keys))
 
 
 def determine_endpoints():
