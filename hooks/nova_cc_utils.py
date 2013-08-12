@@ -15,10 +15,16 @@ from charmhelpers.contrib.openstack.utils import (
 
 from charmhelpers.core.hookenv import (
     config,
+    log,
     relation_ids,
+    remote_unit,
+    ERROR,
 )
 
+
 import nova_cc_context
+
+from misc_utils import network_manager, NeutronCCContext
 
 TEMPLATES = 'templates/'
 
@@ -44,6 +50,7 @@ API_PORTS = {
     'nova-api-os-compute': 8774,
     'nova-api-os-volume': 8776,
     'nova-objectstore': 3333,
+    'neutron-server': 9696,
     'quantum-server': 9696,
 }
 
@@ -53,6 +60,7 @@ BASE_RESOURCE_MAP = OrderedDict([
         'contexts': [context.AMQPContext(),
                      context.SharedDBContext(),
                      context.ImageServiceContext(),
+                     NeutronCCContext(),
                      nova_cc_context.VolumeServiceContext()],
     }),
     ('/etc/nova/api-paste.ini', {
@@ -61,11 +69,20 @@ BASE_RESOURCE_MAP = OrderedDict([
     }),
     ('/etc/quantum/quantum.conf', {
         'services': ['quantum-server'],
-        'contexts': [],
+        'contexts': [context.AMQPContext(),
+                     nova_cc_context.HAProxyContext(),
+                     NeutronCCContext()],
     }),
     ('/etc/quantum/api-paste.ini', {
         'services': ['quantum-server'],
-        'contexts': [],
+        'contexts': [context.IdentityServiceContext()],
+    }),
+    ('/etc/neutron/neutron.conf', {
+        'services': ['neutron-server'],
+        'contexts': [context.AMQPContext(),
+                     context.IdentityServiceContext(),
+                     NeutronCCContext(),
+                     nova_cc_context.HAProxyContext()],
     }),
     ('/etc/haproxy/haproxy.cfg', {
         'contexts': [context.HAProxyContext(),
@@ -81,6 +98,8 @@ BASE_RESOURCE_MAP = OrderedDict([
 
 CA_CERT_PATH = '/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt'
 
+NOVA_SSH_DIR = '/etc/nova/compute_ssh/'
+
 
 def resource_map():
     '''
@@ -95,12 +114,13 @@ def resource_map():
         resource_map['/etc/nova/nova.conf']['services'].append(
             'nova-api-os-volume')
 
-    if config('network-manager').lower() != 'quantum':
-        # pop out quantum resources if not deploying it. easier to
-        # remove it from the base ordered dict than add it in later
-        # and still preserve ordering for restart_map().
+    if network_manager() != 'quantum':
         [resource_map.pop(k) for k in list(resource_map.iterkeys())
          if 'quantum' in k]
+    if network_manager() != 'neutron':
+        [resource_map.pop(k) for k in list(resource_map.iterkeys())
+         if 'neutron' in k]
+
     return resource_map
 
 
@@ -129,6 +149,10 @@ def determine_ports():
     return ports
 
 
+def api_port(service):
+    return API_PORTS[service]
+
+
 def determine_packages():
     # currently all packages match service names
     packages = [] + BASE_PACKAGES
@@ -149,18 +173,16 @@ def save_script_rc():
     }
     if relation_ids('nova-volume-service'):
         env_vars['OPENSTACK_SERVICE_API_OS_VOL'] = 'nova-api-os-volume'
-    if config('network-manager').lower() == 'quantum':
+    if network_manager() == 'quantum':
         env_vars['OPENSTACK_SERVICE_API_QUANTUM'] = 'quantum-server'
+    if network_manager() == 'neutron':
+        env_vars['OPENSTACK_SERVICE_API_NEUTRON'] = 'neutron-server'
     _save_script_rc(**env_vars)
 
 
 def do_openstack_upgrade():
     # TODO
     pass
-
-
-def quantum_plugin():
-    return config('quantum-plugin').lower()
 
 
 def volume_service():
@@ -204,9 +226,148 @@ def keystone_ca_cert_b64():
         return b64encode(_in.read())
 
 
-def ssh_compute_add():
-    pass
+def ssh_directory_for_unit():
+    remote_service = remote_unit().split('/')[0]
+    d = os.path.join(NOVA_SSH_DIR, remote_service)
+    if not os.path.isdir(d):
+        os.mkdir(d)
+    return d
 
 
-def determine_endpoints():
-    pass
+def known_hosts():
+    return os.path.join(ssh_directory_for_unit(), 'known_hosts')
+
+
+def authorized_keys():
+    return os.path.join(ssh_directory_for_unit(), 'authorized_keys')
+
+
+def ssh_known_host_key(host):
+    cmd = ['ssh-keygen', '-f', known_hosts(), '-H', '-F', host]
+    return subprocess.check_output(cmd).strip()
+
+
+def remove_known_host(host):
+    log('Removing SSH known host entry for compute host at %s' % host)
+    cmd = ['ssh-kegen', '-f', known_hosts(), '-R', host]
+    subprocess.check_call(cmd)
+
+
+def add_known_host(host):
+    '''Add variations of host to a known hosts file.'''
+    cmd = ['ssh-keyscan', '-H', '-t', 'rsa', host]
+    try:
+        remote_key = subprocess.check_output(cmd).strip()
+    except Exception as e:
+        log('Could not obtain SSH host key from %s' % host, level=ERROR)
+        raise e
+
+    current_key = ssh_known_host_key(host)
+    if current_key:
+        if remote_key == current_key:
+            log('Known host key for compute host %s up to date.' % host)
+            return
+        else:
+            remove_known_host(host)
+
+    log('Adding SSH host key to known hosts for compute node at %s.' % host)
+    with open(known_hosts(), 'a') as out:
+        out.write(remote_key + '\n')
+
+
+def ssh_authorized_key_exists(public_key):
+    with open(authorized_keys()) as keys:
+        return (' %s ' % public_key) in keys.read()
+
+
+def add_authorized_key(public_key):
+    with open(authorized_keys(), 'a') as keys:
+        keys.write(public_key + '\n')
+
+
+def ssh_compute_add(public_key, host):
+    if not ssh_known_host_key(host):
+        add_known_host(host)
+    if not ssh_authorized_key_exists(public_key):
+        log('Saving SSH authorized key for compute host at %s.' % host)
+        add_authorized_key(host)
+
+
+def ssh_known_hosts_b64():
+    with open(known_hosts()) as hosts:
+        return b64encode(hosts.read())
+
+
+def ssh_authorized_keys_b64():
+    with open(authorized_keys()) as keys:
+        return b64encode(keys.read())
+
+
+def ssh_compute_remove():
+    if not (os.path.isfile(authorized_keys()) or
+            os.path.isfile(known_hosts())):
+        return
+    # NOTE: compute names its ssh key as ${service}-{$unit_num}.  we dont
+    #       have access to relation settings from departed hooks, so
+    #       we need to remove key based on keyname only.
+    key_name = remote_unit().replace('/', '-')
+    with open(authorized_keys()) as _keys:
+        keys = _keys.readlines()
+    [keys.remove(key) for key in keys if key_name in key]
+    with open(authorized_keys(), 'w') as _keys:
+        _keys.write('\n'.join(keys))
+
+
+def determine_endpoints(url):
+    '''Generates a dictionary containing all relevant endpoints to be
+    passed to keystone as relation settings.'''
+    region = config('region')
+
+    # TODO: Configurable nova API version.
+    nova_url = ('%s:%s/v1.1/\$tenant_id)s' %
+                (url, api_port('nova-api-os-compute')))
+    ec2_url = '%s:%s/services/Cloud' % (url, api_port('nova-api-ec2'))
+    nova_volume_url = ('%s:%s/v1/\$(tenant_id)s' %
+                       (url, api_port('nova-api-os-compute')))
+    neutron_url = '%s:%s' % (url, api_port('neutron-server'))
+    s3_url = '%s:%s' % (url, api_port('nova-objectstore'))
+
+    # the base endpoints
+    endpoints = {
+        'nova_service': 'nova',
+        'nova_region': region,
+        'nova_public_url': nova_url,
+        'nova_admin_url': nova_url,
+        'nova_internal_url': nova_url,
+        'ec2_service': 'ec2',
+        'ec2_region': region,
+        'ec2_public_url': ec2_url,
+        'ec2_admin_url': ec2_url,
+        'ec2_internal_url': ec2_url,
+        's3_service': 's3',
+        's3_region': region,
+        's3_public_url': s3_url,
+        's3_admin_url': s3_url,
+        's3_internal_url': s3_url,
+    }
+
+    if relation_ids('nova-volume-service'):
+        endpoints.update({
+            'nova-volume_service': 'nova-volume',
+            'nova-volume_region': region,
+            'nova-volume_public_url': nova_volume_url,
+            'nova-volume_admin_url': nova_volume_url,
+            'nova-volume_internal_url': nova_volume_url,
+        })
+
+    # XXX: Keep these relations named quantum_*??
+    if network_manager() in ['quantum', 'neutron']:
+        endpoints.update({
+            'quantum_service': 'quantum',
+            'quantum_region': region,
+            'quantum_public_url': neutron_url,
+            'quantum_admin_url': neutron_url,
+            'quantum_internal_url': neutron_url,
+        })
+
+    return endpoints
