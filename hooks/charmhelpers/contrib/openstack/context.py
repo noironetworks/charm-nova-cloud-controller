@@ -88,7 +88,7 @@ class SharedDBContext(OSContextGenerator):
                     'database_host': relation_get('db_host', rid=rid,
                                                   unit=unit),
                     'database': self.database,
-                    'database_user': self.username,
+                    'database_user': self.user,
                     'database_password': passwd,
                 }
         if not context_complete(ctxt):
