@@ -26,6 +26,12 @@ from charmhelpers.contrib.openstack.utils import (
     openstack_upgrade_available,
 )
 
+from charmhelpers.contrib.openstack.utils import (
+    network_manager,
+    neutron_plugin,
+    neutron_plugin_attribute,
+)
+
 from nova_cc_utils import (
     auth_token_config,
     determine_endpoints,
@@ -43,12 +49,6 @@ from nova_cc_utils import (
     restart_map,
     volume_service,
     CLUSTER_RES,
-)
-
-from misc_utils import (
-    network_manager,
-    network_plugin,
-    network_plugin_attribute,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -120,9 +120,9 @@ def db_changed():
     CONFIGS.write('/etc/nova/nova.conf')
 
     if network_manager() in ['neutron', 'quantum']:
-        plugin = network_plugin()
+        plugin = neutron_plugin()
         # DB config might have been moved to main neutron.conf in H?
-        CONFIGS.write(network_plugin_attribute(plugin, 'config'))
+        CONFIGS.write(neutron_plugin_attribute(plugin, 'config'))
 
     if eligible_leader(CLUSTER_RES):
         migrate_database()
@@ -207,7 +207,7 @@ def compute_joined(rid=None):
             rel_settings.update(ks_auth_config)
             rel_settings.update({
                 # XXX: Rename these relations settings?
-                'quantum_plugin': network_plugin(),
+                'quantum_plugin': neutron_plugin(),
                 'region': config('region'),
                 'quantum_security_groups': config('quantum_security_groups'),
             })
@@ -256,7 +256,7 @@ def quantum_joined(rid=None):
         'quantum_host': urlparse(url).hostname,
         'quantum_url': url,
         'quantum_port': 9696,
-        'quantum_plugin': network_plugin(),
+        'quantum_plugin': neutron_plugin(),
         'region': config('region')
     }
 
