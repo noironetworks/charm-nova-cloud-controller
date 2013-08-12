@@ -6,9 +6,11 @@ from base64 import b64encode
 from collections import OrderedDict
 from copy import deepcopy
 
-from charmhelpers.contrib.openstack import templating, context
+from charmhelpers.contrib.openstack import context, templating
+from charmhelpers.contrib.openstack.neutron import network_manager
 
 from charmhelpers.contrib.openstack.utils import (
+    os_release,
     save_script_rc as _save_script_rc)
 
 
@@ -17,13 +19,12 @@ from charmhelpers.core.hookenv import (
     log,
     relation_ids,
     remote_unit,
+    INFO,
     ERROR,
 )
 
 
 import nova_cc_context
-
-from misc_utils import network_manager, NeutronCCContext, os_release
 
 TEMPLATES = 'templates/'
 
@@ -57,9 +58,9 @@ BASE_RESOURCE_MAP = OrderedDict([
     ('/etc/nova/nova.conf', {
         'services': BASE_SERVICES,
         'contexts': [context.AMQPContext(),
-                     context.SharedDBContext(),
+                     context.SharedDBContext(relation_prefix='nova'),
                      context.ImageServiceContext(),
-                     NeutronCCContext(),
+                     nova_cc_context.NeutronCCContext(),
                      nova_cc_context.VolumeServiceContext()],
     }),
     ('/etc/nova/api-paste.ini', {
@@ -70,7 +71,8 @@ BASE_RESOURCE_MAP = OrderedDict([
         'services': ['quantum-server'],
         'contexts': [context.AMQPContext(),
                      nova_cc_context.HAProxyContext(),
-                     NeutronCCContext()],
+                     context.IdentityServiceContext(),
+                     nova_cc_context.NeutronCCContext()],
     }),
     ('/etc/quantum/api-paste.ini', {
         'services': ['quantum-server'],
@@ -80,7 +82,7 @@ BASE_RESOURCE_MAP = OrderedDict([
         'services': ['neutron-server'],
         'contexts': [context.AMQPContext(),
                      context.IdentityServiceContext(),
-                     NeutronCCContext(),
+                     nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext()],
     }),
     ('/etc/haproxy/haproxy.cfg', {
@@ -124,7 +126,7 @@ def resource_map():
 
 
 def register_configs():
-    release = os_release()
+    release = os_release('nova-common')
     configs = templating.OSConfigRenderer(templates_dir=TEMPLATES,
                                           openstack_release=release)
     for cfg, rscs in resource_map().iteritems():
@@ -186,7 +188,7 @@ def do_openstack_upgrade():
 
 def volume_service():
     '''Specifies correct volume API for specific OS release'''
-    os_vers = os_release()
+    os_vers = os_release('nova-common')
     if os_vers == 'essex':
         return 'nova-volume'
     elif os_vers == 'folsom':  # support both drivers in folsom.
@@ -197,6 +199,7 @@ def volume_service():
 
 def migrate_database():
     '''Runs nova-manage to initialize a new database or migrate existing'''
+    log('Migrating the nova database', level=INFO)
     cmd = ['nova-manage', 'db', 'sync']
     subprocess.check_call(cmd)
 
@@ -227,10 +230,15 @@ def keystone_ca_cert_b64():
 
 def ssh_directory_for_unit():
     remote_service = remote_unit().split('/')[0]
-    d = os.path.join(NOVA_SSH_DIR, remote_service)
-    if not os.path.isdir(d):
-        os.mkdir(d)
-    return d
+    _dir = os.path.join(NOVA_SSH_DIR, remote_service)
+    for d in [NOVA_SSH_DIR, _dir]:
+        if not os.path.isdir(d):
+            os.mkdir(d)
+    for f in ['authorized_keys', 'known_hosts']:
+        f = os.path.join(_dir, f)
+        if not os.path.isfile(f):
+            open(f, 'w').close()
+    return _dir
 
 
 def known_hosts():
@@ -289,7 +297,7 @@ def ssh_compute_add(public_key, host):
         add_known_host(host)
     if not ssh_authorized_key_exists(public_key):
         log('Saving SSH authorized key for compute host at %s.' % host)
-        add_authorized_key(host)
+        add_authorized_key(public_key)
 
 
 def ssh_known_hosts_b64():

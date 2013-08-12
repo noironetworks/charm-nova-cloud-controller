@@ -154,6 +154,7 @@ def identity_changed():
     CONFIGS.write('/etc/nova/api-paste.ini')
     if network_manager() == 'quantum':
         CONFIGS.write('/etc/quantum/api-paste.ini')
+        CONFIGS.write('/etc/quantum/quantum.conf')
     if network_manager() == 'neutron':
         CONFIGS.write('/etc/neutron/neutron.conf')
     # XXX configure quantum networking
@@ -217,7 +218,7 @@ def compute_joined(rid=None):
     relation_set(rid=rid, **rel_settings)
 
 
-@hooks.hook('cloud-compute-relation-joined')
+@hooks.hook('cloud-compute-relation-changed')
 def compute_changed():
     migration_auth = relation_get('migration_auth_type')
     if migration_auth == 'ssh':

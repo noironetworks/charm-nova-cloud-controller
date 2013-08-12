@@ -12,10 +12,7 @@ from charmhelpers.contrib.openstack import context
 
 from charmhelpers.core.host import apt_install, filter_installed_packages
 
-from charmhelpers.contrib.openstack.utils import (
-    get_os_codename_package,
-    get_os_codename_install_source,
-)
+from charmhelpers.contrib.openstack.utils import os_release
 
 
 def _save_flag_file(path, data):
@@ -120,7 +117,7 @@ class NeutronComputeContext(NeutronContext):
 
     def ovs_ctxt(self):
         ctxt = super(NeutronComputeContext, self).ovs_ctxt()
-        if get_os_codename_package('nova-common') == 'folsom':
+        if os_release('nova-common') == 'folsom':
             n_driver = 'nova.virt.libvirt.vif.LibvirtHybridOVSBridgeDriver'
         else:
             n_driver = 'nova.virt.libvirt.vif.LibvirtGenericVIFDriver'
@@ -135,7 +132,11 @@ class NeutronCCContext(NeutronContext):
 
     @property
     def plugin(self):
-        return network_plugin()
+        return neutron_plugin()
+
+    @property
+    def network_manager(self):
+        return network_manager()
 
     @property
     def neutron_security_groups(self):
@@ -196,7 +197,7 @@ def neutron_plugins():
     }
 
 
-def network_plugin():
+def neutron_plugin():
     # quantum-plugin config setting can be safely overriden
     # as we only supported OVS in G/neutron
     return config('neutron-plugin') or config('quantum-plugin')
@@ -229,26 +230,13 @@ def network_plugin_attribute(plugin, attr):
         return None
 
 
-os_rel = None
-
-
-def os_release():
-    global os_rel
-    if os_rel:
-        return os_rel
-    os_rel = (get_os_codename_package('nova-common', fatal=False) or
-              get_os_codename_install_source(config('openstack-origin')) or
-              'essex')
-    return os_rel
-
-
 def network_manager():
     '''
     Deals with the renaming of Quantum to Neutron in H and any situations
     that require compatability (eg, deploying H with network-manager=quantum,
     upgrading from G).
     '''
-    release = os_release()
+    release = os_release('nova-common')
     manager = config('network-manager').lower()
 
     if manager not in ['quantum', 'neutron']:

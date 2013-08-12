@@ -1,8 +1,7 @@
 
-from misc_utils import network_manager
-from charmhelpers.core.hookenv import relation_ids, relation_set
+from charmhelpers.core.hookenv import config, relation_ids, relation_set
 from charmhelpers.core.host import apt_install, filter_installed_packages
-from charmhelpers.contrib.openstack import context, utils
+from charmhelpers.contrib.openstack import context, neutron, utils
 
 from charmhelpers.contrib.hahelpers.cluster import (
     determine_api_port, determine_haproxy_port)
@@ -87,7 +86,7 @@ class HAProxyContext(context.HAProxyContext):
             })
             ctxt['osapi_volume_listen_port'] = api_port('nova-api-os-volume')
 
-        if network_manager() in ['neutron', 'quantum']:
+        if neutron.network_manager() in ['neutron', 'quantum']:
             port_mapping.update({
                 'neutron-server': [
                     determine_haproxy_port(api_port('neutron-server')),
@@ -95,3 +94,21 @@ class HAProxyContext(context.HAProxyContext):
             })
             ctxt['bind_port'] = api_port('neutron-server')
         ctxt['service_ports'] = port_mapping
+
+
+class NeutronCCContext(context.NeutronContext):
+    interfaces = []
+
+    @property
+    def plugin(self):
+        return neutron.neutron_plugin()
+
+    @property
+    def network_manager(self):
+        return neutron.network_manager()
+
+    @property
+    def neutron_security_groups(self):
+        sec_groups = (config('neutron-security-groups') or
+                      config('quantum-security-groups'))
+        return sec_groups.lower() == 'yes'
