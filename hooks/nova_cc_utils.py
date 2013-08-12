@@ -9,9 +9,8 @@ from copy import deepcopy
 from charmhelpers.contrib.openstack import templating, context
 
 from charmhelpers.contrib.openstack.utils import (
-    get_os_codename_package,
-    save_script_rc as _save_script_rc,
-)
+    save_script_rc as _save_script_rc)
+
 
 from charmhelpers.core.hookenv import (
     config,
@@ -24,7 +23,7 @@ from charmhelpers.core.hookenv import (
 
 import nova_cc_context
 
-from misc_utils import network_manager, NeutronCCContext
+from misc_utils import network_manager, NeutronCCContext, os_release
 
 TEMPLATES = 'templates/'
 
@@ -125,10 +124,10 @@ def resource_map():
 
 
 def register_configs():
-    release = get_os_codename_package('nova-common', fatal=False) or 'essex'
+    release = os_release()
     configs = templating.OSConfigRenderer(templates_dir=TEMPLATES,
                                           openstack_release=release)
-    for cfg, rscs in resource_map.iteritems():
+    for cfg, rscs in resource_map().iteritems():
         configs.register(cfg, rscs['contexts'])
     return configs
 
@@ -187,7 +186,7 @@ def do_openstack_upgrade():
 
 def volume_service():
     '''Specifies correct volume API for specific OS release'''
-    os_vers = get_os_codename_package('nova-common')
+    os_vers = os_release()
     if os_vers == 'essex':
         return 'nova-volume'
     elif os_vers == 'folsom':  # support both drivers in folsom.

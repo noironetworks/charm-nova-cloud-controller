@@ -229,14 +229,26 @@ def network_plugin_attribute(plugin, attr):
         return None
 
 
+os_rel = None
+
+
+def os_release():
+    global os_rel
+    if os_rel:
+        return os_rel
+    os_rel = (get_os_codename_package('nova-common', fatal=False) or
+              get_os_codename_install_source(config('openstack-origin')) or
+              'essex')
+    return os_rel
+
+
 def network_manager():
     '''
     Deals with the renaming of Quantum to Neutron in H and any situations
     that require compatability (eg, deploying H with network-manager=quantum,
     upgrading from G).
     '''
-    release = (get_os_codename_package('nova-common', fatal=False) or
-               get_os_codename_install_source() or 'essex')
+    release = os_release()
     manager = config('network-manager').lower()
 
     if manager not in ['quantum', 'neutron']:
