@@ -70,7 +70,7 @@ def install():
     [open_port(port) for port in determine_ports()]
 
 
-@hooks.hook()
+@hooks.hook('config-changed')
 @restart_on_change(restart_map())
 def config_changed():
     if openstack_upgrade_available('nova-common'):
