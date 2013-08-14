@@ -1,4 +1,4 @@
-from mock import patch, MagicMock
+from mock import patch, MagicMock, call
 from copy import deepcopy
 from unit_tests.test_utils import CharmTestCase, patch_open
 
@@ -15,6 +15,8 @@ TO_PATCH = [
     'config',
     'log',
     'network_manager',
+    'neutron_plugin',
+    'neutron_plugin_attribute',
     'os_release',
     'relation_ids',
     'remote_unit',
@@ -44,9 +46,9 @@ BASE_ENDPOINTS = {
     'ec2_public_url': 'http://foohost.com:8773/services/Cloud',
     'ec2_region': 'RegionOne',
     'ec2_service': 'ec2',
-    'nova_admin_url': 'http://foohost.com:8774/v1.1/\$tenant_id)s',
-    'nova_internal_url': 'http://foohost.com:8774/v1.1/\$tenant_id)s',
-    'nova_public_url': 'http://foohost.com:8774/v1.1/\$tenant_id)s',
+    'nova_admin_url': 'http://foohost.com:8774/v1.1/$(tenant_id)s',
+    'nova_internal_url': 'http://foohost.com:8774/v1.1/$(tenant_id)s',
+    'nova_public_url': 'http://foohost.com:8774/v1.1/$(tenant_id)s',
     'nova_region': 'RegionOne',
     'nova_service': 'nova',
     's3_admin_url': 'http://foohost.com:3333',
@@ -62,10 +64,17 @@ class NovaCCUtilsTests(CharmTestCase):
         super(NovaCCUtilsTests, self).setUp(utils, TO_PATCH)
         self.config.side_effect = self.test_config.get
 
+    def _resource_map(self, network_manager=None, volume_manager=None):
+        if network_manager:
+            self.network_manager.return_value = network_manager
+            self.test_config.set('network-manager', network_manager.title())
+            self.neutron_plugin.return_value = None
+        if volume_manager == 'nova-volume':
+            self.relation_ids.return_value = 'nova-volume-service:0'
+        return utils.resource_map()
+
     def test_resource_map_quantum(self):
-        self.network_manager.return_value = 'quantum'
-        self.relation_ids.return_value = []
-        self.test_config.set('network-manager', 'Quantum')
+        self._resource_map(network_manager='quantum')
         _map = utils.resource_map()
         confs = [
             '/etc/quantum/quantum.conf',
@@ -74,9 +83,7 @@ class NovaCCUtilsTests(CharmTestCase):
         [self.assertIn(q_conf, _map.keys()) for q_conf in confs]
 
     def test_resource_map_neutron(self):
-        self.network_manager.return_value = 'neutron'
-        self.relation_ids.return_value = []
-        self.test_config.set('network-manager', 'Quantum')
+        self._resource_map(network_manager='neutron')
         _map = utils.resource_map()
         confs = [
             '/etc/neutron/neutron.conf',
@@ -90,16 +97,12 @@ class NovaCCUtilsTests(CharmTestCase):
                       _map['/etc/nova/nova.conf']['services'])
 
     def test_determine_packages_quantum(self):
-        self.network_manager.return_value = 'quantum'
-        self.relation_ids.return_value = []
-        self.test_config.set('network-manager', 'Quantum')
+        self._resource_map(network_manager='quantum')
         pkgs = utils.determine_packages()
         self.assertIn('quantum-server', pkgs)
 
     def test_determine_packages_neutron(self):
-        self.network_manager.return_value = 'neutron'
-        self.relation_ids.return_value = []
-        self.test_config.set('network-manager', 'Quantum')
+        self._resource_map(network_manager='neutron')
         pkgs = utils.determine_packages()
         self.assertIn('neutron-server', pkgs)
 
@@ -198,14 +201,18 @@ class NovaCCUtilsTests(CharmTestCase):
             self.assertFalse(rm.called)
             _file.write.assert_called_with('fookey\n')
 
+    @patch('__builtin__.open')
     @patch('os.mkdir')
     @patch('os.path.isdir')
-    def test_ssh_directory_for_unit(self, isdir, mkdir):
+    def test_ssh_directory_for_unit(self, isdir, mkdir, _open):
         self.remote_unit.return_value = 'nova-compute/0'
         isdir.return_value = False
-        with patch_open() as (_open, _file):
-            self.assertEquals(utils.ssh_directory_for_unit(),
-                              '/etc/nova/compute_ssh/nova-compute')
+        self.assertEquals(utils.ssh_directory_for_unit(),
+                          '/etc/nova/compute_ssh/nova-compute')
+        self.assertIn([
+            call('/etc/nova/compute_ssh/nova-compute/authorized_keys', 'w'),
+            call('/etc/nova/compute_ssh/nova-compute/known_hosts', 'w')
+        ], _open.call_args_list)
 
     @patch.object(utils, 'ssh_directory_for_unit')
     def test_known_hosts(self, ssh_dir):
@@ -277,11 +284,11 @@ class NovaCCUtilsTests(CharmTestCase):
         endpoints = deepcopy(BASE_ENDPOINTS)
         endpoints.update({
             'nova-volume_admin_url':
-            'http://foohost.com:8774/v1/\$(tenant_id)s',
+            'http://foohost.com:8774/v1/$(tenant_id)s',
             'nova-volume_internal_url':
-            'http://foohost.com:8774/v1/\$(tenant_id)s',
+            'http://foohost.com:8774/v1/$(tenant_id)s',
             'nova-volume_public_url':
-            'http://foohost.com:8774/v1/\$(tenant_id)s',
+            'http://foohost.com:8774/v1/$(tenant_id)s',
             'nova-volume_region': 'RegionOne',
             'nova-volume_service': 'nova-volume'})
         self.assertEquals(
