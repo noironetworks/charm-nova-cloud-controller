@@ -21,6 +21,7 @@ from charmhelpers.core.hookenv import (
     related_units,
     unit_get,
     unit_private_ip,
+    WARNING,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -354,33 +355,14 @@ class NeutronContext(object):
 
     def ovs_ctxt(self):
         driver = neutron_plugin_attribute(self.plugin, 'driver',
-                                          self.network_manager),
+                                          self.network_manager)
 
         ovs_ctxt = {
-            'neutron_plugin': 'ovs',
-            # quantum.conf
             'core_plugin': driver,
-            # NOTE: network api class in template for each release.
-            # nova.conf
-            #'libvirt_vif_driver': n_driver,
-            #'libvirt_use_virtio_for_bridges': True,
-            # ovs config
+            'neutron_plugin': 'ovs',
+            'neutron_security_groups': self.neutron_security_groups,
             'local_ip': unit_private_ip(),
         }
-
-        if self.neutron_security_groups:
-            ovs_ctxt['neutron_security_groups'] = True
-
-            fw_driver = ('%s.agent.linux.iptables_firewall.'
-                         'OVSHybridIptablesFirewallDriver' %
-                         self.network_manager)
-
-            ovs_ctxt.update({
-                # IN TEMPLATE:
-                #   - security_group_api=quantum in nova.conf for >= g
-                #  nova_firewall_driver=nova.virt.firewall.NoopFirewallDriver'
-                'neutron_firewall_driver': fw_driver,
-            })
 
         return ovs_ctxt
 
@@ -401,3 +383,25 @@ class NeutronContext(object):
 
         self._save_flag_file()
         return ctxt
+
+
+class OSConfigFlagContext(OSContextGenerator):
+        '''
+        Responsible adding user-defined config-flags in charm config to a
+        to a template context.
+        '''
+        def __call__(self):
+            config_flags = config('config-flags')
+            if not config_flags:
+                return {}
+            config_flags = config_flags.split(',')
+            flags = {}
+            for flag in config_flags:
+                if '=' not in flag:
+                    log('Improperly formatted config-flag, expected k=v '
+                        ' got %s' % flag, level=WARNING)
+                    continue
+                k, v = flag.split('=')
+                flags[k.strip()] = v
+            ctxt = {'user_config_flags': flags}
+            return ctxt
