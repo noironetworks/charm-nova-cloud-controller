@@ -1,5 +1,7 @@
 
-from charmhelpers.core.hookenv import config, relation_ids, relation_set
+from charmhelpers.core.hookenv import (
+    config, relation_ids, relation_set, log, ERROR)
+
 from charmhelpers.core.host import apt_install, filter_installed_packages
 from charmhelpers.contrib.openstack import context, neutron, utils
 
@@ -26,17 +28,19 @@ class VolumeServiceContext(context.OSContextGenerator):
     def __call__(self):
         ctxt = {}
 
-        os_vers = utils.get_os_codename_package('nova-common')
+        if relation_ids('nova-volume-service'):
+            if utils.os_release('nova-common') not in ['essex', 'folsom']:
+                e = ('Attempting to relate a nova-volume service to an '
+                     'Nova version (%s).  Use cinder.')
+                log(e, level=ERROR)
 
-        if (relation_ids('nova-volume-service') and
-           os_vers in ['essex', 'folsom']):
-            # legacy nova-volume support, only supported in E and F
-            ctxt['volume_service_config'] = 'nova.volume.api.API'
+                raise context.OSContextError(e)
             install_pkg = filter_installed_packages(['nova-api-os-volume'])
             if install_pkg:
                 apt_install(install_pkg)
+            ctxt['volume_service'] = 'nova-volume'
         elif relation_ids('cinder-volume-service'):
-            ctxt['volume_service_config'] = 'nova.volume.cinder.API'
+            ctxt['volume_service'] = 'cinder'
             # kick all compute nodes to know they should use cinder now.
             [relation_set(volume_service='cinder', rid=rid)
              for rid in relation_ids('cloud-compute')]
