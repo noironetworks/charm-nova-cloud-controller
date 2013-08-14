@@ -58,23 +58,33 @@ class HAProxyContext(context.HAProxyContext):
             # we do not have any other peers, do not load balance yet.
             return {}
 
-        ctxt = {
-            'osapi_compute_listen_port': api_port('nova-api-os-compute'),
-            'ec2_listen_port': api_port('nova-api-ec2'),
-            's3_listen_port': api_port('nova-objectstore'),
+        # determine which port api processes should bind to, depending
+        # on existence of haproxy + apache frontends
+        compute_api = determine_api_port(api_port('nova-api-os-compute'))
+        ec2_api = determine_api_port(api_port('nova-api-ec2'))
+        s3_api = determine_api_port(api_port('nova-objectstore'))
+        nvol_api = determine_api_port(api_port('nova-api-os-volume'))
+        neutron_api = determine_api_port(api_port('neutron-server'))
+
+        # to be set in nova.conf accordingly.
+        listen_ports = {
+            'osapi_compute_listen_port': compute_api,
+            'ec2_listen_port': ec2_api,
+            's3_listen_port': s3_api,
         }
+
         port_mapping = {
             'nova-api-os-compute': [
                 determine_haproxy_port(api_port('nova-api-os-compute')),
-                determine_api_port(api_port('nova-api-os-compute'))
+                compute_api,
             ],
             'nova-api-ec2': [
                 determine_haproxy_port(api_port('nova-api-ec2')),
-                determine_api_port(api_port('nova-api-ec2'))
+                ec2_api,
             ],
             'nova-objectstore': [
                 determine_haproxy_port(api_port('nova-objectstore')),
-                determine_api_port(api_port('nova-objectstore'))
+                s3_api,
             ],
         }
 
@@ -82,18 +92,24 @@ class HAProxyContext(context.HAProxyContext):
             port_mapping.update({
                 'nova-api-ec2': [
                     determine_haproxy_port(api_port('nova-api-ec2')),
-                    determine_api_port(api_port('nova-api-ec2'))]
+                    nvol_api],
             })
-            ctxt['osapi_volume_listen_port'] = api_port('nova-api-os-volume')
+            listen_ports['osapi_volume_listen_port'] = nvol_api
 
         if neutron.network_manager() in ['neutron', 'quantum']:
             port_mapping.update({
                 'neutron-server': [
                     determine_haproxy_port(api_port('neutron-server')),
-                    determine_api_port(api_port('neutron-server'))]
+                    neutron_api]
             })
-            ctxt['bind_port'] = api_port('neutron-server')
+            # quantum/neutron.conf listening port, set separte from nova's.
+            ctxt['neutron_bind_port'] = neutron_api
+
+        # for haproxy.conf
         ctxt['service_ports'] = port_mapping
+        # for nova.conf
+        ctxt['listen_ports'] = listen_ports
+        return ctxt
 
 
 class NeutronCCContext(context.NeutronContext):
@@ -101,7 +117,8 @@ class NeutronCCContext(context.NeutronContext):
 
     @property
     def plugin(self):
-        return neutron.neutron_plugin()
+        from nova_cc_utils import neutron_plugin
+        return neutron_plugin()
 
     @property
     def network_manager(self):

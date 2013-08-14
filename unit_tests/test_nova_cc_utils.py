@@ -14,8 +14,8 @@ hookenv.config = _conf
 TO_PATCH = [
     'config',
     'log',
-    'get_os_codename_package',
     'network_manager',
+    'os_release',
     'relation_ids',
     'remote_unit',
     '_save_script_rc',
@@ -145,16 +145,16 @@ class NovaCCUtilsTests(CharmTestCase):
         self._save_script_rc.called_with(**_ex)
 
     def test_determine_volume_service_essex(self):
-        self.get_os_codename_package.return_value = 'essex'
+        self.os_release.return_value = 'essex'
         self.assertEquals('nova-volume', utils.volume_service())
 
     def test_determine_volume_service_folsom_cinder(self):
-        self.get_os_codename_package.return_value = 'folsom'
+        self.os_release.return_value = 'folsom'
         self.relation_ids.return_value = ['cinder:0']
         self.assertEquals('cinder', utils.volume_service())
 
     def test_determine_volume_service_folsom_nova_vol(self):
-        self.get_os_codename_package.return_value = 'folsom'
+        self.os_release.return_value = 'folsom'
         self.relation_ids.return_value = []
         self.assertEquals('nova-volume', utils.volume_service())
 
@@ -203,8 +203,9 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_ssh_directory_for_unit(self, isdir, mkdir):
         self.remote_unit.return_value = 'nova-compute/0'
         isdir.return_value = False
-        self.assertEquals(utils.ssh_directory_for_unit(),
-                          '/etc/nova/compute_ssh/nova-compute')
+        with patch_open() as (_open, _file):
+            self.assertEquals(utils.ssh_directory_for_unit(),
+                              '/etc/nova/compute_ssh/nova-compute')
 
     @patch.object(utils, 'ssh_directory_for_unit')
     def test_known_hosts(self, ssh_dir):
@@ -264,7 +265,7 @@ class NovaCCUtilsTests(CharmTestCase):
 
     def test_network_manager_untranslated(self):
         self.test_config.set('network-manager', 'foo')
-        self.get_os_codename_package.return_value = 'folsom'
+        self.os_release.return_value = 'folsom'
 
     def test_determine_endpoints_base(self):
         self.relation_ids.return_value = []

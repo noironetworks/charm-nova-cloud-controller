@@ -26,13 +26,13 @@ from charmhelpers.contrib.openstack.utils import (
     openstack_upgrade_available,
 )
 
-from charmhelpers.contrib.openstack.utils import (
+from charmhelpers.contrib.openstack.neutron import (
     network_manager,
-    neutron_plugin,
     neutron_plugin_attribute,
 )
 
 from nova_cc_utils import (
+    api_port,
     auth_token_config,
     determine_endpoints,
     determine_packages,
@@ -40,6 +40,7 @@ from nova_cc_utils import (
     do_openstack_upgrade,
     keystone_ca_cert_b64,
     migrate_database,
+    neutron_plugin,
     save_script_rc,
     ssh_compute_add,
     ssh_compute_remove,
@@ -81,7 +82,6 @@ def config_changed():
 
 
 @hooks.hook('amqp-relation-joined')
-@restart_on_change(restart_map())
 def amqp_joined():
     relation_set(username=config('rabbit-user'), vhost=config('rabbit-vhost'))
 
@@ -139,10 +139,9 @@ def image_service_changed():
 
 
 @hooks.hook('identity-service-relation-joined')
-@restart_on_change(restart_map())
 def identity_joined(rid=None):
     base_url = canonical_url(CONFIGS)
-    relation_set(rid=rid, **determine_endpoints(base_url))
+    relation_set(relation_id=rid, **determine_endpoints(base_url))
 
 
 @hooks.hook('identity-service-relation-changed')
@@ -157,6 +156,7 @@ def identity_changed():
         CONFIGS.write('/etc/quantum/quantum.conf')
     if network_manager() == 'neutron':
         CONFIGS.write('/etc/neutron/neutron.conf')
+    [compute_joined(rid) for rid in relation_ids('cloud-compute')]
     # XXX configure quantum networking
 
 
@@ -190,10 +190,10 @@ def _auth_config():
 
 @hooks.hook('cloud-compute-relation-joined')
 def compute_joined(rid=None):
-    if not eligible_leader():
+    if not eligible_leader(CLUSTER_RES):
         return
     rel_settings = {
-        'network_manager': config('network-manager'),
+        'network_manager': network_manager(),
         'volume_service': volume_service(),
         # (comment from bash vers) XXX Should point to VIP if clustered, or
         # this may not even be needed.
@@ -205,17 +205,20 @@ def compute_joined(rid=None):
     if network_manager() in ['quantum', 'neutron']:
         if ks_auth_config:
             rel_settings.update(ks_auth_config)
-            rel_settings.update({
-                # XXX: Rename these relations settings?
-                'quantum_plugin': neutron_plugin(),
-                'region': config('region'),
-                'quantum_security_groups': config('quantum_security_groups'),
-            })
+
+        rel_settings.update({
+            # XXX: Rename these relations settings?
+            'quantum_plugin': neutron_plugin(),
+            'region': config('region'),
+            'quantum_security_groups': config('quantum_security_groups'),
+            'quantum_url': (canonical_url(CONFIGS) + ':' +
+                            str(api_port('neutron-server'))),
+        })
 
     ks_ca = keystone_ca_cert_b64()
     if ks_auth_config and ks_ca:
         rel_settings['ca_cert'] = ks_ca
-    relation_set(rid=rid, **rel_settings)
+    relation_set(relation_id=rid, **rel_settings)
 
 
 @hooks.hook('cloud-compute-relation-changed')
@@ -238,7 +241,7 @@ def compute_departed():
 @hooks.hook('neutron-network-service-relation-joined',
             'quantum-network-service-relation-joined')
 def quantum_joined(rid=None):
-    if not eligible_leader():
+    if not eligible_leader(CLUSTER_RES):
         return
 
     if network_manager() == 'quantum':

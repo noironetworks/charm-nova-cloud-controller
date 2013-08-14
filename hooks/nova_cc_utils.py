@@ -7,7 +7,8 @@ from collections import OrderedDict
 from copy import deepcopy
 
 from charmhelpers.contrib.openstack import context, templating
-from charmhelpers.contrib.openstack.neutron import network_manager
+from charmhelpers.contrib.openstack.neutron import (
+    network_manager, neutron_plugin_attribute)
 
 from charmhelpers.contrib.openstack.utils import (
     os_release,
@@ -60,6 +61,7 @@ BASE_RESOURCE_MAP = OrderedDict([
         'contexts': [context.AMQPContext(),
                      context.SharedDBContext(relation_prefix='nova'),
                      context.ImageServiceContext(),
+                     nova_cc_context.HAProxyContext(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.VolumeServiceContext()],
     }),
@@ -115,12 +117,30 @@ def resource_map():
         resource_map['/etc/nova/nova.conf']['services'].append(
             'nova-api-os-volume')
 
-    if network_manager() != 'quantum':
+    net_manager = network_manager()
+
+    # pop out irrelevant resources from the OrderedDict (easier than adding
+    # them late)
+    if net_manager != 'quantum':
         [resource_map.pop(k) for k in list(resource_map.iterkeys())
          if 'quantum' in k]
-    if network_manager() != 'neutron':
+    if net_manager != 'neutron':
         [resource_map.pop(k) for k in list(resource_map.iterkeys())
          if 'neutron' in k]
+
+    # add neutron plugin requirements.
+    if net_manager in ['quantum', 'neutron']:
+        plugin = neutron_plugin()
+        if plugin:
+            conf = neutron_plugin_attribute(plugin, 'config', net_manager)
+            svcs = neutron_plugin_attribute(plugin, 'services', net_manager)
+            ctxts = (neutron_plugin_attribute(plugin, 'contexts', net_manager)
+                     or [])
+            resource_map[conf] = {}
+            resource_map[conf]['services'] = svcs
+            resource_map[conf]['contexts'] = ctxts
+            resource_map[conf]['contexts'].append(
+                nova_cc_context.NeutronCCContext())
 
     return resource_map
 
@@ -199,7 +219,7 @@ def volume_service():
 
 def migrate_database():
     '''Runs nova-manage to initialize a new database or migrate existing'''
-    log('Migrating the nova database', level=INFO)
+    log('Migrating the nova database.', level=INFO)
     cmd = ['nova-manage', 'db', 'sync']
     subprocess.check_call(cmd)
 
@@ -331,10 +351,10 @@ def determine_endpoints(url):
     region = config('region')
 
     # TODO: Configurable nova API version.
-    nova_url = ('%s:%s/v1.1/\$tenant_id)s' %
+    nova_url = ('%s:%s/v1.1/$(tenant_id)s' %
                 (url, api_port('nova-api-os-compute')))
     ec2_url = '%s:%s/services/Cloud' % (url, api_port('nova-api-ec2'))
-    nova_volume_url = ('%s:%s/v1/\$(tenant_id)s' %
+    nova_volume_url = ('%s:%s/v1/$(tenant_id)s' %
                        (url, api_port('nova-api-os-compute')))
     neutron_url = '%s:%s' % (url, api_port('neutron-server'))
     s3_url = '%s:%s' % (url, api_port('nova-objectstore'))
@@ -378,3 +398,9 @@ def determine_endpoints(url):
         })
 
     return endpoints
+
+
+def neutron_plugin():
+    # quantum-plugin config setting can be safely overriden
+    # as we only supported OVS in G/neutron
+    return config('neutron-plugin') or config('quantum-plugin')
