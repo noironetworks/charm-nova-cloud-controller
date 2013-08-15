@@ -161,9 +161,11 @@ def identity_changed():
         log('identity-service relation incomplete. Peer not ready?')
         return
     CONFIGS.write('/etc/nova/api-paste.ini')
+    CONFIGS.write('/etc/nova/nova.conf')
     if network_manager() == 'quantum':
         CONFIGS.write('/etc/quantum/api-paste.ini')
         CONFIGS.write('/etc/quantum/quantum.conf')
+        save_novarc()
     if network_manager() == 'neutron':
         CONFIGS.write('/etc/neutron/neutron.conf')
     [compute_joined(rid) for rid in relation_ids('cloud-compute')]
@@ -199,6 +201,18 @@ def _auth_config():
         'service_tenant': auth_token_config('admin_tenant_name'),
     }
     return cfg
+
+
+def save_novarc():
+    auth = _auth_config()
+    # XXX hard-coded http
+    ks_url = 'http://%s:%s/v2.0' % (auth['auth_host'], auth['auth_port'])
+    with open('/etc/quantum/novarc', 'wb') as out:
+        out.write('export OS_USERNAME=%s\n' % auth['service_username'])
+        out.write('export OS_PASSWORD=%s\n' % auth['service_password'])
+        out.write('export OS_TENANT_NAME=%s\n' % auth['service_tenant_name'])
+        out.write('export OS_AUTH_URL=%s\n' % ks_url)
+        out.write('export OS_REGION_NAME=%s\n' % config('region'))
 
 
 @hooks.hook('cloud-compute-relation-joined')
