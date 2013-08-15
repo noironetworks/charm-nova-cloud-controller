@@ -113,9 +113,18 @@ class NovaCCUtilsTests(CharmTestCase):
 
     def test_determine_packages_base(self):
         self.relation_ids.return_value = []
+        self.os_release.return_value = 'folsom'
         pkgs = utils.determine_packages()
         ex = list(set(utils.BASE_PACKAGES + utils.BASE_SERVICES))
         self.assertEquals(ex, pkgs)
+
+    def test_determine_packages_base_grizzly_beyond(self):
+        self.relation_ids.return_value = []
+        self.os_release.return_value = 'grizzly'
+        pkgs = utils.determine_packages()
+        ex = list(set(utils.BASE_PACKAGES + utils.BASE_SERVICES))
+        ex.append('nova-conductor')
+        self.assertEquals(sorted(ex), sorted(pkgs))
 
     @patch.object(utils, 'restart_map')
     def test_determine_ports(self, restart_map):

@@ -143,6 +143,9 @@ def resource_map():
             resource_map[conf]['contexts'].append(
                 nova_cc_context.NeutronCCContext())
 
+    # nova-conductor for releases >= G.
+    if os_release('nova-common') not in ['essex', 'folsom']:
+        resource_map['/etc/nova/nova.conf']['services'] += ['nova-conductor']
     return resource_map
 
 
