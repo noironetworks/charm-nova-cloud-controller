@@ -225,7 +225,7 @@ def migrate_database():
     '''Runs nova-manage to initialize a new database or migrate existing'''
     log('Migrating the nova database.', level=INFO)
     cmd = ['nova-manage', 'db', 'sync']
-    subprocess.check_call(cmd)
+    subprocess.check_output(cmd)
 
 
 def auth_token_config(setting):
