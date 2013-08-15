@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+import os
+import shutil
 import sys
 
 from subprocess import check_call
@@ -9,6 +11,7 @@ from charmhelpers.core.hookenv import (
     Hooks,
     UnregisteredHookError,
     config,
+    charm_dir,
     log,
     relation_get,
     relation_ids,
@@ -68,6 +71,13 @@ def install():
     configure_installation_source(config('openstack-origin'))
     apt_update()
     apt_install(determine_packages(), fatal=True)
+
+    _files = os.path.join(charm_dir(), 'files')
+    if os.path.isdir(_files):
+        for f in os.listdir(_files):
+            f = os.path.join(_files, f)
+            log('Installing %s to /usr/bin' % f)
+            shutil.copy2(f, '/usr/bin')
     [open_port(port) for port in determine_ports()]
 
 
@@ -184,6 +194,9 @@ def _auth_config():
         'service_password': auth_token_config('admin_password'),
         'service_tenant_name': auth_token_config('admin_tenant_name'),
         'auth_uri': auth_token_config('auth_uri'),
+        # quantum-gateway interface deviates a bit.
+        'keystone_host': ks_auth_host,
+        'service_tenant': auth_token_config('admin_tenant_name'),
     }
     return cfg
 
