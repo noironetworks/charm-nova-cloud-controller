@@ -134,6 +134,9 @@ class NeutronCCContext(context.NeutronContext):
                       config('quantum-security-groups'))
         return sec_groups.lower() == 'yes'
 
+    # TODO: We can override __call__ here to do the quantum ext
+    #       net configuration.  Need to set default_floating_pool
+    #       in that case.
 
 class IdentityServiceContext(context.IdentityServiceContext):
     def __call__(self):
