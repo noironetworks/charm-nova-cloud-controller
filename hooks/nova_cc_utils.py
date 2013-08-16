@@ -64,7 +64,6 @@ BASE_RESOURCE_MAP = OrderedDict([
                      context.OSConfigFlagContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
-                     nova_cc_context.NeutronCCContext(),
                      nova_cc_context.VolumeServiceContext()],
     }),
     ('/etc/nova/api-paste.ini', {
