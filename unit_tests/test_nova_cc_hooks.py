@@ -20,6 +20,7 @@ TO_PATCH = [
     'apt_update',
     'apt_install',
     'configure_installation_source',
+    'charm_dir',
     'do_openstack_upgrade',
     'openstack_upgrade_available',
     'config',
@@ -34,6 +35,7 @@ class NovaCCHooksTests(CharmTestCase):
     def setUp(self):
         super(NovaCCHooksTests, self).setUp(hooks, TO_PATCH)
         self.config.side_effect = self.test_config.get
+        self.charm_dir.return_value = '/var/lib/juju/charms/nova/charm'
 
     def test_install_hook(self):
         self.determine_packages.return_value = [

@@ -338,7 +338,8 @@ def ha_joined():
 
 @hooks.hook('ha-relation-changed')
 def ha_changed():
-    if not relation_get('clustered'):
+    clustered = relation_get('clustered')
+    if not clustered or clustered in [None, 'None', '']:
         log('ha_changed: hacluster subordinate not fully clustered.')
         return
     if not is_leader(CLUSTER_RES):
