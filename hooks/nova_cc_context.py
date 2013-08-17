@@ -42,7 +42,7 @@ class VolumeServiceContext(context.OSContextGenerator):
         elif relation_ids('cinder-volume-service'):
             ctxt['volume_service'] = 'cinder'
             # kick all compute nodes to know they should use cinder now.
-            [relation_set(volume_service='cinder', rid=rid)
+            [relation_set(relation_id=rid, volume_service='cinder')
              for rid in relation_ids('cloud-compute')]
         return ctxt
 
