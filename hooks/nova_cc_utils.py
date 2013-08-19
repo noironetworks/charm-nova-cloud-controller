@@ -182,7 +182,7 @@ def determine_ports():
                 ports.append(API_PORTS[service])
             except KeyError:
                 pass
-    return ports
+    return list(set(ports))
 
 
 def api_port(service):

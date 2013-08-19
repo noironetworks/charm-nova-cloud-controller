@@ -152,6 +152,7 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_determine_ports(self, restart_map):
         restart_map.return_value = {
             '/etc/nova/nova.conf': ['nova-api-os-compute', 'nova-api-ec2'],
+            '/etc/nova/api-paste.ini': ['nova-api-os-compute', 'nova-api-ec2'],
             '/etc/quantum/quantum.conf': ['quantum-server'],
         }
         ports = utils.determine_ports()
