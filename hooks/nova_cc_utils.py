@@ -10,10 +10,18 @@ from charmhelpers.contrib.openstack import context, templating
 from charmhelpers.contrib.openstack.neutron import (
     network_manager, neutron_plugin_attribute)
 
+from charmhelpers.contrib.hahelpers.cluster import eligible_leader
+
 from charmhelpers.contrib.openstack.utils import (
+    configure_installation_source,
+    get_os_codename_install_source,
     os_release,
     save_script_rc as _save_script_rc)
 
+from charmhelpers.core.host import (
+    apt_install,
+    apt_update,
+)
 
 from charmhelpers.core.hookenv import (
     config,
@@ -205,9 +213,27 @@ def save_script_rc():
     _save_script_rc(**env_vars)
 
 
-def do_openstack_upgrade():
-    # TODO
-    pass
+def do_openstack_upgrade(configs):
+    new_src = config('openstack-origin')
+    new_os_rel = get_os_codename_install_source(new_src)
+    log('Performing OpenStack upgrade to %s.' % (new_os_rel))
+
+    configure_installation_source(new_src)
+    apt_update()
+
+    dpkg_opts = [
+        '--option', 'Dpkg::Options::=--force-confnew',
+        '--option', 'Dpkg::Options::=--force-confdef',
+    ]
+
+    apt_install(packages=determine_packages(), options=dpkg_opts, fatal=True)
+
+    # set CONFIGS to load templates from new release and regenerate config
+    configs.set_release(openstack_release=new_os_rel)
+    configs.write_all()
+
+    if eligible_leader(CLUSTER_RES):
+        migrate_database()
 
 
 def volume_service():
