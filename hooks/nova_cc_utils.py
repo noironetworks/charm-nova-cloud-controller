@@ -43,6 +43,7 @@ CLUSTER_RES = 'res_nova_vip'
 BASE_PACKAGES = [
     'apache2',
     'haproxy',
+    'python-keystoneclient',
     'uuid',
 ]
 
