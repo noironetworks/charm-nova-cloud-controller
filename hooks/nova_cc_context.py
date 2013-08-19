@@ -58,9 +58,6 @@ class HAProxyContext(context.HAProxyContext):
         '''
         from nova_cc_utils import api_port
         ctxt = super(HAProxyContext, self).__call__()
-        if not ctxt:
-            # we do not have any other peers, do not load balance yet.
-            return {}
 
         # determine which port api processes should bind to, depending
         # on existence of haproxy + apache frontends
