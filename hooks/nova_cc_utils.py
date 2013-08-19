@@ -168,7 +168,9 @@ def register_configs():
 
 
 def restart_map():
-    return {k: v['services'] for k, v in resource_map().iteritems()}
+    return OrderedDict([(cfg, v['services'])
+                        for cfg, v in resource_map().iteritems()
+                        if v['services']])
 
 
 def determine_ports():

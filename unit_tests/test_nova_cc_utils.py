@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from mock import patch, MagicMock, call
 from copy import deepcopy
 from unit_tests.test_utils import CharmTestCase, patch_open
@@ -58,6 +59,21 @@ BASE_ENDPOINTS = {
     's3_service': 's3'
 }
 
+# Restart map should be constructed such that API services restart
+# before frontends (haproxy/apaceh) to avoid port conflicts.
+RESTART_MAP = OrderedDict([
+    ('/etc/nova/nova.conf', [
+        'nova-api-ec2', 'nova-api-os-compute', 'nova-objectstore',
+        'nova-cert', 'nova-scheduler', 'nova-api-os-volume', 'nova-conductor'
+    ]),
+    ('/etc/nova/api-paste.ini', [
+        'nova-api-ec2', 'nova-api-os-compute'
+    ]),
+    ('/etc/neutron/neutron.conf', ['neutron-server']),
+    ('/etc/haproxy/haproxy.cfg', ['haproxy']),
+    ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2'])
+])
+
 
 class NovaCCUtilsTests(CharmTestCase):
     def setUp(self):
@@ -95,6 +111,12 @@ class NovaCCUtilsTests(CharmTestCase):
         _map = utils.resource_map()
         self.assertIn('nova-api-os-volume',
                       _map['/etc/nova/nova.conf']['services'])
+
+    def test_restart_map_api_before_frontends(self):
+        self._resource_map(network_manager='neutron')
+        _map = utils.restart_map()
+        self.assertTrue(isinstance(_map, OrderedDict))
+        self.assertEquals(_map, RESTART_MAP)
 
     def test_determine_packages_quantum(self):
         self._resource_map(network_manager='quantum')
