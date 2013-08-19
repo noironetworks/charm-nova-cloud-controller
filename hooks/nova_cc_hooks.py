@@ -169,7 +169,7 @@ def identity_changed():
     if network_manager() == 'neutron':
         CONFIGS.write('/etc/neutron/neutron.conf')
     [compute_joined(rid) for rid in relation_ids('cloud-compute')]
-    # XXX configure quantum networking
+    configure_https()
 
 
 @hooks.hook('nova-volume-service-relation-joined',
