@@ -353,6 +353,17 @@ def ha_changed():
         identity_joined(rid=rid)
 
 
+@hooks.hook('amqp-relation-broken',
+            'cinder-volume-service-relation-broken',
+            'identity-service-relation-broken',
+            'image-service-relation-broken',
+            'nova-volume-service-relation-broken',
+            'shared-db-relation-broken'
+            'quantum-network-service-relation-broken')
+def relation_broken():
+    CONFIGS.write_all()
+
+
 def configure_https():
     '''
     Enables SSL API Apache config if appropriate and kicks identity-service
