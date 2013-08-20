@@ -150,7 +150,7 @@ def image_service_changed():
 
 @hooks.hook('identity-service-relation-joined')
 def identity_joined(rid=None):
-    if eligible_leader(CLUSTER_RES):
+    if not eligible_leader(CLUSTER_RES):
         return
     base_url = canonical_url(CONFIGS)
     relation_set(relation_id=rid, **determine_endpoints(base_url))
