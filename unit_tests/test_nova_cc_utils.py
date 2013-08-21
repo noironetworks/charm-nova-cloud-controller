@@ -71,8 +71,39 @@ RESTART_MAP = OrderedDict([
     ]),
     ('/etc/neutron/neutron.conf', ['neutron-server']),
     ('/etc/haproxy/haproxy.cfg', ['haproxy']),
-    ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2'])
+    ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
+    ('/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini',
+        ['neutron-server'])
 ])
+
+
+PLUGIN_ATTRIBUTES = {
+    'ovs': {
+        'config': '/etc/quantum/plugins/openvswitch/'
+                  'ovs_quantum_plugin.ini',
+        'driver': 'quantum.plugins.openvswitch.ovs_quantum_plugin.'
+                  'OVSQuantumPluginV2',
+        'contexts': ['FakeDBContext'],
+        'services': ['quantum-plugin-openvswitch-agent'],
+        'packages': ['quantum-plugin-openvswitch-agent',
+                     'openvswitch-datapath-dkms'],
+    },
+    'nvp': {
+        'config': '/etc/quantum/plugins/nicira/nvp.ini',
+        'driver': 'quantum.plugins.nicira.nicira_nvp_plugin.'
+                  'QuantumPlugin.NvpPluginV2',
+        'services': [],
+        'packages': ['quantum-plugin-nicira'],
+    }
+}
+
+
+def fake_plugin_attribute(plugin, attr, net_manager):
+    if plugin in PLUGIN_ATTRIBUTES:
+        try:
+            return PLUGIN_ATTRIBUTES[plugin][attr]
+        except KeyError:
+            pass
 
 
 class NovaCCUtilsTests(CharmTestCase):
@@ -84,7 +115,8 @@ class NovaCCUtilsTests(CharmTestCase):
         if network_manager:
             self.network_manager.return_value = network_manager
             self.test_config.set('network-manager', network_manager.title())
-            self.neutron_plugin.return_value = None
+            self.neutron_plugin.return_value = 'ovs'
+            self.neutron_plugin_attribute.side_effect = fake_plugin_attribute
         if volume_manager == 'nova-volume':
             self.relation_ids.return_value = 'nova-volume-service:0'
         return utils.resource_map()
@@ -94,7 +126,8 @@ class NovaCCUtilsTests(CharmTestCase):
         _map = utils.resource_map()
         confs = [
             '/etc/quantum/quantum.conf',
-            '/etc/quantum/api-paste.ini'
+            '/etc/quantum/api-paste.ini',
+            '/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini',
         ]
         [self.assertIn(q_conf, _map.keys()) for q_conf in confs]
 
@@ -105,6 +138,14 @@ class NovaCCUtilsTests(CharmTestCase):
             '/etc/neutron/neutron.conf',
         ]
         [self.assertIn(q_conf, _map.keys()) for q_conf in confs]
+
+    def test_resource_map_neutron_no_agent_installed(self):
+        self._resource_map(network_manager='neutron')
+        _map = utils.resource_map()
+        services = []
+        [services.extend(_map[c]['services'])for c in _map]
+        for svc in services:
+            self.assertNotIn('agent', svc)
 
     def test_resource_map_nova_volume(self):
         self.relation_ids.return_value = ['nova-volume-service:0']
