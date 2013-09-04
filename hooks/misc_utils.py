@@ -65,17 +65,6 @@ class NeutronContext(object):
         if self.neutron_security_groups:
             ovs_ctxt['neutron_security_groups'] = True
 
-            fw_driver = ('%s.agent.linux.iptables_firewall.'
-                         'OVSHybridIptablesFirewallDriver' %
-                         self.network_manager)
-
-            ovs_ctxt.update({
-                # IN TEMPLATE:
-                #   - security_group_api=quantum in nova.conf for >= g
-                #  nova_firewall_driver=nova.virt.firewall.NoopFirewallDriver'
-                'neutron_firewall_driver': fw_driver,
-            })
-
         return ovs_ctxt
 
     def __call__(self):
