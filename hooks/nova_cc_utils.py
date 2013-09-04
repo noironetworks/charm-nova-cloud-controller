@@ -73,7 +73,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      context.OSConfigFlagContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
-                     nova_cc_context.VolumeServiceContext()],
+                     nova_cc_context.VolumeServiceContext(),
+                     nova_cc_context.NeutronCCContext()],
     }),
     ('/etc/nova/api-paste.ini', {
         'services': [s for s in BASE_SERVICES if 'api' in s],
