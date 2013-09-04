@@ -258,7 +258,7 @@ def compute_changed():
         if not key:
             log('SSH migration set but peer did not publish key.')
             return
-        ssh_compute_add(key, unit_get('private-address'))
+        ssh_compute_add(key, relation_get('private-address'))
         relation_set(known_hosts=ssh_known_hosts_b64(),
                      authorized_keys=ssh_authorized_keys_b64())
 
