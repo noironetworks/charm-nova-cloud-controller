@@ -27,6 +27,11 @@ TO_PATCH = [
     'determine_packages',
     'determine_ports',
     'open_port',
+    'relation_get',
+    'relation_set',
+    'ssh_compute_add',
+    'ssh_known_hosts_b64',
+    'ssh_authorized_keys_b64',
     'save_script_rc',
 ]
 
@@ -35,6 +40,7 @@ class NovaCCHooksTests(CharmTestCase):
     def setUp(self):
         super(NovaCCHooksTests, self).setUp(hooks, TO_PATCH)
         self.config.side_effect = self.test_config.get
+        self.relation_get.side_effect = self.test_relation.get
         self.charm_dir.return_value = '/var/lib/juju/charms/nova/charm'
 
     def test_install_hook(self):
@@ -57,3 +63,14 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.config_changed()
         self.assertTrue(self.do_openstack_upgrade.called)
         self.assertTrue(self.save_script_rc.called)
+
+    def test_compute_changed_ssh_migration(self):
+        self.test_relation.set({
+            'migration_auth_type': 'ssh', 'ssh_public_key': 'fookey',
+            'private-address': '10.0.0.1'})
+        self.ssh_known_hosts_b64.return_value = 'hosts'
+        self.ssh_authorized_keys_b64.return_value = 'keys'
+        hooks.compute_changed()
+        self.ssh_compute_add.assert_called_with('fookey', '10.0.0.1')
+        self.relation_set.assert_called_with(known_hosts='hosts',
+                                             authorized_keys='keys')
