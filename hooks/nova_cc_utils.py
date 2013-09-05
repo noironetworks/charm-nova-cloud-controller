@@ -14,7 +14,9 @@ from charmhelpers.contrib.hahelpers.cluster import eligible_leader
 
 from charmhelpers.contrib.openstack.utils import (
     configure_installation_source,
+    get_host_ip,
     get_os_codename_install_source,
+    is_ip,
     os_release,
     save_script_rc as _save_script_rc)
 
@@ -26,6 +28,7 @@ from charmhelpers.core.host import (
 from charmhelpers.core.hookenv import (
     config,
     log,
+    relation_get,
     relation_ids,
     remote_unit,
     INFO,
@@ -347,11 +350,22 @@ def add_authorized_key(public_key):
         keys.write(public_key + '\n')
 
 
-def ssh_compute_add(public_key, host):
-    if not ssh_known_host_key(host):
-        add_known_host(host)
+def ssh_compute_add(public_key):
+    # If remote compute node hands us a hostname, ensure we have a
+    # known hosts entry for its IP, hostname and FQDN.
+    private_address = relation_get('private-address')
+    hosts = [private_address]
+    if not is_ip(private_address):
+        hosts.append(get_host_ip(private_address))
+        hosts.append(private_address.split('.')[0])
+
+    for host in hosts:
+        if not ssh_known_host_key(host):
+            add_known_host(host)
+
     if not ssh_authorized_key_exists(public_key):
-        log('Saving SSH authorized key for compute host at %s.' % host)
+        log('Saving SSH authorized key for compute host at %s.' %
+            private_address)
         add_authorized_key(public_key)
 
 

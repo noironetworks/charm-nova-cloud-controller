@@ -71,6 +71,6 @@ class NovaCCHooksTests(CharmTestCase):
         self.ssh_known_hosts_b64.return_value = 'hosts'
         self.ssh_authorized_keys_b64.return_value = 'keys'
         hooks.compute_changed()
-        self.ssh_compute_add.assert_called_with('fookey', '10.0.0.1')
+        self.ssh_compute_add.assert_called_with('fookey')
         self.relation_set.assert_called_with(known_hosts='hosts',
                                              authorized_keys='keys')
