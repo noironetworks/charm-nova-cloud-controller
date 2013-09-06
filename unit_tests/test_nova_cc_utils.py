@@ -325,8 +325,8 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('os.path.isfile')
     def test_ssh_compute_remove(self, isfile, auth_key, known_host):
         isfile.return_value = False
-        utils.ssh_compute_remove()
-        self.assertFalse(self.remote_unit.called)
+
+        removed_key = AUTHORIZED_KEYS.split('\n')[2]
 
         keys_removed = (
             "\nssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC27Us7lSjCpa7bumXAgc "
@@ -340,7 +340,7 @@ class NovaCCUtilsTests(CharmTestCase):
             _file.readlines = MagicMock()
             _file.write = MagicMock()
             _file.readlines.return_value = AUTHORIZED_KEYS.split('\n')
-            utils.ssh_compute_remove()
+            utils.ssh_compute_remove(removed_key)
             _file.write.assert_called_with(keys_removed)
 
     def test_network_manager_untranslated(self):

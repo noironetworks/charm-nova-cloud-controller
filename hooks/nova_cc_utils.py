@@ -379,17 +379,19 @@ def ssh_authorized_keys_b64():
         return b64encode(keys.read())
 
 
-def ssh_compute_remove():
+def ssh_compute_remove(public_key):
     if not (os.path.isfile(authorized_keys()) or
             os.path.isfile(known_hosts())):
         return
-    # NOTE: compute names its ssh key as ${service}-{$unit_num}.  we dont
-    #       have access to relation settings from departed hooks, so
-    #       we need to remove key based on keyname only.
-    key_name = remote_unit().replace('/', '-')
+
     with open(authorized_keys()) as _keys:
-        keys = _keys.readlines()
-    [keys.remove(key) for key in keys if key_name in key]
+        keys = [k.strip() for k in _keys.readlines()]
+
+    if public_key not in keys:
+        return
+
+    [keys.remove(key) for key in keys if key == public_key]
+
     with open(authorized_keys(), 'w') as _keys:
         _keys.write('\n'.join(keys))
 

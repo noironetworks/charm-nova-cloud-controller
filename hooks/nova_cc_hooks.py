@@ -263,8 +263,9 @@ def compute_changed():
                      authorized_keys=ssh_authorized_keys_b64())
 
 
+@hooks.hook('cloud-compute-relation-departed')
 def compute_departed():
-    ssh_compute_remove()
+    ssh_compute_remove(public_key=relation_get('ssh_public_key'))
 
 
 @hooks.hook('neutron-network-service-relation-joined',
