@@ -15,6 +15,7 @@ from charmhelpers.contrib.hahelpers.cluster import eligible_leader
 from charmhelpers.contrib.openstack.utils import (
     configure_installation_source,
     get_host_ip,
+    get_hostname,
     get_os_codename_install_source,
     is_ip,
     os_release,
@@ -355,11 +356,16 @@ def ssh_compute_add(public_key):
     # known hosts entry for its IP, hostname and FQDN.
     private_address = relation_get('private-address')
     hosts = [private_address]
+
     if not is_ip(private_address):
         hosts.append(get_host_ip(private_address))
         hosts.append(private_address.split('.')[0])
+    else:
+        hn = get_hostname(private_address)
+        hosts.append(hn)
+        hosts.append(hn.split('.')[0])
 
-    for host in hosts:
+    for host in list(set(hosts)):
         if not ssh_known_host_key(host):
             add_known_host(host)
 
