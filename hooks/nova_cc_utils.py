@@ -21,7 +21,7 @@ from charmhelpers.contrib.openstack.utils import (
     os_release,
     save_script_rc as _save_script_rc)
 
-from charmhelpers.core.host import (
+from charmhelpers.fetch import (
     apt_install,
     apt_update,
 )

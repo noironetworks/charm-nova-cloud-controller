@@ -10,7 +10,7 @@ from charmhelpers.core.hookenv import (
 
 from charmhelpers.contrib.openstack import context
 
-from charmhelpers.core.host import apt_install, filter_installed_packages
+from charmhelpers.fetch import apt_install, filter_installed_packages
 
 from charmhelpers.contrib.openstack.utils import os_release
 

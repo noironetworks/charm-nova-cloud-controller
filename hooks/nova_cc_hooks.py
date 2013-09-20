@@ -21,7 +21,11 @@ from charmhelpers.core.hookenv import (
 )
 
 from charmhelpers.core.host import (
-    apt_install, apt_update, filter_installed_packages, restart_on_change
+    restart_on_change
+)
+
+from charmhelpers.fetch import (
+    apt_install, apt_update, filter_installed_packages
 )
 
 from charmhelpers.contrib.openstack.utils import (
