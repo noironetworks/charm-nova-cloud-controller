@@ -243,7 +243,7 @@ def compute_joined(rid=None):
             # XXX: Rename these relations settings?
             'quantum_plugin': neutron_plugin(),
             'region': config('region'),
-            'quantum_security_groups': config('quantum_security_groups'),
+            'quantum_security_groups': config('quantum-security-groups'),
             'quantum_url': (canonical_url(CONFIGS) + ':' +
                             str(api_port('neutron-server'))),
         })
