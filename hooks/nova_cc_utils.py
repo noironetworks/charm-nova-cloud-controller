@@ -157,10 +157,6 @@ def resource_map():
             resource_map[conf]['contexts'] = ctxts
             resource_map[conf]['contexts'].append(
                 nova_cc_context.NeutronCCContext())
-            resource_map[conf]['contexts'].append(
-                context.SharedDBContext(user=config('neutron-database-user'),
-                                        database=config('neutron-database'),
-                                        relation_prefix='neutron'))
 
     # nova-conductor for releases >= G.
     if os_release('nova-common') not in ['essex', 'folsom']:
