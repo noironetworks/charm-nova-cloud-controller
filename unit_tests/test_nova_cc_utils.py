@@ -1,14 +1,14 @@
 from collections import OrderedDict
 from mock import patch, MagicMock, call
 from copy import deepcopy
-from unit_tests.test_utils import CharmTestCase, patch_open
+from test_utils import CharmTestCase, patch_open
 
 from charmhelpers.core import hookenv
 
 _conf = hookenv.config
 hookenv.config = MagicMock()
 
-import hooks.nova_cc_utils as utils
+import nova_cc_utils as utils
 
 hookenv.config = _conf
 
