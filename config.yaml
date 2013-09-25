@@ -46,10 +46,10 @@ options:
       .
         FlatDHCPManager (nova-network) (default)
         FlatManager (nova-network)
-        Quantum (Full SDN solution)
+        Neutron|Quantum (Full SDN solution)
       .
-      When using the Quantum option you will most likely want to use
-      the quantum charm to provide L3 routing and DHCP Services.
+      When using the Neutron option you will most likely want to use
+      the neutron-gateway charm to provide L3 routing and DHCP Services.
   bridge-interface:
     default: br100
     type: string
