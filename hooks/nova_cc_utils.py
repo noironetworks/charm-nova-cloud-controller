@@ -89,7 +89,10 @@ BASE_RESOURCE_MAP = OrderedDict([
         'contexts': [context.AMQPContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
-                     nova_cc_context.NeutronCCContext()],
+                     nova_cc_context.NeutronCCContext(),
+                     context.SharedDBContext(user=config('neutron-database-user'),
+                                             database=config('neutron-database'),
+                                             relation_prefix='neutron')],
     }),
     ('/etc/quantum/api-paste.ini', {
         'services': ['quantum-server'],
@@ -100,7 +103,10 @@ BASE_RESOURCE_MAP = OrderedDict([
         'contexts': [context.AMQPContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext(),
-                     nova_cc_context.HAProxyContext()],
+                     nova_cc_context.HAProxyContext(),
+                     context.SharedDBContext(user=config('neutron-database-user'),
+                                             database=config('neutron-database'),
+                                             relation_prefix='neutron')],
     }),
     ('/etc/haproxy/haproxy.cfg', {
         'contexts': [context.HAProxyContext(),
