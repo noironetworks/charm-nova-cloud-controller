@@ -68,8 +68,16 @@ API_PORTS = {
     'quantum-server': 9696,
 }
 
+NOVA_CONF = '/etc/nova/nova.conf'
+NOVA_API_PASTE = '/etc/nova/api-paste.ini'
+QUANTUM_CONF = '/etc/quantum/quantum.conf'
+QUANTUM_API_PASTE = '/etc/quantum/api-paste.ini'
+NEUTRON_CONF = '/etc/neutron/neutron.conf'
+HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
+APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
+
 BASE_RESOURCE_MAP = OrderedDict([
-    ('/etc/nova/nova.conf', {
+    (NOVA_CONF, {
         'services': BASE_SERVICES,
         'contexts': [context.AMQPContext(),
                      context.SharedDBContext(relation_prefix='nova'),
@@ -80,34 +88,34 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.VolumeServiceContext(),
                      nova_cc_context.NeutronCCContext()],
     }),
-    ('/etc/nova/api-paste.ini', {
+    (NOVA_API_PASTE, {
         'services': [s for s in BASE_SERVICES if 'api' in s],
         'contexts': [nova_cc_context.IdentityServiceContext()],
     }),
-    ('/etc/quantum/quantum.conf', {
+    (QUANTUM_CONF, {
         'services': ['quantum-server'],
         'contexts': [context.AMQPContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext()],
     }),
-    ('/etc/quantum/api-paste.ini', {
+    (QUANTUM_API_PASTE, {
         'services': ['quantum-server'],
         'contexts': [nova_cc_context.IdentityServiceContext()],
     }),
-    ('/etc/neutron/neutron.conf', {
+    (NEUTRON_CONF, {
         'services': ['neutron-server'],
         'contexts': [context.AMQPContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext()],
     }),
-    ('/etc/haproxy/haproxy.cfg', {
+    (HAPROXY_CONF, {
         'contexts': [context.HAProxyContext(),
                      nova_cc_context.HAProxyContext()],
         'services': ['haproxy'],
     }),
-    ('/etc/apache2/sites-available/openstack_https_frontend', {
+    (APACHE_CONF, {
         'contexts': [],
         'contexts': [nova_cc_context.ApacheSSLContext()],
         'services': ['apache2'],
