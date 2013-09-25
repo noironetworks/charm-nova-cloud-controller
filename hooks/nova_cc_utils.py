@@ -75,6 +75,7 @@ QUANTUM_API_PASTE = '/etc/quantum/api-paste.ini'
 NEUTRON_CONF = '/etc/neutron/neutron.conf'
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
+APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
 
 BASE_RESOURCE_MAP = OrderedDict([
     (NOVA_CONF, {
@@ -116,7 +117,10 @@ BASE_RESOURCE_MAP = OrderedDict([
         'services': ['haproxy'],
     }),
     (APACHE_CONF, {
-        'contexts': [],
+        'contexts': [nova_cc_context.ApacheSSLContext()],
+        'services': ['apache2'],
+    }),
+    (APACHE_24_CONF, {
         'contexts': [nova_cc_context.ApacheSSLContext()],
         'services': ['apache2'],
     }),
@@ -150,6 +154,13 @@ def resource_map():
     if net_manager != 'neutron':
         [resource_map.pop(k) for k in list(resource_map.iterkeys())
          if 'neutron' in k]
+
+    if os.path.exists('/etc/apache2/conf-available'):
+        [resource_map.pop(k) for k in list(resource_map.iterkeys())
+         if APACHE_CONF in k]
+    else:
+        [resource_map.pop(k) for k in list(resource_map.iterkeys())
+         if APACHE_24_CONF in k]
 
     # add neutron plugin requirements. nova-c-c only needs the neutron-server
     # associated with configs, not the plugin agent.
