@@ -57,6 +57,10 @@ from nova_cc_utils import (
     restart_map,
     volume_service,
     CLUSTER_RES,
+    NOVA_CONF,
+    QUANTUM_CONF,
+    NEUTRON_CONF,
+    QUANTUM_API_PASTE
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -106,11 +110,11 @@ def amqp_changed():
     if 'amqp' not in CONFIGS.complete_contexts():
         log('amqp relation incomplete. Peer not ready?')
         return
-    CONFIGS.write('/etc/nova/nova.conf')
+    CONFIGS.write(NOVA_CONF)
     if network_manager() == 'quantum':
-        CONFIGS.write('/etc/quantum/quantum.conf')
+        CONFIGS.write(QUANTUM_CONF)
     if network_manager() == 'neutron':
-        CONFIGS.write('/etc/neutron/neutron.conf')
+        CONFIGS.write(NEUTRON_CONF)
 
 
 @hooks.hook('shared-db-relation-joined')
@@ -131,7 +135,7 @@ def db_changed():
     if 'shared-db' not in CONFIGS.complete_contexts():
         log('shared-db relation incomplete. Peer not ready?')
         return
-    CONFIGS.write('/etc/nova/nova.conf')
+    CONFIGS.write(NOVA_CONF)
 
     if network_manager() in ['neutron', 'quantum']:
         plugin = neutron_plugin()
@@ -148,7 +152,7 @@ def image_service_changed():
     if 'image-service' not in CONFIGS.complete_contexts():
         log('image-service relation incomplete. Peer not ready?')
         return
-    CONFIGS.write('/etc/nova/nova.conf')
+    CONFIGS.write(NOVA_CONF)
     # TODO: special case config flag for essex (strip protocol)
 
 
@@ -167,13 +171,13 @@ def identity_changed():
         log('identity-service relation incomplete. Peer not ready?')
         return
     CONFIGS.write('/etc/nova/api-paste.ini')
-    CONFIGS.write('/etc/nova/nova.conf')
+    CONFIGS.write(NOVA_CONF)
     if network_manager() == 'quantum':
-        CONFIGS.write('/etc/quantum/api-paste.ini')
-        CONFIGS.write('/etc/quantum/quantum.conf')
+        CONFIGS.write(QUANTUM_API_PASTE)
+        CONFIGS.write(QUANTUM_CONF)
         save_novarc()
     if network_manager() == 'neutron':
-        CONFIGS.write('/etc/neutron/neutron.conf')
+        CONFIGS.write(NEUTRON_CONF)
     [compute_joined(rid) for rid in relation_ids('cloud-compute')]
     configure_https()
 
@@ -182,7 +186,7 @@ def identity_changed():
             'cinder-volume-service-relation-joined')
 @restart_on_change(restart_map())
 def volume_joined():
-    CONFIGS.write('/etc/nova/nova.conf')
+    CONFIGS.write(NOVA_CONF)
     # kick identity_joined() to publish possibly new nova-volume endpoint.
     [identity_joined(rid) for rid in relation_ids('identity-service')]
 
