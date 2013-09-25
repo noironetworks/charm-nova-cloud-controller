@@ -156,11 +156,9 @@ def resource_map():
          if 'neutron' in k]
 
     if os.path.exists('/etc/apache2/conf-available'):
-        [resource_map.pop(k) for k in list(resource_map.iterkeys())
-         if APACHE_CONF in k]
+        resource_map.pop(APACHE_CONF)
     else:
-        [resource_map.pop(k) for k in list(resource_map.iterkeys())
-         if APACHE_24_CONF in k]
+        resource_map.pop(APACHE_24_CONF)
 
     # add neutron plugin requirements. nova-c-c only needs the neutron-server
     # associated with configs, not the plugin agent.
