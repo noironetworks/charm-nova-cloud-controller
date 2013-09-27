@@ -70,12 +70,15 @@ from charmhelpers.contrib.hahelpers.cluster import (
     is_leader,
 )
 
+from charmhelpers.payload.execd import execd_preinstall
+
 hooks = Hooks()
 CONFIGS = register_configs()
 
 
 @hooks.hook()
 def install():
+    execd_preinstall()
     configure_installation_source(config('openstack-origin'))
     apt_update()
     apt_install(determine_packages(), fatal=True)

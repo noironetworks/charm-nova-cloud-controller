@@ -33,6 +33,7 @@ TO_PATCH = [
     'ssh_known_hosts_b64',
     'ssh_authorized_keys_b64',
     'save_script_rc',
+    'execd_preinstall'
 ]
 
 
@@ -50,6 +51,7 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.install()
         self.apt_install.assert_called_with(
             ['nova-scheduler', 'nova-api-ec2'], fatal=True)
+        self.execd_preinstall.assert_called()
 
     @patch.object(hooks, 'configure_https')
     def test_config_changed_no_upgrade(self, conf_https):
