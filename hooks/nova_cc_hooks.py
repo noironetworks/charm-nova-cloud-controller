@@ -182,6 +182,7 @@ def identity_changed():
     if network_manager() == 'neutron':
         CONFIGS.write(NEUTRON_CONF)
     [compute_joined(rid) for rid in relation_ids('cloud-compute')]
+    [quantum_joined(rid) for rid in relation_ids('quantum-network-service')]
     configure_https()
 
 
