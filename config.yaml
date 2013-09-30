@@ -79,6 +79,10 @@ options:
       Use quantum for security group management.
       .
       Only supported for >= grizzly.
+  neutron-external-network:
+    type: string
+    default: ext_net
+    description: Name of the external network for floating IP addresses provided by Neutron.
   config-flags:
     default: None
     type: string

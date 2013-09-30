@@ -136,6 +136,11 @@ class NeutronCCContext(context.NeutronContext):
         # required agents.
         return
 
+    def __call__(self):
+        ctxt = super(NeutronCCContext, self).__call__()
+        ctxt['external_network'] = config('neutron-external-network')
+        return ctxt
+
 
 class IdentityServiceContext(context.IdentityServiceContext):
     def __call__(self):
