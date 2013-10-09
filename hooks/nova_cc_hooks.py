@@ -396,6 +396,11 @@ def configure_https():
         identity_joined(rid=rid)
 
 
+@hooks.hook()
+def nova_vmware_relation_joined():
+    relation_set(network_manager=network_manager())
+
+
 def main():
     try:
         hooks.execute(sys.argv)

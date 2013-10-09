@@ -27,7 +27,7 @@ requires:
   ha:
     interface: hacluster
     scope: container
-  vmware:
+  nova-vmware:
     interface: nova-vmware
     scope: container
 peers:
