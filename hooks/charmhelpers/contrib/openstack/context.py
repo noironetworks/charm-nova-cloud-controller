@@ -490,27 +490,32 @@ class SubordinateConfigContext(OSContextGenerator):
     def __call__(self):
         ctxt = {}
         for rid in relation_ids(self.interface):
-            sub_config = relation_get('subordinate_config', relaton_id=rid)
-            if sub_config and sub_config != '':
-                try:
-                    sub_config = json.loads(sub_config)
-                except:
-                    log('Could not parse JSON from subordinate_config setting '
-                        'from %s' % rid, level=ERROR)
+            for unit in related_units(rid):
+                sub_config = relation_get('subordinate_config',
+                                          relaton_id=rid, unit=unit)
+                if sub_config and sub_config != '':
+                    try:
+                        sub_config = json.loads(sub_config)
+                    except:
+                        log('Could not parse JSON from subordinate_config '
+                            'setting from %s' % rid, level=ERROR)
 
-                if self.service not in sub_config:
-                    log('Found subordinate_config on %s but it contained'
-                        'nothing for %s service' % (rid, self.service))
-                    continue
+                    if self.service not in sub_config:
+                        log('Found subordinate_config on %s but it contained'
+                            'nothing for %s service' % (rid, self.service))
+                        continue
 
-                sub_config = sub_config[self.service]
-                if self.config_file not in sub_config:
-                    log('Found subordinate_config on %s but it contained'
-                        'nothing for %s' % (rid, self.config_file))
-                    continue
+                    sub_config = sub_config[self.service]
+                    if self.config_file not in sub_config:
+                        log('Found subordinate_config on %s but it contained'
+                            'nothing for %s' % (rid, self.config_file))
+                        continue
 
-                sub_config = sub_config[self.config_file]
-                for k, v in sub_config.iteritems():
-                    ctxt[k] = v
+                    sub_config = sub_config[self.config_file]
+                    for k, v in sub_config.iteritems():
+                        ctxt[k] = v
+
+        if not ctxt:
+            ctxt['sections'] = {}
 
         return ctxt
