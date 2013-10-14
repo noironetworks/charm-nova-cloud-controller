@@ -491,8 +491,8 @@ class SubordinateConfigContext(OSContextGenerator):
         ctxt = {}
         for rid in relation_ids(self.interface):
             for unit in related_units(rid):
-                sub_config = relation_get('subordinate_config',
-                                          relaton_id=rid, unit=unit)
+                sub_config = relation_get('subordinate_configuration',
+                                          rid=rid, unit=unit)
                 if sub_config and sub_config != '':
                     try:
                         sub_config = json.loads(sub_config)

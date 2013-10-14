@@ -401,7 +401,7 @@ def nova_vmware_relation_joined():
     relation_set(network_manager=network_manager())
 
 
-@hooks.hook()
+@hooks.hook('nova-vmware-relation-changed')
 @restart_on_change(restart_map())
 def nova_vmware_relation_changed():
     CONFIGS.write('/etc/nova/nova.conf')
