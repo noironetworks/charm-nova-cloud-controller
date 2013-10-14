@@ -1,6 +1,11 @@
 #!/usr/bin/python
 
-from quantumclient.v2_0 import client
+try:
+  from quantumclient.v2_0 import client
+except ImportError:
+  from neutronclient.v2_0 import client
+
+from keystoneclient.v2_0 import client as ks_client
 import optparse
 import os
 import sys
@@ -17,6 +22,10 @@ For example:
 
 if __name__ == '__main__':
     parser = optparse.OptionParser(usage)
+    parser.add_option('-t', '--tenant',
+                      help='Tenant name to create network for',
+                      dest='tenant', action='store',
+                      default=None)
     parser.add_option("-d", "--debug",
                       help="Enable debug logging",
                       dest="debug", action="store_true", default=False)
@@ -49,18 +58,36 @@ if __name__ == '__main__':
         start_floating_ip = None
         end_floating_ip = None
 
+    keystone = ks_client.Client(username=os.environ['OS_USERNAME'],
+                                password=os.environ['OS_PASSWORD'],
+                                tenant_name=os.environ['OS_TENANT_NAME'],
+                                auth_url=os.environ['OS_AUTH_URL'],
+                                region_name=os.environ['OS_REGION_NAME'])
     quantum = client.Client(username=os.environ['OS_USERNAME'],
                             password=os.environ['OS_PASSWORD'],
                             tenant_name=os.environ['OS_TENANT_NAME'],
                             auth_url=os.environ['OS_AUTH_URL'],
                             region_name=os.environ['OS_REGION_NAME'])
 
+    
+    # Resolve tenant id
+    tenant_id = None
+    for tenant in [t._info for t in keystone.tenants.list()]:
+        if (tenant['name'] ==
+            (opts.tenant or os.environ['OS_TENANT_NAME'])):
+            tenant_id = tenant['id']
+            break  # Tenant ID found - stop looking
+    if not tenant_id:
+        logging.error("Unable to locate tenant id for %s.", opts.tenant)
+        sys.exit(1)
+
     networks = quantum.list_networks(name=net_name)
     if len(networks['networks']) == 0:
         logging.info('Configuring external bridge')
         network_msg = {
             'name': net_name,
-            'router:external': True
+            'router:external': True,
+            'tenant_id': tenant_id
         }
         logging.info('Creating new external network definition: %s',
                      net_name)
@@ -76,7 +103,8 @@ if __name__ == '__main__':
             'name': subnet_name,
             'network_id': network['id'],
             'enable_dhcp': False,
-            'ip_version': 4
+            'ip_version': 4,
+            'tenant_id': tenant_id
         }
 
         if opts.default_gateway:
@@ -102,7 +130,7 @@ if __name__ == '__main__':
     if len(routers['routers']) == 0:
         logging.info('Creating provider router for external network access')
         router = quantum.create_router(
-                        {'router': {'name': 'provider-router'}}
+                        {'router': {'name': 'provider-router', 'tenant_id': tenant_id}}
                         )['router']
         logging.info('New router created: %s', (router['id']))
     else:

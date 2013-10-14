@@ -1,6 +1,10 @@
 #!/usr/bin/python
 
-from quantumclient.v2_0 import client
+try:
+  from quantumclient.v2_0 import client
+except ImportError:
+  from neutronclient.v2_0 import client
+
 from keystoneclient.v2_0 import client as ks_client
 import optparse
 import os
