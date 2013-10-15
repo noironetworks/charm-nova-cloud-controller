@@ -153,11 +153,23 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertIn('nova-api-os-volume',
                       _map['/etc/nova/nova.conf']['services'])
 
-    def test_restart_map_api_before_frontends(self):
+    @patch('os.path.exists')
+    def test_restart_map_api_before_frontends(self, _exists):
+        _exists.return_value = False
         self._resource_map(network_manager='neutron')
         _map = utils.restart_map()
         self.assertTrue(isinstance(_map, OrderedDict))
         self.assertEquals(_map, RESTART_MAP)
+
+    @patch('os.path.exists')
+    def test_restart_map_apache24(self, _exists):
+        _exists.return_Value = True
+        self._resource_map(network_manager='neutron')
+        _map = utils.restart_map()
+        self.assertTrue('/etc/apache2/sites-available/'
+                        'openstack_https_frontend.conf' in _map)
+        self.assertTrue('/etc/apache2/sites-available/'
+                        'openstack_https_frontend' not in _map)
 
     def test_determine_packages_quantum(self):
         self._resource_map(network_manager='quantum')
