@@ -166,11 +166,12 @@ def resource_map():
         plugin = neutron_plugin()
         if plugin:
             conf = neutron_plugin_attribute(plugin, 'config', net_manager)
-            service = '%s-server' % net_manager
             ctxts = (neutron_plugin_attribute(plugin, 'contexts', net_manager)
                      or [])
+            services = neutron_plugin_attribute(plugin, 'server_services',
+                                                net_manager)
             resource_map[conf] = {}
-            resource_map[conf]['services'] = [service]
+            resource_map[conf]['services'] = services
             resource_map[conf]['contexts'] = ctxts
             resource_map[conf]['contexts'].append(
                 nova_cc_context.NeutronCCContext())

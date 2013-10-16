@@ -286,14 +286,9 @@ def quantum_joined(rid=None):
     if not eligible_leader(CLUSTER_RES):
         return
 
-    if network_manager() == 'quantum':
-        pkg = 'quantum-server'
-    else:
-        pkg = 'neutron-server'
-
-    required_pkg = filter_installed_packages([pkg])
-    if required_pkg:
-        apt_install(required_pkg)
+    pkgs = neutron_plugin_attribute(neutron_plugin(), 'server_packages',
+                                    network_manager())
+    apt_install(filter_installed_packages(pkgs))
 
     url = canonical_url(CONFIGS) + ':9696'
     # XXX: Can we rename to neutron_*?
