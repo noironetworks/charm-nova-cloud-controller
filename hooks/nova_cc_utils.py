@@ -220,9 +220,10 @@ def api_port(service):
 def determine_packages():
     # currently all packages match service names
     packages = [] + BASE_PACKAGES
-    pkgs = neutron_plugin_attribute(neutron_plugin(), 'server_packages',
-                                    network_manager())
-    packages.extent(pkgs)
+    if network_manager() in ['neutron', 'quantum']:
+        pkgs = neutron_plugin_attribute(neutron_plugin(), 'server_packages',
+                                        network_manager())
+        packages.extent(pkgs)
     return list(set(packages))
 
 
