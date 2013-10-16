@@ -76,6 +76,8 @@ NEUTRON_CONF = '/etc/neutron/neutron.conf'
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
+NEUTRON_DEFAULT = '/etc/default/neutron-server'
+QUANTUM_DEFAULT = '/etc/default/quantum-server'
 
 BASE_RESOURCE_MAP = OrderedDict([
     (NOVA_CONF, {
@@ -100,6 +102,10 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext()],
     }),
+    (QUANTUM_DEFAULT, {
+        'services': ['quantum-server'],
+        'contexts': [nova_cc_context.NeutronCCContext()],
+    }),
     (QUANTUM_API_PASTE, {
         'services': ['quantum-server'],
         'contexts': [nova_cc_context.IdentityServiceContext()],
@@ -110,6 +116,10 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext()],
+    }),
+    (NEUTRON_DEFAULT, {
+        'services': ['neutron-server'],
+        'contexts': [nova_cc_context.NeutronCCContext()],
     }),
     (HAPROXY_CONF, {
         'contexts': [context.HAProxyContext(),
@@ -175,10 +185,6 @@ def resource_map():
             resource_map[conf]['contexts'] = ctxts
             resource_map[conf]['contexts'].append(
                 nova_cc_context.NeutronCCContext())
-            # TODO: make a proper context - this is a bit ugly
-            with open('/etc/default/{}-server'.format(net_manager), 'w') as f:
-                f.write('{}_PLUGIN_CONFIG="{}"'.format(net_manager.upper(),
-                                                       conf))
 
     # nova-conductor for releases >= G.
     if os_release('nova-common') not in ['essex', 'folsom']:
