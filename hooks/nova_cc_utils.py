@@ -175,6 +175,10 @@ def resource_map():
             resource_map[conf]['contexts'] = ctxts
             resource_map[conf]['contexts'].append(
                 nova_cc_context.NeutronCCContext())
+            # TODO: make a proper context - this is a bit ugly
+            with open('/etc/default/{}-server'.format(net_manager), 'w') as f:
+                f.write('{}_PLUGIN_CONFIG="{}"'.format(net_manager.upper(),
+                                                       conf))
 
     # nova-conductor for releases >= G.
     if os_release('nova-common') not in ['essex', 'folsom']:
