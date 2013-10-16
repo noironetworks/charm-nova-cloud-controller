@@ -183,6 +183,16 @@ def resource_map():
     # nova-conductor for releases >= G.
     if os_release('nova-common') not in ['essex', 'folsom']:
         resource_map['/etc/nova/nova.conf']['services'] += ['nova-conductor']
+
+    # also manage any configs that are being updated by subordinates.
+    vmware_ctxt = context.SubordinateConfigContext(interface='nova-vmware',
+                                                   service='nova',
+                                                   config_file=NOVA_CONF)
+    vmware_ctxt = vmware_ctxt()
+    if vmware_ctxt and 'services' in vmware_ctxt:
+        for s in vmware_ctxt['services']:
+            if s not in resource_map[NOVA_CONF]['services']:
+                resource_map[NOVA_CONF]['services'].append(s)
     return resource_map
 
 

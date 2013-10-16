@@ -119,9 +119,13 @@ class NovaCCUtilsTests(CharmTestCase):
             self.neutron_plugin_attribute.side_effect = fake_plugin_attribute
         if volume_manager == 'nova-volume':
             self.relation_ids.return_value = 'nova-volume-service:0'
-        return utils.resource_map()
+        with patch('charmhelpers.contrib.openstack.context.'
+                   'SubordinateConfigContext'):
+            _map = utils.resource_map()
+            return _map
 
-    def test_resource_map_quantum(self):
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_quantum(self, subcontext):
         self._resource_map(network_manager='quantum')
         _map = utils.resource_map()
         confs = [
@@ -131,7 +135,8 @@ class NovaCCUtilsTests(CharmTestCase):
         ]
         [self.assertIn(q_conf, _map.keys()) for q_conf in confs]
 
-    def test_resource_map_neutron(self):
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_neutron(self, subcontext):
         self._resource_map(network_manager='neutron')
         _map = utils.resource_map()
         confs = [
@@ -139,7 +144,21 @@ class NovaCCUtilsTests(CharmTestCase):
         ]
         [self.assertIn(q_conf, _map.keys()) for q_conf in confs]
 
-    def test_resource_map_neutron_no_agent_installed(self):
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_vmware(self, subcontext):
+        fake_context = MagicMock()
+        fake_context.return_value = {
+            'sections': [] ,
+            'services': ['nova-compute', 'nova-network'],
+
+        }
+        subcontext.return_value = fake_context
+        _map = utils.resource_map()
+        for s in ['nova-compute', 'nova-network']:
+            self.assertIn(s, _map['/etc/nova/nova.conf']['services'])
+
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_neutron_no_agent_installed(self, subcontext):
         self._resource_map(network_manager='neutron')
         _map = utils.resource_map()
         services = []
@@ -147,22 +166,25 @@ class NovaCCUtilsTests(CharmTestCase):
         for svc in services:
             self.assertNotIn('agent', svc)
 
-    def test_resource_map_nova_volume(self):
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_nova_volume(self, subcontext):
         self.relation_ids.return_value = ['nova-volume-service:0']
         _map = utils.resource_map()
         self.assertIn('nova-api-os-volume',
                       _map['/etc/nova/nova.conf']['services'])
 
     @patch('os.path.exists')
-    def test_restart_map_api_before_frontends(self, _exists):
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_restart_map_api_before_frontends(self, subcontext, _exists):
         _exists.return_value = False
         self._resource_map(network_manager='neutron')
         _map = utils.restart_map()
         self.assertTrue(isinstance(_map, OrderedDict))
         self.assertEquals(_map, RESTART_MAP)
 
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     @patch('os.path.exists')
-    def test_restart_map_apache24(self, _exists):
+    def test_restart_map_apache24(self, _exists, subcontext):
         _exists.return_Value = True
         self._resource_map(network_manager='neutron')
         _map = utils.restart_map()
@@ -171,29 +193,34 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertTrue('/etc/apache2/sites-available/'
                         'openstack_https_frontend' not in _map)
 
-    def test_determine_packages_quantum(self):
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_determine_packages_quantum(self, subcontext):
         self._resource_map(network_manager='quantum')
         pkgs = utils.determine_packages()
         self.assertIn('quantum-server', pkgs)
 
-    def test_determine_packages_neutron(self):
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_determine_packages_neutron(self, subcontext):
         self._resource_map(network_manager='neutron')
         pkgs = utils.determine_packages()
         self.assertIn('neutron-server', pkgs)
 
-    def test_determine_packages_nova_volume(self):
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_determine_packages_nova_volume(self, subcontext):
         self.relation_ids.return_value = ['nova-volume-service:0']
         pkgs = utils.determine_packages()
         self.assertIn('nova-api-os-volume', pkgs)
 
-    def test_determine_packages_base(self):
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_determine_packages_base(self, subcontext):
         self.relation_ids.return_value = []
         self.os_release.return_value = 'folsom'
         pkgs = utils.determine_packages()
         ex = list(set(utils.BASE_PACKAGES + utils.BASE_SERVICES))
         self.assertEquals(ex, pkgs)
 
-    def test_determine_packages_base_grizzly_beyond(self):
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_determine_packages_base_grizzly_beyond(self, subcontext):
         self.relation_ids.return_value = []
         self.os_release.return_value = 'grizzly'
         pkgs = utils.determine_packages()
