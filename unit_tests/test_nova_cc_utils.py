@@ -70,10 +70,11 @@ RESTART_MAP = OrderedDict([
         'nova-api-ec2', 'nova-api-os-compute'
     ]),
     ('/etc/neutron/neutron.conf', ['neutron-server']),
+    ('/etc/default/neutron-server', ['neutron-server']),
     ('/etc/haproxy/haproxy.cfg', ['haproxy']),
     ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
     ('/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini',
-        ['neutron-server'])
+        ['quantum-server'])
 ])
 
 
@@ -87,13 +88,17 @@ PLUGIN_ATTRIBUTES = {
         'services': ['quantum-plugin-openvswitch-agent'],
         'packages': ['quantum-plugin-openvswitch-agent',
                      'openvswitch-datapath-dkms'],
+        'server_packages': ['quantum-server', 'quantum-plugin-openvswitch'],
+        'server_services': ['quantum-server'],
     },
     'nvp': {
         'config': '/etc/quantum/plugins/nicira/nvp.ini',
         'driver': 'quantum.plugins.nicira.nicira_nvp_plugin.'
                   'QuantumPlugin.NvpPluginV2',
         'services': [],
-        'packages': ['quantum-plugin-nicira'],
+        'packages': [],
+        'server_packages': ['quantum-server', 'quantum-plugin-nicria'],
+        'server_services': ['quantum-server'],
     }
 }
 
