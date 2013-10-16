@@ -22,14 +22,22 @@ options:
     default: nova
     type: string
     decsription: Rabbitmq vhost
-  db-user:
+  database-user:
     default: nova
     type: string
     description: Username for database access
-  nova-db:
+  database:
     default: nova
     type: string
     description: Database name
+  neutron-database-user:
+    default: neutron
+    type: string
+    description: Username for Neutron database access (if enabled)
+  neutron-database:
+    default: neutron
+    type: string
+    description: Database name for Neutron (if enabled)
   network-manager:
     default: FlatDHCPManager
     type: string
@@ -38,10 +46,10 @@ options:
       .
         FlatDHCPManager (nova-network) (default)
         FlatManager (nova-network)
-        Quantum (Full SDN solution)
+        Neutron|Quantum (Full SDN solution)
       .
-      When using the Quantum option you will most likely want to use
-      the quantum charm to provide L3 routing and DHCP Services.
+      When using the Neutron option you will most likely want to use
+      the neutron-gateway charm to provide L3 routing and DHCP Services.
   bridge-interface:
     default: br100
     type: string
@@ -71,38 +79,10 @@ options:
       Use quantum for security group management.
       .
       Only supported for >= grizzly.
-  conf-ext-net:
-    type: string
-    default: "no"
-    description: Configure external network for quantum using
-      network configuration below.  Only used when OpenvSwitch
-      plugin is configured.
-  ext-net-name:
+  neutron-external-network:
     type: string
     default: ext_net
-    description: |
-      Name of external network configuration to create for
-      public access to instances/floating IP's.
-  ext-net-cidr:
-    type: string
-    default: 192.168.21.0/24
-    description: |
-      External network addressing
-  ext-net-gateway:
-    type: string
-    default: 192.168.21.1
-    description: |
-      IP of the public network gateway (i.e. external router)
-  pool-floating-start:
-    type: string
-    default: 192.168.21.130
-    description: |
-      Start of default floating IP range.
-  pool-floating-end:
-    type: string
-    default: 192.168.21.200
-    description: |
-      End of default floating IP range.
+    description: Name of the external network for floating IP addresses provided by Neutron.
   config-flags:
     default: None
     type: string
