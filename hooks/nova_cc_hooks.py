@@ -103,8 +103,9 @@ def config_changed():
 
 
 @hooks.hook('amqp-relation-joined')
-def amqp_joined():
-    relation_set(username=config('rabbit-user'), vhost=config('rabbit-vhost'))
+def amqp_joined(relation_id=None):
+    relation_set(relation_id=relation_id,
+                 username=config('rabbit-user'), vhost=config('rabbit-vhost'))
 
 
 @hooks.hook('amqp-relation-changed')
@@ -394,6 +395,12 @@ def configure_https():
 
     for rid in relation_ids('identity-service'):
         identity_joined(rid=rid)
+
+
+@hooks.hook('upgrade-charm')
+def upgrade_charm():
+    for r_id in relation_ids('amqp'):
+        amqp_joined(relation_id=r_id)
 
 
 def main():
