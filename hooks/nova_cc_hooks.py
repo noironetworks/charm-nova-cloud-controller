@@ -286,15 +286,6 @@ def quantum_joined(rid=None):
     if not eligible_leader(CLUSTER_RES):
         return
 
-    if network_manager() == 'quantum':
-        pkg = 'quantum-server'
-    else:
-        pkg = 'neutron-server'
-
-    required_pkg = filter_installed_packages([pkg])
-    if required_pkg:
-        apt_install(required_pkg)
-
     url = canonical_url(CONFIGS) + ':9696'
     # XXX: Can we rename to neutron_*?
     rel_settings = {
@@ -314,7 +305,7 @@ def quantum_joined(rid=None):
     if ks_auth_config and ks_ca:
         rel_settings['ca_cert'] = ks_ca
 
-    relation_set(rid=rid, **rel_settings)
+    relation_set(relation_id=rid, **rel_settings)
 
 
 @hooks.hook('cluster-relation-changed',

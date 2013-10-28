@@ -139,6 +139,16 @@ class NeutronCCContext(context.NeutronContext):
     def __call__(self):
         ctxt = super(NeutronCCContext, self).__call__()
         ctxt['external_network'] = config('neutron-external-network')
+        if 'nvp' in [config('quantum-plugin'), config('neutron-plugin')]:
+            _config = config()
+            for k, v in _config.iteritems():
+                if k.startswith('nvp'):
+                    ctxt[k.replace('-', '_')] = v
+            if 'nvp-controllers' in _config:
+                ctxt['nvp_controllers'] = \
+                    ','.join(_config['nvp-controllers'].split())
+                ctxt['nvp_controllers_list'] = \
+                    _config['nvp-controllers'].split()
         return ctxt
 
 

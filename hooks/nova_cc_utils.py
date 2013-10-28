@@ -76,6 +76,8 @@ NEUTRON_CONF = '/etc/neutron/neutron.conf'
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
+NEUTRON_DEFAULT = '/etc/default/neutron-server'
+QUANTUM_DEFAULT = '/etc/default/quantum-server'
 
 BASE_RESOURCE_MAP = OrderedDict([
     (NOVA_CONF, {
@@ -105,6 +107,10 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext()],
     }),
+    (QUANTUM_DEFAULT, {
+        'services': ['quantum-server'],
+        'contexts': [nova_cc_context.NeutronCCContext()],
+    }),
     (QUANTUM_API_PASTE, {
         'services': ['quantum-server'],
         'contexts': [nova_cc_context.IdentityServiceContext()],
@@ -115,6 +121,10 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext()],
+    }),
+    (NEUTRON_DEFAULT, {
+        'services': ['neutron-server'],
+        'contexts': [nova_cc_context.NeutronCCContext()],
     }),
     (HAPROXY_CONF, {
         'contexts': [context.HAProxyContext(),
@@ -171,11 +181,12 @@ def resource_map():
         plugin = neutron_plugin()
         if plugin:
             conf = neutron_plugin_attribute(plugin, 'config', net_manager)
-            service = '%s-server' % net_manager
             ctxts = (neutron_plugin_attribute(plugin, 'contexts', net_manager)
                      or [])
+            services = neutron_plugin_attribute(plugin, 'server_services',
+                                                net_manager)
             resource_map[conf] = {}
-            resource_map[conf]['services'] = [service]
+            resource_map[conf]['services'] = services
             resource_map[conf]['contexts'] = ctxts
             resource_map[conf]['contexts'].append(
                 nova_cc_context.NeutronCCContext())
@@ -232,6 +243,10 @@ def determine_packages():
     packages = [] + BASE_PACKAGES
     for k, v in resource_map().iteritems():
         packages.extend(v['services'])
+    if network_manager() in ['neutron', 'quantum']:
+        pkgs = neutron_plugin_attribute(neutron_plugin(), 'server_packages',
+                                        network_manager())
+        packages.extend(pkgs)
     return list(set(packages))
 
 
