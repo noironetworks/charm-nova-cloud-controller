@@ -183,6 +183,7 @@ def identity_changed():
         CONFIGS.write(NEUTRON_CONF)
     [compute_joined(rid) for rid in relation_ids('cloud-compute')]
     [quantum_joined(rid) for rid in relation_ids('quantum-network-service')]
+    [nova_vmware_relation_joined(rid) for rid in relation_ids('nova-vmware')]
     configure_https()
 
 
@@ -394,7 +395,7 @@ def configure_https():
 
 
 @hooks.hook()
-def nova_vmware_relation_joined():
+def nova_vmware_relation_joined(rid=None):
     rel_settings = {'network_manager': network_manager()}
 
     ks_auth = _auth_config()
@@ -406,7 +407,7 @@ def nova_vmware_relation_joined():
             'quantum_url': (canonical_url(CONFIGS) + ':' +
                             str(api_port('neutron-server')))})
 
-    relation_set(**rel_settings)
+    relation_set(relation_id=rid, **rel_settings)
 
 
 @hooks.hook('nova-vmware-relation-changed')
