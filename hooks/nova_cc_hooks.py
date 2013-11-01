@@ -148,6 +148,7 @@ def db_changed():
 
     if eligible_leader(CLUSTER_RES):
         migrate_database()
+        log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
          for rid in relation_ids('cloud-compute')]
 
