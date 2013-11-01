@@ -3,6 +3,7 @@
 import os
 import shutil
 import sys
+import uuid
 
 from subprocess import check_call
 from urlparse import urlparse
@@ -147,6 +148,8 @@ def db_changed():
 
     if eligible_leader(CLUSTER_RES):
         migrate_database()
+        [compute_joined(rid=rid, remote_restart=True)
+         for rid in relation_ids('cloud-compute')]
 
 
 @hooks.hook('image-service-relation-changed')
@@ -255,7 +258,7 @@ def keystone_compute_settings():
 
 
 @hooks.hook('cloud-compute-relation-joined')
-def compute_joined(rid=None):
+def compute_joined(rid=None, remote_restart=False):
     if not eligible_leader(CLUSTER_RES):
         return
     rel_settings = {
@@ -265,6 +268,12 @@ def compute_joined(rid=None):
         # this may not even be needed.
         'ec2_host': unit_get('private-address'),
     }
+
+    # update relation setting if we're attempting to restart remote
+    # services
+    if remote_restart:
+        rel_settings['restart_trigger'] = str(uuid.uuid4())
+
     rel_settings.update(keystone_compute_settings())
     relation_set(relation_id=rid, **rel_settings)
 
