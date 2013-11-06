@@ -315,7 +315,7 @@ def quantum_joined(rid=None):
     if ks_auth_config and ks_ca:
         rel_settings['ca_cert'] = ks_ca
 
-    relation_set(rid=rid, **rel_settings)
+    relation_set(relation_id=rid, **rel_settings)
 
 
 @hooks.hook('cluster-relation-changed',
