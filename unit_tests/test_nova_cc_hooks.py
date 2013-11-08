@@ -60,6 +60,7 @@ FAKE_KS_AUTH_CFG = {
 
 
 class NovaCCHooksTests(CharmTestCase):
+
     def setUp(self):
         super(NovaCCHooksTests, self).setUp(hooks, TO_PATCH)
         self.config.side_effect = self.test_config.get
@@ -135,4 +136,5 @@ class NovaCCHooksTests(CharmTestCase):
         self.relation_set.assert_called_with(
             network_manager='neutron', quantum_security_groups='no',
             quantum_url='http://nova-cc-host1:9696', quantum_plugin='nvp',
+            relation_id=None,
             **FAKE_KS_AUTH_CFG)

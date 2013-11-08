@@ -112,6 +112,7 @@ def fake_plugin_attribute(plugin, attr, net_manager):
 
 
 class NovaCCUtilsTests(CharmTestCase):
+
     def setUp(self):
         super(NovaCCUtilsTests, self).setUp(utils, TO_PATCH)
         self.config.side_effect = self.test_config.get
@@ -153,7 +154,7 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_resource_map_vmware(self, subcontext):
         fake_context = MagicMock()
         fake_context.return_value = {
-            'sections': [] ,
+            'sections': [],
             'services': ['nova-compute', 'nova-network'],
 
         }
