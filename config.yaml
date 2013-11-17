@@ -69,6 +69,7 @@ options:
       Quantum plugin to use for network management; supports
       .
         ovs - OpenvSwitch Plugin
+        nvp - Nicira Network Virtualization Platform
       .
       This configuration only has context when used with
       network-manager Quantum.
@@ -125,3 +126,31 @@ options:
   ssl_key:
     type: string
     description: SSL key to use with certificate specified as ssl_cert.
+  # Neutron NVP Plugin configuration
+  nvp-controllers:
+    type: string
+    description: Space delimited addresses of NVP controllers
+  nvp-username:
+    type: string
+    default: admin
+    description: Username to connect to NVP controllers with
+  nvp-password:
+    type: string
+    default: admin
+    description: Password to connect to NVP controllers with
+  nvp-cluster-name:
+    type: string
+    default: example
+    description: Name of the NVP cluster configuration to create (grizzly only)
+  nvp-tz-uuid:
+    type: string
+    description: |
+      This is uuid of the default NVP Transport zone that will be used for
+      creating tunneled isolated Quantum networks.  It needs to be created
+      in NVP before starting Quantum with the nvp plugin.
+  nvp-l3-uuid:
+    type: string
+    description: |
+      This is uuid of the default NVP L3 Gateway Service.
+  # end of NVP configuration
+

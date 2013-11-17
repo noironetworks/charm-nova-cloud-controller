@@ -3,6 +3,7 @@
 import os
 import shutil
 import sys
+import uuid
 
 from subprocess import check_call
 from urlparse import urlparse
@@ -25,7 +26,7 @@ from charmhelpers.core.host import (
 )
 
 from charmhelpers.fetch import (
-    apt_install, apt_update, filter_installed_packages
+    apt_install, apt_update
 )
 
 from charmhelpers.contrib.openstack.utils import (
@@ -148,6 +149,9 @@ def db_changed():
 
     if eligible_leader(CLUSTER_RES):
         migrate_database()
+        log('Triggering remote cloud-compute restarts.')
+        [compute_joined(rid=rid, remote_restart=True)
+         for rid in relation_ids('cloud-compute')]
 
 
 @hooks.hook('image-service-relation-changed')
@@ -184,6 +188,7 @@ def identity_changed():
         CONFIGS.write(NEUTRON_CONF)
     [compute_joined(rid) for rid in relation_ids('cloud-compute')]
     [quantum_joined(rid) for rid in relation_ids('quantum-network-service')]
+    [nova_vmware_relation_joined(rid) for rid in relation_ids('nova-vmware')]
     configure_https()
 
 
@@ -230,19 +235,9 @@ def save_novarc():
         out.write('export OS_REGION_NAME=%s\n' % config('region'))
 
 
-@hooks.hook('cloud-compute-relation-joined')
-def compute_joined(rid=None):
-    if not eligible_leader(CLUSTER_RES):
-        return
-    rel_settings = {
-        'network_manager': network_manager(),
-        'volume_service': volume_service(),
-        # (comment from bash vers) XXX Should point to VIP if clustered, or
-        # this may not even be needed.
-        'ec2_host': unit_get('private-address'),
-    }
-
+def keystone_compute_settings():
     ks_auth_config = _auth_config()
+    rel_settings = {}
 
     if network_manager() in ['quantum', 'neutron']:
         if ks_auth_config:
@@ -260,6 +255,28 @@ def compute_joined(rid=None):
     ks_ca = keystone_ca_cert_b64()
     if ks_auth_config and ks_ca:
         rel_settings['ca_cert'] = ks_ca
+
+    return rel_settings
+
+
+@hooks.hook('cloud-compute-relation-joined')
+def compute_joined(rid=None, remote_restart=False):
+    if not eligible_leader(CLUSTER_RES):
+        return
+    rel_settings = {
+        'network_manager': network_manager(),
+        'volume_service': volume_service(),
+        # (comment from bash vers) XXX Should point to VIP if clustered, or
+        # this may not even be needed.
+        'ec2_host': unit_get('private-address'),
+    }
+
+    # update relation setting if we're attempting to restart remote
+    # services
+    if remote_restart:
+        rel_settings['restart_trigger'] = str(uuid.uuid4())
+
+    rel_settings.update(keystone_compute_settings())
     relation_set(relation_id=rid, **rel_settings)
 
 
@@ -286,15 +303,6 @@ def compute_departed():
 def quantum_joined(rid=None):
     if not eligible_leader(CLUSTER_RES):
         return
-
-    if network_manager() == 'quantum':
-        pkg = 'quantum-server'
-    else:
-        pkg = 'neutron-server'
-
-    required_pkg = filter_installed_packages([pkg])
-    if required_pkg:
-        apt_install(required_pkg)
 
     url = canonical_url(CONFIGS) + ':9696'
     # XXX: Can we rename to neutron_*?
@@ -395,6 +403,28 @@ def configure_https():
 
     for rid in relation_ids('identity-service'):
         identity_joined(rid=rid)
+
+
+@hooks.hook()
+def nova_vmware_relation_joined(rid=None):
+    rel_settings = {'network_manager': network_manager()}
+
+    ks_auth = _auth_config()
+    if ks_auth:
+        rel_settings.update(ks_auth)
+        rel_settings.update({
+            'quantum_plugin': neutron_plugin(),
+            'quantum_security_groups': config('quantum-security-groups'),
+            'quantum_url': (canonical_url(CONFIGS) + ':' +
+                            str(api_port('neutron-server')))})
+
+    relation_set(relation_id=rid, **rel_settings)
+
+
+@hooks.hook('nova-vmware-relation-changed')
+@restart_on_change(restart_map())
+def nova_vmware_relation_changed():
+    CONFIGS.write('/etc/nova/nova.conf')
 
 
 @hooks.hook('upgrade-charm')

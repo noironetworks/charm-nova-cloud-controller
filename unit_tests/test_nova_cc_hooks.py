@@ -17,8 +17,10 @@ utils.restart_map = _map
 
 
 TO_PATCH = [
+    'api_port',
     'apt_update',
     'apt_install',
+    'canonical_url',
     'configure_installation_source',
     'charm_dir',
     'do_openstack_upgrade',
@@ -33,11 +35,32 @@ TO_PATCH = [
     'ssh_known_hosts_b64',
     'ssh_authorized_keys_b64',
     'save_script_rc',
-    'execd_preinstall'
+    'execd_preinstall',
+    'network_manager',
+    'volume_service',
+    'unit_get',
+    'eligible_leader',
+    'keystone_ca_cert_b64',
+    'neutron_plugin',
 ]
 
 
+FAKE_KS_AUTH_CFG = {
+    'auth_host': 'kshost',
+    'auth_port': '5000',
+    'service_port': 'token',
+    'service_username': 'admin_user',
+    'service_password': 'admin_passwd',
+    'service_tenant_name': 'admin_tenant',
+    'auth_uri': 'http://kshost:5000/v2',
+    # quantum-gateway interface deviates a bit.
+    'keystone_host': 'kshost',
+    'service_tenant': 'service_tenant',
+}
+
+
 class NovaCCHooksTests(CharmTestCase):
+
     def setUp(self):
         super(NovaCCHooksTests, self).setUp(hooks, TO_PATCH)
         self.config.side_effect = self.test_config.get
@@ -76,3 +99,42 @@ class NovaCCHooksTests(CharmTestCase):
         self.ssh_compute_add.assert_called_with('fookey')
         self.relation_set.assert_called_with(known_hosts='hosts',
                                              authorized_keys='keys')
+
+    @patch.object(hooks, '_auth_config')
+    def test_compute_joined_neutron(self, auth_config):
+        self.network_manager.return_value = 'neutron'
+        self.eligible_leader = True
+        self.keystone_ca_cert_b64.return_value = 'foocert64'
+        self.volume_service.return_value = 'cinder'
+        self.unit_get.return_value = 'nova-cc-host1'
+        self.canonical_url.return_value = 'http://nova-cc-host1'
+        self.api_port.return_value = '9696'
+        self.neutron_plugin.return_value = 'nvp'
+        auth_config.return_value = FAKE_KS_AUTH_CFG
+        hooks.compute_joined()
+
+        self.relation_set.assert_called_with(
+            relation_id=None,
+            quantum_url='http://nova-cc-host1:9696',
+            ca_cert='foocert64',
+            quantum_security_groups='no',
+            region='RegionOne',
+            volume_service='cinder',
+            ec2_host='nova-cc-host1',
+            quantum_plugin='nvp',
+            network_manager='neutron', **FAKE_KS_AUTH_CFG)
+
+    @patch.object(hooks, '_auth_config')
+    def test_nova_vmware_joined(self, auth_config):
+        auth_config.return_value = FAKE_KS_AUTH_CFG
+        # quantum-security-groups, plugin
+        self.neutron_plugin.return_value = 'nvp'
+        self.network_manager.return_value = 'neutron'
+        self.canonical_url.return_value = 'http://nova-cc-host1'
+        self.api_port.return_value = '9696'
+        hooks.nova_vmware_relation_joined()
+        self.relation_set.assert_called_with(
+            network_manager='neutron', quantum_security_groups='no',
+            quantum_url='http://nova-cc-host1:9696', quantum_plugin='nvp',
+            relation_id=None,
+            **FAKE_KS_AUTH_CFG)
