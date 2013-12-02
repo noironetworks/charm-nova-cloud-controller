@@ -433,25 +433,44 @@ class NeutronContext(object):
 
 
 class OSConfigFlagContext(OSContextGenerator):
-        '''
-        Responsible adding user-defined config-flags in charm config to a
-        to a template context.
-        '''
+        """
+        Responsible for adding user-defined config-flags in charm config to a
+        template context.
+
+        NOTE: the value of config-flags may be a comma-separated list of
+              key=value pairs and some Openstack config files support
+              comma-separated lists as values.
+        """
         def __call__(self):
             config_flags = config('config-flags')
-            if not config_flags or config_flags in ['None', '']:
+            if not config_flags:
                 return {}
-            config_flags = config_flags.split(',')
+
+            strippers = ' ,'
+            split = config_flags.strip(' =').split('=')
+            limit = len(split)
             flags = {}
-            for flag in config_flags:
-                if '=' not in flag:
-                    log('Improperly formatted config-flag, expected k=v '
-                        'got %s' % flag, level=WARNING)
-                    continue
-                k, v = flag.split('=')
-                flags[k.strip()] = v
-            ctxt = {'user_config_flags': flags}
-            return ctxt
+            for i in xrange(0, limit - 1):
+                current = split[i]
+                next = split[i + 1]
+                vindex = next.rfind(',')
+                if (i == limit - 2) or (vindex < 0):
+                    value = next
+                else:
+                    value = next[:vindex]        
+
+                if i == 0:
+                    key = current
+                else:
+                    index = current.rfind(',')
+                    if index < 0:
+                        log("error: invalid config value(s) at index %s" % (i))
+                        raise OSContextError
+                    key = current[index + 1:]
+
+                flags[key.strip(strippers)] = value.rstrip(strippers)
+
+            return {'user_config_flags': flags}
 
 
 class SubordinateConfigContext(OSContextGenerator):
