@@ -303,7 +303,7 @@ class NovaCCUtilsTests(CharmTestCase):
         host_key.return_value = 'fookey_old'
         with patch_open() as (_open, _file):
             utils.add_known_host('foohost')
-            rm.assert_called_with('foohost')
+            rm.assert_called_with('foohost', None)
 
     @patch.object(utils, 'known_hosts')
     @patch.object(utils, 'remove_known_host')
