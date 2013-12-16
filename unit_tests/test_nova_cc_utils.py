@@ -336,11 +336,17 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_known_hosts(self, ssh_dir):
         ssh_dir.return_value = '/tmp/foo'
         self.assertEquals(utils.known_hosts(), '/tmp/foo/known_hosts')
+        ssh_dir.assert_called_with(None)
+        self.assertEquals(utils.known_hosts('bar'), '/tmp/foo/known_hosts')
+        ssh_dir.assert_called_with('bar')
 
     @patch.object(utils, 'ssh_directory_for_unit')
     def test_authorized_keys(self, ssh_dir):
         ssh_dir.return_value = '/tmp/foo'
         self.assertEquals(utils.authorized_keys(), '/tmp/foo/authorized_keys')
+        ssh_dir.assert_called_with(None)
+        self.assertEquals(utils.authorized_keys('bar'), '/tmp/foo/authorized_keys')
+        ssh_dir.assert_called_with('bar')
 
     @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_call')
@@ -425,31 +431,14 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertEquals(
             endpoints, utils.determine_endpoints('http://foohost.com'))
 
-    @patch.object(utils, 'ssh_directory_for_unit')
-    def test_known_hosts(self, _directory):
-        _directory.return_value = '/foo'
-        self.assertTrue(utils.known_hosts(), '/foo/known_hosts')
-        _directory.assert_called_with(None)
-        _directory.return_value = '/bar_foo'
-        self.assertTrue(utils.known_hosts(user='bar'), '/bar_foo/known_hosts')
-        _directory.assert_called_with('bar')
-
-    @patch.object(utils, 'ssh_directory_for_unit')
-    def test_authorized_keys(self, _directory):
-        _directory.return_value = '/foo'
-        self.assertTrue(utils.authorized_keys(), '/foo/authorized_keys')
-        _directory.assert_called_with(None)
-        _directory.return_value = '/bar_foo'
-        self.assertTrue(utils.authorized_keys(user='bar'), '/bar_foo/authorized_keys')
-        _directory.assert_called_with('bar')
-
     @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_output')
     def test_ssh_known_host_key(self, _check_output, _known_hosts):
         _known_hosts.return_value = '/foo/known_hosts'
         utils.ssh_known_host_key('test')
-        _check_output.assert_called_with(['ssh-keygen', '-f', '/foo/known_hosts',
-                                          '-H', '-F', 'test'])
+        _check_output.assert_called_with(
+            ['ssh-keygen', '-f', '/foo/known_hosts',
+             '-H', '-F', 'test'])
         _known_hosts.assert_called_with(None)
         utils.ssh_known_host_key('test', 'bar')
         _known_hosts.assert_called_with('bar')
@@ -459,9 +448,9 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_remove_known_host(self, _check_call, _known_hosts):
         _known_hosts.return_value = '/foo/known_hosts'
         utils.remove_known_host('test')
-        _check_call.assert_called_with(['ssh-keygen', '-f' , '/foo/known_hosts',
-                                        '-R', 'test'])
+        _check_call.assert_called_with(
+            ['ssh-keygen', '-f', '/foo/known_hosts',
+             '-R', 'test'])
         _known_hosts.assert_called_with(None)
         utils.remove_known_host('test', 'bar')
         _known_hosts.assert_called_with('bar')
-
