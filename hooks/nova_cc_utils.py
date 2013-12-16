@@ -364,7 +364,7 @@ def ssh_known_host_key(host, user=None):
 
 def remove_known_host(host, user=None):
     log('Removing SSH known host entry for compute host at %s' % host)
-    cmd = ['ssh-kegen', '-f', known_hosts(user), '-R', host]
+    cmd = ['ssh-keygen', '-f', known_hosts(user), '-R', host]
     subprocess.check_call(cmd)
 
 
