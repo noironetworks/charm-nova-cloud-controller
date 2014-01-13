@@ -43,11 +43,12 @@ TEMPLATES = 'templates/'
 
 CLUSTER_RES = 'res_nova_vip'
 
-# removed from original: python-mysqldb python-keystone charm-helper-sh
+# removed from original: charm-helper-sh
 BASE_PACKAGES = [
     'apache2',
     'haproxy',
     'python-keystoneclient',
+    'python-mysqldb',
     'uuid',
 ]
 
