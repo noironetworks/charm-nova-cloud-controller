@@ -440,7 +440,6 @@ class NeutronContext(object):
 
 
 class OSConfigFlagContext(OSContextGenerator):
-
         """
         Responsible for adding user-defined config-flags in charm config to a
         template context.
@@ -449,7 +448,6 @@ class OSConfigFlagContext(OSContextGenerator):
               key=value pairs and some Openstack config files support
               comma-separated lists as values.
         """
-
         def __call__(self):
             config_flags = config('config-flags')
             if not config_flags:
