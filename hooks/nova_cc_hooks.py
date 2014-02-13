@@ -110,21 +110,9 @@ def amqp_joined(relation_id=None):
 
 
 @hooks.hook('amqp-relation-changed')
-@restart_on_change(restart_map())
-def amqp_changed():
-    if 'amqp' not in CONFIGS.complete_contexts():
-        log('amqp relation incomplete. Peer not ready?')
-        return
-    CONFIGS.write(NOVA_CONF)
-    if network_manager() == 'quantum':
-        CONFIGS.write(QUANTUM_CONF)
-    if network_manager() == 'neutron':
-        CONFIGS.write(NEUTRON_CONF)
-
-
 @hooks.hook('amqp-relation-departed')
 @restart_on_change(restart_map())
-def amqp_departed():
+def amqp_changed():
     if 'amqp' not in CONFIGS.complete_contexts():
         log('amqp relation incomplete. Peer not ready?')
         return
