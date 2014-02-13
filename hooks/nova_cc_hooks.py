@@ -110,21 +110,9 @@ def amqp_joined(relation_id=None):
 
 
 @hooks.hook('amqp-relation-changed')
-@restart_on_change(restart_map())
-def amqp_changed():
-    if 'amqp' not in CONFIGS.complete_contexts():
-        log('amqp relation incomplete. Peer not ready?')
-        return
-    CONFIGS.write(NOVA_CONF)
-    if network_manager() == 'quantum':
-        CONFIGS.write(QUANTUM_CONF)
-    if network_manager() == 'neutron':
-        CONFIGS.write(NEUTRON_CONF)
-
-
 @hooks.hook('amqp-relation-departed')
 @restart_on_change(restart_map())
-def amqp_departed():
+def amqp_changed():
     if 'amqp' not in CONFIGS.complete_contexts():
         log('amqp relation incomplete. Peer not ready?')
         return
@@ -304,6 +292,11 @@ def compute_changed():
         ssh_compute_add(key)
         relation_set(known_hosts=ssh_known_hosts_b64(),
                      authorized_keys=ssh_authorized_keys_b64())
+    if relation_get('nova_ssh_public_key'):
+        key = relation_get('nova_ssh_public_key')
+        ssh_compute_add(key, user='nova')
+        relation_set(nova_known_hosts=ssh_known_hosts_b64(user='nova'),
+                     nova_authorized_keys=ssh_authorized_keys_b64(user='nova'))
 
 
 @hooks.hook('cloud-compute-relation-departed')
