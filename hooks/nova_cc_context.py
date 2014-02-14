@@ -6,7 +6,7 @@ from charmhelpers.fetch import apt_install, filter_installed_packages
 from charmhelpers.contrib.openstack import context, neutron, utils
 
 from charmhelpers.contrib.hahelpers.cluster import (
-    determine_api_port, determine_haproxy_port)
+    determine_apache_port, determine_api_port, determine_haproxy_port)
 
 
 class ApacheSSLContext(context.ApacheSSLContext):
@@ -67,6 +67,13 @@ class HAProxyContext(context.HAProxyContext):
         nvol_api = determine_api_port(api_port('nova-api-os-volume'))
         neutron_api = determine_api_port(api_port('neutron-server'))
 
+        # Apache ports
+        a_compute_api = determine_apache_port(api_port('nova-api-os-compute'))
+        a_ec2_api = determine_apache_port(api_port('nova-api-ec2'))
+        a_s3_api = determine_apache_port(api_port('nova-objectstore'))
+        a_nvol_api = determine_apache_port(api_port('nova-api-os-volume'))
+        a_neutron_api = determine_apache_port(api_port('neutron-server'))
+
         # to be set in nova.conf accordingly.
         listen_ports = {
             'osapi_compute_listen_port': compute_api,
@@ -77,15 +84,15 @@ class HAProxyContext(context.HAProxyContext):
         port_mapping = {
             'nova-api-os-compute': [
                 determine_haproxy_port(api_port('nova-api-os-compute')),
-                compute_api,
+                a_compute_api,
             ],
             'nova-api-ec2': [
                 determine_haproxy_port(api_port('nova-api-ec2')),
-                ec2_api,
+                a_ec2_api,
             ],
             'nova-objectstore': [
                 determine_haproxy_port(api_port('nova-objectstore')),
-                s3_api,
+                a_s3_api,
             ],
         }
 
@@ -93,7 +100,7 @@ class HAProxyContext(context.HAProxyContext):
             port_mapping.update({
                 'nova-api-ec2': [
                     determine_haproxy_port(api_port('nova-api-ec2')),
-                    nvol_api],
+                    a_nvol_api],
             })
             listen_ports['osapi_volume_listen_port'] = nvol_api
 
@@ -101,7 +108,7 @@ class HAProxyContext(context.HAProxyContext):
             port_mapping.update({
                 'neutron-server': [
                     determine_haproxy_port(api_port('neutron-server')),
-                    neutron_api]
+                    a_neutron_api]
             })
             # quantum/neutron.conf listening port, set separte from nova's.
             ctxt['neutron_bind_port'] = neutron_api
