@@ -220,7 +220,9 @@ def restart_on_change(restart_map):
                 if checksums[path] != file_hash(path):
                     restarts += restart_map[path]
             for service_name in list(OrderedDict.fromkeys(restarts)):
-                service('restart', service_name)
+                service('stop', service_name)
+            for service_name in list(OrderedDict.fromkeys(restarts)):
+                service('start', service_name)
         return wrapped_f
     return wrap
 
