@@ -29,7 +29,6 @@ from charmhelpers.core.hookenv import (
 from charmhelpers.contrib.hahelpers.cluster import (
     determine_apache_port,
     determine_api_port,
-    determine_haproxy_port,
     https,
     is_clustered,
     peer_units,

@@ -143,6 +143,8 @@ def determine_haproxy_port(public_port):
     returns: int: the correct listening port for the HAProxy service
     '''
     i = 0
+    if https():
+        i += 1
     return public_port - (i * 10)
 
 
