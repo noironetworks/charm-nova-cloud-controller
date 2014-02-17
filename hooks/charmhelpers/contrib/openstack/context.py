@@ -416,7 +416,7 @@ class NeutronContext(object):
         else:
             proto = 'http'
         if is_clustered():
-            host = config('vip')
+            host = config()['vip']
         else:
             host = unit_get('private-address')
         url = proto + '://' + host + ':9696'
