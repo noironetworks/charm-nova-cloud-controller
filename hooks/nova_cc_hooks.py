@@ -94,7 +94,7 @@ def install():
 
 
 @hooks.hook('config-changed')
-@restart_on_change(restart_map())
+@restart_on_change(restart_map(), stopstart=True)
 def config_changed():
     if openstack_upgrade_available('nova-common'):
         do_openstack_upgrade(configs=CONFIGS)
@@ -333,7 +333,7 @@ def quantum_joined(rid=None):
 
 @hooks.hook('cluster-relation-changed',
             'cluster-relation-departed')
-@restart_on_change(restart_map())
+@restart_on_change(restart_map(), stopstart=True)
 def cluster_changed():
     CONFIGS.write_all()
 
