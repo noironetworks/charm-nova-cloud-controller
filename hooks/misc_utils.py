@@ -180,6 +180,10 @@ def neutron_plugins():
             'config': '/etc/neutron/plugins/nicira/nvp.ini',
             'driver': 'neutron.plugins.nicira.nicira_nvp_plugin.'
                       'NeutronPlugin.NvpPluginV2',
+            'contexts': [
+                context.SharedDBContext(user=config('neutron-database-user'),
+                                        database=config('neutron-database'),
+                                        relation_prefix='neutron')],
             'services': [],
             'packages': ['neutron-plugin-nicira'],
         }
