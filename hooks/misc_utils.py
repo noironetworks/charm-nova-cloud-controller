@@ -155,6 +155,10 @@ def quantum_plugins():
             'config': '/etc/quantum/plugins/nicira/nvp.ini',
             'driver': 'quantum.plugins.nicira.nicira_nvp_plugin.'
                       'QuantumPlugin.NvpPluginV2',
+            'contexts': [
+                context.SharedDBContext(user=config('neutron-database-user'),
+                                        database=config('neutron-database'),
+                                        relation_prefix='neutron')],
             'services': [],
             'packages': ['quantum-plugin-nicira'],
         }
