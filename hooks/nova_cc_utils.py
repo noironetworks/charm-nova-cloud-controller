@@ -69,8 +69,10 @@ API_PORTS = {
     'quantum-server': 9696,
 }
 
-NOVA_CONF = '/etc/nova/nova.conf'
-NOVA_API_PASTE = '/etc/nova/api-paste.ini'
+NOVA_CONF_DIR = "/etc/nova"
+
+NOVA_CONF = '%s/nova.conf' % NOVA_CONF_DIR
+NOVA_API_PASTE = '%s/api-paste.ini' % NOVA_CONF_DIR
 QUANTUM_CONF = '/etc/quantum/quantum.conf'
 QUANTUM_API_PASTE = '/etc/quantum/api-paste.ini'
 NEUTRON_CONF = '/etc/neutron/neutron.conf'
@@ -84,7 +86,8 @@ BASE_RESOURCE_MAP = OrderedDict([
     (NOVA_CONF, {
         'services': BASE_SERVICES,
         'contexts': [context.AMQPContext(),
-                     context.SharedDBContext(relation_prefix='nova'),
+                     context.SharedDBContext(
+                         relation_prefix='nova', ssl_dir=NOVA_CONF_DIR),
                      context.ImageServiceContext(),
                      context.OSConfigFlagContext(),
                      context.SubordinateConfigContext(
