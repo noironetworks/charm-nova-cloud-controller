@@ -70,12 +70,14 @@ API_PORTS = {
 }
 
 NOVA_CONF_DIR = "/etc/nova"
+QUANTUM_CONF_DIR = "/etc/quantum"
+NEUTRON_CONF_DIR = "/etc/neutron"
 
 NOVA_CONF = '%s/nova.conf' % NOVA_CONF_DIR
 NOVA_API_PASTE = '%s/api-paste.ini' % NOVA_CONF_DIR
-QUANTUM_CONF = '/etc/quantum/quantum.conf'
-QUANTUM_API_PASTE = '/etc/quantum/api-paste.ini'
-NEUTRON_CONF = '/etc/neutron/neutron.conf'
+QUANTUM_CONF = '%s/quantum.conf' % QUANTUM_CONF_DIR
+QUANTUM_API_PASTE = '%s/api-paste.ini' % QUANTUM_CONF_DIR
+NEUTRON_CONF = '%s/neutron.conf' % NEUTRON_CONF_DIR
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
@@ -85,7 +87,7 @@ QUANTUM_DEFAULT = '/etc/default/quantum-server'
 BASE_RESOURCE_MAP = OrderedDict([
     (NOVA_CONF, {
         'services': BASE_SERVICES,
-        'contexts': [context.AMQPContext(),
+        'contexts': [context.AMQPContext(ssl_dir=NOVA_CONF_DIR),
                      context.SharedDBContext(
                          relation_prefix='nova', ssl_dir=NOVA_CONF_DIR),
                      context.ImageServiceContext(),
@@ -106,7 +108,7 @@ BASE_RESOURCE_MAP = OrderedDict([
     }),
     (QUANTUM_CONF, {
         'services': ['quantum-server'],
-        'contexts': [context.AMQPContext(),
+        'contexts': [context.AMQPContext(ssl_dir=QUANTUM_CONF_DIR),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext()],
@@ -121,7 +123,7 @@ BASE_RESOURCE_MAP = OrderedDict([
     }),
     (NEUTRON_CONF, {
         'services': ['neutron-server'],
-        'contexts': [context.AMQPContext(),
+        'contexts': [context.AMQPContext(ssl_dir=NEUTRON_CONF_DIR),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext()],
