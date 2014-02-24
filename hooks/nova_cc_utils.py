@@ -317,10 +317,10 @@ def migrate_database():
 
 
 def auth_token_config(setting):
-    '''
+    """
     Returns currently configured value for setting in api-paste.ini's
     authtoken section, or None.
-    '''
+    """
     config = ConfigParser.RawConfigParser()
     config.read('/etc/nova/api-paste.ini')
     try:
