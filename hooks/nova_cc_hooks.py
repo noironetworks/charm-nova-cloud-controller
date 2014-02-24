@@ -94,7 +94,7 @@ def install():
 
 
 @hooks.hook('config-changed')
-@restart_on_change(restart_map())
+@restart_on_change(restart_map(), stopstart=True)
 def config_changed():
     if openstack_upgrade_available('nova-common'):
         do_openstack_upgrade(configs=CONFIGS)
@@ -291,6 +291,11 @@ def compute_changed():
         ssh_compute_add(key)
         relation_set(known_hosts=ssh_known_hosts_b64(),
                      authorized_keys=ssh_authorized_keys_b64())
+    if relation_get('nova_ssh_public_key'):
+        key = relation_get('nova_ssh_public_key')
+        ssh_compute_add(key, user='nova')
+        relation_set(nova_known_hosts=ssh_known_hosts_b64(user='nova'),
+                     nova_authorized_keys=ssh_authorized_keys_b64(user='nova'))
 
 
 @hooks.hook('cloud-compute-relation-departed')
@@ -328,7 +333,7 @@ def quantum_joined(rid=None):
 
 @hooks.hook('cluster-relation-changed',
             'cluster-relation-departed')
-@restart_on_change(restart_map())
+@restart_on_change(restart_map(), stopstart=True)
 def cluster_changed():
     CONFIGS.write_all()
 
