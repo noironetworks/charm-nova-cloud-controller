@@ -436,6 +436,8 @@ def nova_vmware_relation_changed():
 def upgrade_charm():
     for r_id in relation_ids('amqp'):
         amqp_joined(relation_id=r_id)
+    for r_id in relation_ids('identity-service'):
+        identity_joined(relation_id=r_id)
 
 
 def main():
