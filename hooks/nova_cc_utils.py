@@ -465,7 +465,7 @@ def determine_endpoints(url):
         nova_url = ('%s:%s/v1.1/$(tenant_id)s' %
                     (url, api_port('nova-api-os-compute')))
     novav3_url = ('%s:%s/v3' %
-                  (api_port('nova-api-os-compute')))
+                  (url, api_port('nova-api-os-compute')))
     ec2_url = '%s:%s/services/Cloud' % (url, api_port('nova-api-ec2'))
     nova_volume_url = ('%s:%s/v1/$(tenant_id)s' %
                        (url, api_port('nova-api-os-compute')))
