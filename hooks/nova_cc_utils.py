@@ -456,10 +456,16 @@ def determine_endpoints(url):
     '''Generates a dictionary containing all relevant endpoints to be
     passed to keystone as relation settings.'''
     region = config('region')
+    os_rel = os_release('nova-common')
 
-    # TODO: Configurable nova API version.
-    nova_url = ('%s:%s/v1.1/$(tenant_id)s' %
-                (url, api_port('nova-api-os-compute')))
+    if os_rel >= 'grizzly':
+        nova_url = ('%s:%s/v2.0/$(tenant_id)s' %
+                    (url, api_port('nova-api-os-compute')))
+    else:
+        nova_url = ('%s:%s/v1.1/$(tenant_id)s' %
+                    (url, api_port('nova-api-os-compute')))
+    novav3_url = ('%s:%s/v3.0/$(tenant_id)s' %
+                  (url, api_port('nova-api-os-compute')))
     ec2_url = '%s:%s/services/Cloud' % (url, api_port('nova-api-ec2'))
     nova_volume_url = ('%s:%s/v1/$(tenant_id)s' %
                        (url, api_port('nova-api-os-compute')))
@@ -502,6 +508,15 @@ def determine_endpoints(url):
             'quantum_public_url': neutron_url,
             'quantum_admin_url': neutron_url,
             'quantum_internal_url': neutron_url,
+        })
+
+    if os_rel >= 'havana':
+        endpoints.update({
+            'novav3_service': 'novav3',
+            'novav3_region': region,
+            'novav3_public_url': novav3_url,
+            'novav3_admin_url': novav3_url,
+            'novav3_internal_url': novav3_url
         })
 
     return endpoints
