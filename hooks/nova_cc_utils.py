@@ -299,8 +299,9 @@ def do_openstack_upgrade(configs):
     apt_upgrade(options=dpkg_opts, fatal=True, dist=True)
 
     # Re-register all configs to accomodate changes in filesname etc
-    configs = register_configs()
-    configs.write_all()
+    configs.set_release(openstack_release=new_os_rel)
+    new_configs = register_configs()
+    new_configs.write_all()
 
     [service_stop(s) for s in services()]
     if eligible_leader(CLUSTER_RES):
