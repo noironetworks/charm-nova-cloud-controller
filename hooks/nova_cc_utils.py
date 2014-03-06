@@ -22,7 +22,7 @@ from charmhelpers.contrib.openstack.utils import (
     save_script_rc as _save_script_rc)
 
 from charmhelpers.fetch import (
-    apt_install,
+    apt_upgrade,
     apt_update,
 )
 
@@ -283,7 +283,7 @@ def do_openstack_upgrade(configs):
         '--option', 'Dpkg::Options::=--force-confdef',
     ]
 
-    apt_install(packages=determine_packages(), options=dpkg_opts, fatal=True)
+    apt_upgrade(options=dpkg_opts, fatal=True)
 
     # set CONFIGS to load templates from new release and regenerate config
     configs.set_release(openstack_release=new_os_rel)
