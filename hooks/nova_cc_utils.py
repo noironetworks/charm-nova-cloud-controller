@@ -36,6 +36,11 @@ from charmhelpers.core.hookenv import (
     ERROR,
 )
 
+from charmhelpers.core.host import (
+    service_stop,
+    service_start
+)
+
 
 import nova_cc_context
 
@@ -223,6 +228,14 @@ def restart_map():
                         if v['services']])
 
 
+def services():
+    ''' Returns a list of services associate with this charm '''
+    _services = []
+    for v in restart_map().values():
+        _services = _services + v
+    return list(set(_services))
+
+
 def determine_ports():
     '''Assemble a list of API ports for services we are managing'''
     ports = []
@@ -285,12 +298,14 @@ def do_openstack_upgrade(configs):
 
     apt_upgrade(options=dpkg_opts, fatal=True, dist=True)
 
-    # set CONFIGS to load templates from new release and regenerate config
-    configs.set_release(openstack_release=new_os_rel)
+    # Re-register all configs to accomodate changes in filesname etc
+    configs = register_configs()
     configs.write_all()
 
+    [service_stop(s) for s in services()]
     if eligible_leader(CLUSTER_RES):
         migrate_database()
+    [service_start(s) for s in services()]
 
 
 def volume_service():
