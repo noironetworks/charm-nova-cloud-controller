@@ -449,7 +449,7 @@ def ssh_compute_remove(public_key, user=None):
     [keys.remove(key) for key in keys if key == public_key]
 
     with open(authorized_keys(user), 'w') as _keys:
-        _keys.write('\n'.join(keys))
+        _keys.write('\n'.join(keys) + '\n')
 
 
 def determine_endpoints(url):
