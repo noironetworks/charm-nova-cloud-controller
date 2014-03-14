@@ -24,6 +24,7 @@ from charmhelpers.contrib.openstack.utils import (
 from charmhelpers.fetch import (
     apt_upgrade,
     apt_update,
+    apt_install,
 )
 
 from charmhelpers.core.hookenv import (
@@ -289,19 +290,19 @@ def do_openstack_upgrade(configs):
     log('Performing OpenStack upgrade to %s.' % (new_os_rel))
 
     configure_installation_source(new_src)
-    apt_update()
-
     dpkg_opts = [
         '--option', 'Dpkg::Options::=--force-confnew',
         '--option', 'Dpkg::Options::=--force-confdef',
     ]
 
+    apt_update(fatal=True)
     apt_upgrade(options=dpkg_opts, fatal=True, dist=True)
+    apt_install(determine_packages(), fatal=True)
 
     # Re-register all configs to accomodate changes in filesname etc
     configs.set_release(openstack_release=new_os_rel)
-    new_configs = register_configs()
-    new_configs.write_all()
+    configs.write_all()
+    # NOTE(jamespage) upgrades that change contexts needs to be resolved still
 
     [service_stop(s) for s in services()]
     if eligible_leader(CLUSTER_RES):
