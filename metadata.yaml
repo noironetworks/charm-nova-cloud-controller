@@ -9,6 +9,10 @@ categories:
 provides:
   cloud-controller:
     interface: nova
+  db:
+    interface: nova
+  neutrondb:
+    interface: nova
 requires:
   shared-db:
     interface: mysql-shared
