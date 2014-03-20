@@ -174,3 +174,9 @@ class SharedDBContext(context.SharedDBContext):
         ctxt['database_type'] = 'mysql'
         return ctxt
 
+class NovaPostgresqlDBContext(context.PostgresqlDBContext):
+    interfaces = ['pgsql-nova-db']
+
+
+class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
+    interfaces = ['pgsql-neutron-db']

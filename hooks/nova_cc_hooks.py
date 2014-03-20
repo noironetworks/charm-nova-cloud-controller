@@ -13,6 +13,7 @@ from charmhelpers.core.hookenv import (
     UnregisteredHookError,
     config,
     charm_dir,
+    is_relation_made,
     log,
     relation_get,
     relation_ids,
@@ -28,6 +29,8 @@ from charmhelpers.core.host import (
 from charmhelpers.fetch import (
     apt_install, apt_update
 )
+
+from charmhelpers.contrib.openstack import context
 
 from charmhelpers.contrib.openstack.utils import (
     configure_installation_source,
@@ -124,6 +127,12 @@ def amqp_changed():
 
 @hooks.hook('shared-db-relation-joined')
 def db_joined():
+    if is_relation_made('pgsql-nova-db') or is_relation_made('pgsql-neutron-db'):
+        # error, postgresql is used
+        e = ('Attempting to associate a mysql database when there is already '
+             'associated a postgresql one')
+        raise context.OSContextError(e)
+        
     relation_set(nova_database=config('database'),
                  nova_username=config('database-user'),
                  nova_hostname=unit_get('private-address'))
@@ -134,11 +143,55 @@ def db_joined():
                      neutron_hostname=unit_get('private-address'))
 
 
+@hooks.hook('pgsql-nova-db-relation-joined')
+def pgsql_nova_db_joined():
+    if is_relation_made('shared-db'):
+        # raise error
+        e = ('Attempting to associate a postgresql database when there is already '
+             'associated a mysql one')
+        raise context.OSContextError(e)
+
+    relation_set(database=config('database')),
+
+
+@hooks.hook('pgsql-neutron-db-relation-joined')
+def pgsql_neutron_db_joined():
+    if is_relation_made('shared-db'):
+        # raise error
+        e = ('Attempting to associate a postgresql database when there is already '
+             'associated a mysql one')
+        raise context.OSContextError(e)
+
+    relation_set(database=config('neutron-database')),
+
+
 @hooks.hook('shared-db-relation-changed')
 @restart_on_change(restart_map())
 def db_changed():
     if 'shared-db' not in CONFIGS.complete_contexts():
         log('shared-db relation incomplete. Peer not ready?')
+        return
+    CONFIGS.write(NOVA_CONF)
+
+    if network_manager() in ['neutron', 'quantum']:
+        plugin = neutron_plugin()
+        # DB config might have been moved to main neutron.conf in H?
+        CONFIGS.write(neutron_plugin_attribute(plugin, 'config'))
+
+    if eligible_leader(CLUSTER_RES):
+        migrate_database()
+        log('Triggering remote cloud-compute restarts.')
+        [compute_joined(rid=rid, remote_restart=True)
+         for rid in relation_ids('cloud-compute')]
+
+
+@hooks.hook('pgsql-nova-db-relation-changed')
+@hooks.hook('pgsql-neutron-db-relation-changed')
+@restart_on_change(restart_map())
+def db_changed():
+    if 'pgsql-nova-db' not in CONFIGS.complete_contexts() or \
+        'pgsql-neutron-db' not in CONFIGS.complete_contexts():
+        log('pgsql-*-db relation incomplete. Peer not ready?')
         return
     CONFIGS.write(NOVA_CONF)
 
@@ -385,7 +438,9 @@ def ha_changed():
             'identity-service-relation-broken',
             'image-service-relation-broken',
             'nova-volume-service-relation-broken',
-            'shared-db-relation-broken'
+            'shared-db-relation-broken',
+            'pgsql-nova-db-relation-broken',
+            'pgsql-neutron-db-relation-broken',
             'quantum-network-service-relation-broken')
 def relation_broken():
     CONFIGS.write_all()
