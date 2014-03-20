@@ -377,7 +377,10 @@ def authorized_keys(user=None):
 
 def ssh_known_host_key(host, user=None):
     cmd = ['ssh-keygen', '-f', known_hosts(user), '-H', '-F', host]
-    return subprocess.check_output(cmd).strip()
+    try:
+        return subprocess.check_output(cmd).strip()
+    except subprocess.CalledProcessError:
+        return None
 
 
 def remove_known_host(host, user=None):
