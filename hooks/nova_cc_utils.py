@@ -49,6 +49,7 @@ BASE_PACKAGES = [
     'haproxy',
     'python-keystoneclient',
     'python-mysqldb',
+    'python-psycopg2',
     'uuid',
 ]
 
