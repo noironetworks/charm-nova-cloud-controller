@@ -125,6 +125,10 @@ BASE_RESOURCE_MAP = OrderedDict([
     (NEUTRON_CONF, {
         'services': ['neutron-server'],
         'contexts': [context.AMQPContext(),
+                     context.SharedDBContext(
+                        user=config('neutron-database-user'),
+                        database=config('neutron-database'),
+                        relation_prefix='neutron'),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext()],
