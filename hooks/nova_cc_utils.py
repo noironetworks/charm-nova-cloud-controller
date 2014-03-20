@@ -196,9 +196,9 @@ def resource_map():
                 nova_cc_context.NeutronCCContext())
 
             # update for postgres
-            if is_relation_made('pgsql-neutron-db'):
-                resource_map[conf]['contexts'].append(
-                    context.PostgresqlDBContext())
+            resource_map[conf]['contexts'].append(
+                nova_cc_context.NeutronPostgresqlDBContext())
+
 
     # nova-conductor for releases >= G.
     if os_release('nova-common') not in ['essex', 'folsom']:
