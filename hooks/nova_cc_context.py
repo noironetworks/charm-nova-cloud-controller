@@ -164,15 +164,6 @@ class IdentityServiceContext(context.IdentityServiceContext):
         ctxt['keystone_ec2_url'] = ec2_tokens
         return ctxt
 
-class SharedDBContext(context.SharedDBContext):
-
-    interfaces = ['shared-db']
-
-    def __call__(self):
-        # add database type
-        ctxt = super(SharedDBContext, self).__call__()
-        ctxt['database_type'] = 'mysql'
-        return ctxt
 
 class NovaPostgresqlDBContext(context.PostgresqlDBContext):
     interfaces = ['pgsql-nova-db']

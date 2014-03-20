@@ -146,6 +146,7 @@ class SharedDBContext(OSContextGenerator):
                     'database': self.database,
                     'database_user': self.user,
                     'database_password': passwd,
+                    'database_type': 'mysql'
                 }
                 if context_complete(ctxt):
                     return ctxt

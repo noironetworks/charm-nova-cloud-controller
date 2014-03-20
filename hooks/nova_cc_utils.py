@@ -29,6 +29,7 @@ from charmhelpers.fetch import (
 from charmhelpers.core.hookenv import (
     config,
     log,
+    is_relation_made,
     relation_get,
     relation_ids,
     remote_unit,
@@ -85,7 +86,7 @@ BASE_RESOURCE_MAP = OrderedDict([
     (NOVA_CONF, {
         'services': BASE_SERVICES,
         'contexts': [context.AMQPContext(),
-                     nova_cc_context.SharedDBContext(relation_prefix='nova'),
+                     context.SharedDBContext(relation_prefix='nova'),
                      nova_cc_context.NovaPostgresqlDBContext(),
                      nova_cc_context.NeutronPostgresqlDBContext(),
                      context.ImageServiceContext(),
@@ -194,6 +195,11 @@ def resource_map():
             resource_map[conf]['contexts'] = ctxts
             resource_map[conf]['contexts'].append(
                 nova_cc_context.NeutronCCContext())
+
+            # update for postgres
+            if is_relation_made('pgsql-neutron-db'):
+                resource_map[conf]['contexts'].append(
+                    context.PostgresqlDBContext())
 
     # nova-conductor for releases >= G.
     if os_release('nova-common') not in ['essex', 'folsom']:
