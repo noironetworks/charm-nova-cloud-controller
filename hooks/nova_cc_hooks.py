@@ -31,8 +31,6 @@ from charmhelpers.fetch import (
     apt_install, apt_update
 )
 
-from charmhelpers.contrib.openstack import context
-
 from charmhelpers.contrib.openstack.utils import (
     configure_installation_source,
     openstack_upgrade_available,
@@ -134,7 +132,7 @@ def db_joined():
              'associated a postgresql one')
         log(e, level=ERROR)
         raise Exception(e)
-        
+
     relation_set(nova_database=config('database'),
                  nova_username=config('database-user'),
                  nova_hostname=unit_get('private-address'))
@@ -202,7 +200,6 @@ def postgresql_nova_db_changed():
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
          for rid in relation_ids('cloud-compute')]
-
 
 @hooks.hook('pgsql-neutron-db-relation-changed')
 @restart_on_change(restart_map())
