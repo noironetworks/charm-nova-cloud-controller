@@ -15,6 +15,7 @@ from charmhelpers.core.hookenv import (
     charm_dir,
     is_relation_made,
     log,
+    ERROR,
     relation_get,
     relation_ids,
     relation_set,
@@ -132,7 +133,7 @@ def db_joined():
         e = ('Attempting to associate a mysql database when there is already '
              'associated a postgresql one')
         log(e, level=ERROR)
-        raise
+        raise Exception(e)
         
     relation_set(nova_database=config('database'),
                  nova_username=config('database-user'),
@@ -151,7 +152,7 @@ def pgsql_nova_db_joined():
         e = ('Attempting to associate a postgresql database when there is already '
              'associated a mysql one')
         log(e, level=ERROR)
-        raise
+        raise Exception(e)
 
     relation_set(database=config('database')),
 
@@ -163,7 +164,7 @@ def pgsql_neutron_db_joined():
         e = ('Attempting to associate a postgresql database when there is already '
              'associated a mysql one')
         log(e, level=ERROR)
-        raise
+        raise Exception(e)
 
     relation_set(database=config('neutron-database')),
 
