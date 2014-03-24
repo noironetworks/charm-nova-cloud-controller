@@ -131,7 +131,8 @@ def db_joined():
         # error, postgresql is used
         e = ('Attempting to associate a mysql database when there is already '
              'associated a postgresql one')
-        raise context.OSContextError(e)
+        log(e, level=ERROR)
+        raise
         
     relation_set(nova_database=config('database'),
                  nova_username=config('database-user'),
@@ -149,7 +150,8 @@ def pgsql_nova_db_joined():
         # raise error
         e = ('Attempting to associate a postgresql database when there is already '
              'associated a mysql one')
-        raise context.OSContextError(e)
+        log(e, level=ERROR)
+        raise
 
     relation_set(database=config('database')),
 
@@ -160,7 +162,8 @@ def pgsql_neutron_db_joined():
         # raise error
         e = ('Attempting to associate a postgresql database when there is already '
              'associated a mysql one')
-        raise context.OSContextError(e)
+        log(e, level=ERROR)
+        raise
 
     relation_set(database=config('neutron-database')),
 
@@ -186,25 +189,27 @@ def db_changed():
 
 
 @hooks.hook('pgsql-nova-db-relation-changed')
-@hooks.hook('pgsql-neutron-db-relation-changed')
 @restart_on_change(restart_map())
-def db_changed():
-    if 'pgsql-nova-db' not in CONFIGS.complete_contexts() or \
-        'pgsql-neutron-db' not in CONFIGS.complete_contexts():
+def postgresql_nova_db_changed():
+    if 'pgsql-nova-db' not in CONFIGS.complete_contexts():
         log('pgsql-*-db relation incomplete. Peer not ready?')
         return
     CONFIGS.write(NOVA_CONF)
-
-    if network_manager() in ['neutron', 'quantum']:
-        plugin = neutron_plugin()
-        # DB config might have been moved to main neutron.conf in H?
-        CONFIGS.write(neutron_plugin_attribute(plugin, 'config'))
 
     if eligible_leader(CLUSTER_RES):
         migrate_database()
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
          for rid in relation_ids('cloud-compute')]
+
+
+@hooks.hook('pgsql-neutron-db-relation-changed')
+@restart_on_change(restart_map())
+def postgresql_neutron_db_changed():
+    if network_manager() in ['neutron', 'quantum']:
+        plugin = neutron_plugin()
+        # DB config might have been moved to main neutron.conf in H?
+        CONFIGS.write(neutron_plugin_attribute(plugin, 'config'))
 
 
 @hooks.hook('image-service-relation-changed')
