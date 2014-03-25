@@ -488,8 +488,6 @@ def determine_endpoints(url):
     else:
         nova_url = ('%s:%s/v1.1/$(tenant_id)s' %
                     (url, api_port('nova-api-os-compute')))
-    novav3_url = ('%s:%s/v3' %
-                  (url, api_port('nova-api-os-compute')))
     ec2_url = '%s:%s/services/Cloud' % (url, api_port('nova-api-ec2'))
     nova_volume_url = ('%s:%s/v1/$(tenant_id)s' %
                        (url, api_port('nova-api-os-compute')))
@@ -532,15 +530,6 @@ def determine_endpoints(url):
             'quantum_public_url': neutron_url,
             'quantum_admin_url': neutron_url,
             'quantum_internal_url': neutron_url,
-        })
-
-    if os_rel >= 'havana':
-        endpoints.update({
-            'novav3_service': 'novav3',
-            'novav3_region': region,
-            'novav3_public_url': novav3_url,
-            'novav3_admin_url': novav3_url,
-            'novav3_internal_url': novav3_url
         })
 
     return endpoints
