@@ -153,7 +153,7 @@ def pgsql_nova_db_joined():
         log(e, level=ERROR)
         raise Exception(e)
 
-    relation_set(database=config('database')),
+    relation_set(database=config('database'))
 
 
 @hooks.hook('pgsql-neutron-db-relation-joined')
@@ -165,7 +165,7 @@ def pgsql_neutron_db_joined():
         log(e, level=ERROR)
         raise Exception(e)
 
-    relation_set(database=config('neutron-database')),
+    relation_set(database=config('neutron-database'))
 
 
 @hooks.hook('shared-db-relation-changed')
