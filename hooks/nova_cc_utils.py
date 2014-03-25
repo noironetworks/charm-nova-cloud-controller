@@ -30,7 +30,6 @@ from charmhelpers.fetch import (
 from charmhelpers.core.hookenv import (
     config,
     log,
-    is_relation_made,
     relation_get,
     relation_ids,
     remote_unit,
@@ -129,9 +128,9 @@ BASE_RESOURCE_MAP = OrderedDict([
         'services': ['neutron-server'],
         'contexts': [context.AMQPContext(),
                      context.SharedDBContext(
-                        user=config('neutron-database-user'),
-                        database=config('neutron-database'),
-                        relation_prefix='neutron'),
+                         user=config('neutron-database-user'),
+                         database=config('neutron-database'),
+                         relation_prefix='neutron'),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext()],
@@ -208,7 +207,6 @@ def resource_map():
             # update for postgres
             resource_map[conf]['contexts'].append(
                 nova_cc_context.NeutronPostgresqlDBContext())
-
 
     # nova-conductor for releases >= G.
     if os_release('nova-common') not in ['essex', 'folsom']:
