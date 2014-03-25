@@ -92,6 +92,7 @@ BASE_RESOURCE_MAP = OrderedDict([
                          service='nova',
                          config_file=NOVA_CONF,
                      ),
+                     context.SyslogContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.VolumeServiceContext(),
@@ -104,6 +105,7 @@ BASE_RESOURCE_MAP = OrderedDict([
     (QUANTUM_CONF, {
         'services': ['quantum-server'],
         'contexts': [context.AMQPContext(),
+                     context.SyslogContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext()],
@@ -119,6 +121,7 @@ BASE_RESOURCE_MAP = OrderedDict([
     (NEUTRON_CONF, {
         'services': ['neutron-server'],
         'contexts': [context.AMQPContext(),
+                     context.SyslogContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext()],
