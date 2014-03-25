@@ -22,6 +22,8 @@ TO_PATCH = [
     'relation_ids',
     'remote_unit',
     '_save_script_rc',
+    'service_stop',
+    'service_start'
 ]
 
 SCRIPTRC_ENV_VARS = {

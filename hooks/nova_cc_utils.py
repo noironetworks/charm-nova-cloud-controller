@@ -22,8 +22,9 @@ from charmhelpers.contrib.openstack.utils import (
     save_script_rc as _save_script_rc)
 
 from charmhelpers.fetch import (
-    apt_install,
+    apt_upgrade,
     apt_update,
+    apt_install,
 )
 
 from charmhelpers.core.hookenv import (
@@ -35,6 +36,11 @@ from charmhelpers.core.hookenv import (
     remote_unit,
     INFO,
     ERROR,
+)
+
+from charmhelpers.core.host import (
+    service_stop,
+    service_start
 )
 
 
@@ -122,6 +128,10 @@ BASE_RESOURCE_MAP = OrderedDict([
     (NEUTRON_CONF, {
         'services': ['neutron-server'],
         'contexts': [context.AMQPContext(),
+                     context.SharedDBContext(
+                        user=config('neutron-database-user'),
+                        database=config('neutron-database'),
+                        relation_prefix='neutron'),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext()],
@@ -231,6 +241,14 @@ def restart_map():
                         if v['services']])
 
 
+def services():
+    ''' Returns a list of services associate with this charm '''
+    _services = []
+    for v in restart_map().values():
+        _services = _services + v
+    return list(set(_services))
+
+
 def determine_ports():
     '''Assemble a list of API ports for services we are managing'''
     ports = []
@@ -284,21 +302,24 @@ def do_openstack_upgrade(configs):
     log('Performing OpenStack upgrade to %s.' % (new_os_rel))
 
     configure_installation_source(new_src)
-    apt_update()
-
     dpkg_opts = [
         '--option', 'Dpkg::Options::=--force-confnew',
         '--option', 'Dpkg::Options::=--force-confdef',
     ]
 
-    apt_install(packages=determine_packages(), options=dpkg_opts, fatal=True)
+    apt_update(fatal=True)
+    apt_upgrade(options=dpkg_opts, fatal=True, dist=True)
+    apt_install(determine_packages(), fatal=True)
 
-    # set CONFIGS to load templates from new release and regenerate config
+    # Re-register all configs to accomodate changes in filesname etc
     configs.set_release(openstack_release=new_os_rel)
     configs.write_all()
+    # NOTE(jamespage) upgrades that change contexts needs to be resolved still
 
+    [service_stop(s) for s in services()]
     if eligible_leader(CLUSTER_RES):
         migrate_database()
+    [service_start(s) for s in services()]
 
 
 def volume_service():
@@ -368,7 +389,10 @@ def authorized_keys(user=None):
 
 def ssh_known_host_key(host, user=None):
     cmd = ['ssh-keygen', '-f', known_hosts(user), '-H', '-F', host]
-    return subprocess.check_output(cmd).strip()
+    try:
+        return subprocess.check_output(cmd).strip()
+    except subprocess.CalledProcessError:
+        return None
 
 
 def remove_known_host(host, user=None):
@@ -464,10 +488,16 @@ def determine_endpoints(url):
     '''Generates a dictionary containing all relevant endpoints to be
     passed to keystone as relation settings.'''
     region = config('region')
+    os_rel = os_release('nova-common')
 
-    # TODO: Configurable nova API version.
-    nova_url = ('%s:%s/v1.1/$(tenant_id)s' %
-                (url, api_port('nova-api-os-compute')))
+    if os_rel >= 'grizzly':
+        nova_url = ('%s:%s/v2/$(tenant_id)s' %
+                    (url, api_port('nova-api-os-compute')))
+    else:
+        nova_url = ('%s:%s/v1.1/$(tenant_id)s' %
+                    (url, api_port('nova-api-os-compute')))
+    novav3_url = ('%s:%s/v3' %
+                  (url, api_port('nova-api-os-compute')))
     ec2_url = '%s:%s/services/Cloud' % (url, api_port('nova-api-ec2'))
     nova_volume_url = ('%s:%s/v1/$(tenant_id)s' %
                        (url, api_port('nova-api-os-compute')))
@@ -510,6 +540,15 @@ def determine_endpoints(url):
             'quantum_public_url': neutron_url,
             'quantum_admin_url': neutron_url,
             'quantum_internal_url': neutron_url,
+        })
+
+    if os_rel >= 'havana':
+        endpoints.update({
+            'novav3_service': 'novav3',
+            'novav3_region': region,
+            'novav3_public_url': novav3_url,
+            'novav3_admin_url': novav3_url,
+            'novav3_internal_url': novav3_url
         })
 
     return endpoints
