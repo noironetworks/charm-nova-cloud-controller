@@ -126,6 +126,11 @@ options:
   ssl_key:
     type: string
     description: SSL key to use with certificate specified as ssl_cert.
+  use-syslog:
+    type: boolean
+    default: False
+    description: |
+      If set to True, supporting services will log to syslog.
   # Neutron NVP Plugin configuration
   nvp-controllers:
     type: string
