@@ -212,6 +212,8 @@ def _auth_config():
     cfg = {
         'auth_host': ks_auth_host,
         'auth_port': auth_token_config('auth_port'),
+        'auth_protocol': auth_token_config('auth_protocol'),
+        'service_protocol': auth_token_config('service_protocol'),
         'service_port': auth_token_config('service_port'),
         'service_username': auth_token_config('admin_user'),
         'service_password': auth_token_config('admin_password'),
@@ -227,7 +229,8 @@ def _auth_config():
 def save_novarc():
     auth = _auth_config()
     # XXX hard-coded http
-    ks_url = 'http://%s:%s/v2.0' % (auth['auth_host'], auth['auth_port'])
+    ks_url = '%s://%s:%s/v2.0' % (auth['auth_protocol'],
+                                  auth['auth_host'], auth['auth_port'])
     with open('/etc/quantum/novarc', 'wb') as out:
         out.write('export OS_USERNAME=%s\n' % auth['service_username'])
         out.write('export OS_PASSWORD=%s\n' % auth['service_password'])
