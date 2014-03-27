@@ -192,7 +192,7 @@ def db_changed():
 @restart_on_change(restart_map())
 def postgresql_nova_db_changed():
     if 'pgsql-nova-db' not in CONFIGS.complete_contexts():
-        log('pgsql-*-db relation incomplete. Peer not ready?')
+        log('pgsql-nova-db relation incomplete. Peer not ready?')
         return
     CONFIGS.write(NOVA_CONF)
 

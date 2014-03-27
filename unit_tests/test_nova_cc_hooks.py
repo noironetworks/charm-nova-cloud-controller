@@ -1,8 +1,9 @@
-from mock import MagicMock, patch
-
+from mock import call, MagicMock, patch
 from test_utils import CharmTestCase
 
-import nova_cc_utils as utils
+with patch('charmhelpers.core.hookenv.config') as config:
+    config.return_value = 'neutron'
+    import nova_cc_utils as utils
 
 _reg = utils.register_configs
 _map = utils.restart_map
@@ -14,7 +15,6 @@ import nova_cc_hooks as hooks
 
 utils.register_configs = _reg
 utils.restart_map = _map
-
 
 TO_PATCH = [
     'api_port',
@@ -29,8 +29,11 @@ TO_PATCH = [
     'determine_packages',
     'determine_ports',
     'open_port',
+    'is_relation_made',
+    'log',
     'relation_get',
     'relation_set',
+    'relation_ids',
     'ssh_compute_add',
     'ssh_known_hosts_b64',
     'ssh_authorized_keys_b64',
@@ -42,6 +45,7 @@ TO_PATCH = [
     'eligible_leader',
     'keystone_ca_cert_b64',
     'neutron_plugin',
+    'migrate_database',
 ]
 
 
@@ -63,6 +67,7 @@ class NovaCCHooksTests(CharmTestCase):
 
     def setUp(self):
         super(NovaCCHooksTests, self).setUp(hooks, TO_PATCH)
+ 
         self.config.side_effect = self.test_config.get
         self.relation_get.side_effect = self.test_relation.get
         self.charm_dir.return_value = '/var/lib/juju/charms/nova/charm'
@@ -138,3 +143,93 @@ class NovaCCHooksTests(CharmTestCase):
             quantum_url='http://nova-cc-host1:9696', quantum_plugin='nvp',
             relation_id=None,
             **FAKE_KS_AUTH_CFG)
+
+    def test_db_joined(self):
+        self.unit_get.return_value = 'nova.foohost.com'
+        self.is_relation_made.return_value = False
+        hooks.db_joined()
+        self.relation_set.assert_called_with(nova_database='nova',
+                                             nova_username='nova',
+                                             nova_hostname='nova.foohost.com')
+        self.unit_get.assert_called_with('private-address')
+
+    def test_postgresql_nova_db_joined(self):
+        self.is_relation_made.return_value = False
+        hooks.pgsql_nova_db_joined()
+        self.relation_set.assert_called_with(database='nova') 
+
+    def test_postgresql_neutron_db_joined(self):
+        self.is_relation_made.return_value = False
+        hooks.pgsql_neutron_db_joined()
+        self.relation_set.assert_called_with(database='neutron') 
+
+    def test_db_joined_with_postgresql(self):
+        self.is_relation_made.return_value = True
+
+        with self.assertRaises(Exception) as context:
+            hooks.db_joined()
+        self.assertEqual(context.exception.message,
+            'Attempting to associate a mysql database when there is already '
+            'associated a postgresql one')
+
+    def test_postgresql_nova_joined_with_db(self):
+        self.is_relation_made.return_value = True
+
+        with self.assertRaises(Exception) as context:
+            hooks.pgsql_nova_db_joined()
+        self.assertEqual(context.exception.message,
+            'Attempting to associate a postgresql database when there is already '
+            'associated a mysql one')
+
+    def test_postgresql_neutron_joined_with_db(self):
+        self.is_relation_made.return_value = True
+
+        with self.assertRaises(Exception) as context:
+            hooks.pgsql_neutron_db_joined()
+        self.assertEqual(context.exception.message,
+            'Attempting to associate a postgresql database when there is already '
+            'associated a mysql one')
+
+    @patch.object(hooks, 'CONFIGS')
+    def test_db_changed_missing_relation_data(self, configs):
+        configs.complete_contexts = MagicMock()
+        configs.complete_contexts.return_value = []
+        hooks.db_changed()
+        self.log.assert_called_with(
+            'shared-db relation incomplete. Peer not ready?'
+        )
+
+    @patch.object(hooks, 'CONFIGS')
+    def test_postgresql_nova_db_changed_missing_relation_data(self, configs):
+        configs.complete_contexts = MagicMock()
+        configs.complete_contexts.return_value = []
+        hooks.postgresql_nova_db_changed()
+        self.log.assert_called_with(
+            'pgsql-nova-db relation incomplete. Peer not ready?'
+        )
+
+    def _shared_db_test(self, configs):
+        configs.complete_contexts = MagicMock()
+        configs.complete_contexts.return_value = ['shared-db']
+        configs.write = MagicMock()
+        hooks.db_changed()
+
+    def _postgresql_db_test(self, configs):
+        configs.complete_contexts = MagicMock()
+        configs.complete_contexts.return_value = ['pgsql-nova-db']
+        configs.write = MagicMock()
+        hooks.postgresql_nova_db_changed()
+
+    @patch.object(hooks, 'CONFIGS')
+    def test_db_changed(self, configs):
+        self._shared_db_test(configs)
+        self.assertEquals([call('/etc/nova/nova.conf')],
+                          configs.write.call_args_list)
+        self.migrate_database.assert_called_with()
+
+    @patch.object(hooks, 'CONFIGS')
+    def test_postgresql_db_changed(self, configs):
+        self._postgresql_db_test(configs)
+        self.assertEquals([call('/etc/nova/nova.conf')],
+                          configs.write.call_args_list)
+        self.migrate_database.assert_called_with()
