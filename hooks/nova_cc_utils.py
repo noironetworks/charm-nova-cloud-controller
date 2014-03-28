@@ -76,11 +76,15 @@ API_PORTS = {
     'quantum-server': 9696,
 }
 
-NOVA_CONF = '/etc/nova/nova.conf'
-NOVA_API_PASTE = '/etc/nova/api-paste.ini'
-QUANTUM_CONF = '/etc/quantum/quantum.conf'
-QUANTUM_API_PASTE = '/etc/quantum/api-paste.ini'
-NEUTRON_CONF = '/etc/neutron/neutron.conf'
+NOVA_CONF_DIR = "/etc/nova"
+QUANTUM_CONF_DIR = "/etc/quantum"
+NEUTRON_CONF_DIR = "/etc/neutron"
+
+NOVA_CONF = '%s/nova.conf' % NOVA_CONF_DIR
+NOVA_API_PASTE = '%s/api-paste.ini' % NOVA_CONF_DIR
+QUANTUM_CONF = '%s/quantum.conf' % QUANTUM_CONF_DIR
+QUANTUM_API_PASTE = '%s/api-paste.ini' % QUANTUM_CONF_DIR
+NEUTRON_CONF = '%s/neutron.conf' % NEUTRON_CONF_DIR
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
@@ -91,7 +95,8 @@ BASE_RESOURCE_MAP = OrderedDict([
     (NOVA_CONF, {
         'services': BASE_SERVICES,
         'contexts': [context.AMQPContext(),
-                     context.SharedDBContext(relation_prefix='nova'),
+                     context.SharedDBContext(
+                         relation_prefix='nova', ssl_dir=NOVA_CONF_DIR),
                      nova_cc_context.NovaPostgresqlDBContext(),
                      context.ImageServiceContext(),
                      context.OSConfigFlagContext(),
@@ -111,7 +116,12 @@ BASE_RESOURCE_MAP = OrderedDict([
     }),
     (QUANTUM_CONF, {
         'services': ['quantum-server'],
-        'contexts': [context.AMQPContext(),
+        'contexts': [context.AMQPContext(ssl_dir=QUANTUM_CONF_DIR),
+                     context.SharedDBContext(
+                         user=config('neutron-database-user'),
+                         database=config('neutron-database'),
+                         relation_prefix='neutron',
+                         ssl_dir=QUANTUM_CONF_DIR),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext()],
@@ -126,11 +136,12 @@ BASE_RESOURCE_MAP = OrderedDict([
     }),
     (NEUTRON_CONF, {
         'services': ['neutron-server'],
-        'contexts': [context.AMQPContext(),
+        'contexts': [context.AMQPContext(ssl_dir=NEUTRON_CONF_DIR),
                      context.SharedDBContext(
                          user=config('neutron-database-user'),
                          database=config('neutron-database'),
-                         relation_prefix='neutron'),
+                         relation_prefix='neutron',
+                         ssl_dir=NEUTRON_CONF_DIR),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext()],
@@ -339,10 +350,10 @@ def migrate_database():
 
 
 def auth_token_config(setting):
-    '''
+    """
     Returns currently configured value for setting in api-paste.ini's
     authtoken section, or None.
-    '''
+    """
     config = ConfigParser.RawConfigParser()
     config.read('/etc/nova/api-paste.ini')
     try:
@@ -494,8 +505,6 @@ def determine_endpoints(url):
     else:
         nova_url = ('%s:%s/v1.1/$(tenant_id)s' %
                     (url, api_port('nova-api-os-compute')))
-    novav3_url = ('%s:%s/v3' %
-                  (url, api_port('nova-api-os-compute')))
     ec2_url = '%s:%s/services/Cloud' % (url, api_port('nova-api-ec2'))
     nova_volume_url = ('%s:%s/v1/$(tenant_id)s' %
                        (url, api_port('nova-api-os-compute')))
@@ -538,15 +547,6 @@ def determine_endpoints(url):
             'quantum_public_url': neutron_url,
             'quantum_admin_url': neutron_url,
             'quantum_internal_url': neutron_url,
-        })
-
-    if os_rel >= 'havana':
-        endpoints.update({
-            'novav3_service': 'novav3',
-            'novav3_region': region,
-            'novav3_public_url': novav3_url,
-            'novav3_admin_url': novav3_url,
-            'novav3_internal_url': novav3_url
         })
 
     return endpoints
