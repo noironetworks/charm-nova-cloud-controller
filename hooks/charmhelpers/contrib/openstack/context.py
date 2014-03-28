@@ -179,7 +179,8 @@ class PostgresqlDBContext(OSContextGenerator):
                     'database_password': relation_get('password', rid=rid, unit=unit),
                     'database_type': 'postgresql',
                 }
-                return ctxt
+                if context_complete(ctxt):
+                    return ctxt
         return {}
 
 
