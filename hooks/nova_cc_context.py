@@ -172,3 +172,7 @@ class NovaPostgresqlDBContext(context.PostgresqlDBContext):
 
 class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
     interfaces = ['pgsql-neutron-db']
+
+    def __init__(self):
+        super(NeutronPostgresqlDBContext,
+              self).__init__(config('neutron-database'))
