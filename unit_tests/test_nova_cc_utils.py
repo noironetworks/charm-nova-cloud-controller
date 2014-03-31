@@ -347,7 +347,9 @@ class NovaCCUtilsTests(CharmTestCase):
         ssh_dir.return_value = '/tmp/foo'
         self.assertEquals(utils.authorized_keys(), '/tmp/foo/authorized_keys')
         ssh_dir.assert_called_with(None)
-        self.assertEquals(utils.authorized_keys('bar'), '/tmp/foo/authorized_keys')
+        self.assertEquals(
+            utils.authorized_keys('bar'),
+            '/tmp/foo/authorized_keys')
         ssh_dir.assert_called_with('bar')
 
     @patch.object(utils, 'known_hosts')

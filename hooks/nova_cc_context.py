@@ -152,6 +152,7 @@ class NeutronCCContext(context.NeutronContext):
 
 
 class IdentityServiceContext(context.IdentityServiceContext):
+
     def __call__(self):
         ctxt = super(IdentityServiceContext, self).__call__()
         if not ctxt:
@@ -163,3 +164,11 @@ class IdentityServiceContext(context.IdentityServiceContext):
                                                       ctxt['service_port'])
         ctxt['keystone_ec2_url'] = ec2_tokens
         return ctxt
+
+
+class NovaPostgresqlDBContext(context.PostgresqlDBContext):
+    interfaces = ['pgsql-nova-db']
+
+
+class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
+    interfaces = ['pgsql-neutron-db']

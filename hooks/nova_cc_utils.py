@@ -55,6 +55,7 @@ BASE_PACKAGES = [
     'haproxy',
     'python-keystoneclient',
     'python-mysqldb',
+    'python-psycopg2',
     'uuid',
 ]
 
@@ -96,6 +97,7 @@ BASE_RESOURCE_MAP = OrderedDict([
         'contexts': [context.AMQPContext(ssl_dir=NOVA_CONF_DIR),
                      context.SharedDBContext(
                          relation_prefix='nova', ssl_dir=NOVA_CONF_DIR),
+                     nova_cc_context.NovaPostgresqlDBContext(),
                      context.ImageServiceContext(),
                      context.OSConfigFlagContext(),
                      context.SubordinateConfigContext(
@@ -116,10 +118,11 @@ BASE_RESOURCE_MAP = OrderedDict([
         'services': ['quantum-server'],
         'contexts': [context.AMQPContext(ssl_dir=QUANTUM_CONF_DIR),
                      context.SharedDBContext(
-                        user=config('neutron-database-user'),
-                        database=config('neutron-database'),
-                        relation_prefix='neutron',
-                        ssl_dir=QUANTUM_CONF_DIR),
+                         user=config('neutron-database-user'),
+                         database=config('neutron-database'),
+                         relation_prefix='neutron',
+                         ssl_dir=QUANTUM_CONF_DIR),
+                     nova_cc_context.NeutronPostgresqlDBContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext()],
@@ -136,10 +139,11 @@ BASE_RESOURCE_MAP = OrderedDict([
         'services': ['neutron-server'],
         'contexts': [context.AMQPContext(ssl_dir=NEUTRON_CONF_DIR),
                      context.SharedDBContext(
-                        user=config('neutron-database-user'),
-                        database=config('neutron-database'),
-                        relation_prefix='neutron',
-                        ssl_dir=NEUTRON_CONF_DIR),
+                         user=config('neutron-database-user'),
+                         database=config('neutron-database'),
+                         relation_prefix='neutron',
+                         ssl_dir=NEUTRON_CONF_DIR),
+                     nova_cc_context.NeutronPostgresqlDBContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext()],
@@ -212,6 +216,10 @@ def resource_map():
             resource_map[conf]['contexts'] = ctxts
             resource_map[conf]['contexts'].append(
                 nova_cc_context.NeutronCCContext())
+
+            # update for postgres
+            resource_map[conf]['contexts'].append(
+                nova_cc_context.NeutronPostgresqlDBContext())
 
     # nova-conductor for releases >= G.
     if os_release('nova-common') not in ['essex', 'folsom']:
