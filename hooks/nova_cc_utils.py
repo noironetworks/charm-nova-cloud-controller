@@ -307,7 +307,7 @@ def save_script_rc():
     _save_script_rc(**env_vars)
 
 
-def do_openstack_upgrade(configs):
+def do_openstack_upgrade():
     new_src = config('openstack-origin')
     new_os_rel = get_os_codename_install_source(new_src)
     log('Performing OpenStack upgrade to %s.' % (new_os_rel))
@@ -322,15 +322,15 @@ def do_openstack_upgrade(configs):
     apt_upgrade(options=dpkg_opts, fatal=True, dist=True)
     apt_install(determine_packages(), fatal=True)
 
-    # Re-register all configs to accomodate changes in filesname etc
-    configs.set_release(openstack_release=new_os_rel)
+    # set CONFIGS to load templates from new release
+    configs = register_configs()
     configs.write_all()
-    # NOTE(jamespage) upgrades that change contexts needs to be resolved still
 
     [service_stop(s) for s in services()]
     if eligible_leader(CLUSTER_RES):
         migrate_database()
     [service_start(s) for s in services()]
+    return configs
 
 
 def volume_service():

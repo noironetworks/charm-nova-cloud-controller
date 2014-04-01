@@ -98,8 +98,9 @@ def install():
 @hooks.hook('config-changed')
 @restart_on_change(restart_map(), stopstart=True)
 def config_changed():
+    global CONFIGS
     if openstack_upgrade_available('nova-common'):
-        do_openstack_upgrade(configs=CONFIGS)
+        CONFIGS = do_openstack_upgrade()
     save_script_rc()
     configure_https()
     CONFIGS.write_all()
