@@ -308,6 +308,9 @@ def save_script_rc():
 
 
 def do_openstack_upgrade():
+    # NOTE(jamespage) horrible hack to make utils forget a cached value
+    import charmhelpers.contrib.openstack.utils as utils
+    utils.os_rel = None
     new_src = config('openstack-origin')
     new_os_rel = get_os_codename_install_source(new_src)
     log('Performing OpenStack upgrade to %s.' % (new_os_rel))
