@@ -171,8 +171,7 @@ class NeutronCCContext(context.NeutronContext):
                     ','.join(_config['nvp-controllers'].split())
                 ctxt['nvp_controllers_list'] = \
                     _config['nvp-controllers'].split()
-        # Need URL for nova
-        ctxt['nova_url'] = "{}:8774".format(canonical_url())
+        ctxt['nova_url'] = "{}:8774/v2".format(canonical_url())
         return ctxt
 
 
