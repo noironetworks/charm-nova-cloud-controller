@@ -226,6 +226,8 @@ class IdentityServiceContext(OSContextGenerator):
                     'auth_host': rdata.get('auth_host'),
                     'auth_port': rdata.get('auth_port'),
                     'admin_tenant_name': rdata.get('service_tenant'),
+                    'admin_tenant_id': rdata.get('service_tenant_id',
+                                                 default=""),
                     'admin_user': rdata.get('service_username'),
                     'admin_password': rdata.get('service_password'),
                     'service_protocol':
