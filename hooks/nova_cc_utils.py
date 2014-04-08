@@ -330,8 +330,61 @@ def get_step_upgrade_source(new_src):
 
     return None
 
+POLICY_RC_D = """#!/bin/bash
+
+set -e
+
+case $1 in
+  neutron-server|quantum-server|nova-*)
+    [ $2 = "start" ] && exit 101
+    ;;
+  *)
+    ;;
+esac
+
+exit 0
+"""
+
+
+def enable_policy_rcd():
+    with open('/usr/sbin/policy-rc.d', 'w') as policy:
+        policy.write(POLICY_RC_D)
+    os.chmod('/usr/sbin/policy-rc.d', 0o755)
+
+
+def disable_policy_rcd():
+    os.unlink('/usr/sbin/policy-rc.d')
+
+
+QUANTUM_DB_MANAGE = "/usr/bin/quantum-db-manage"
+NEUTRON_DB_MANAGE = "/usr/bin/neutron-db-manage"
+
+
+def reset_os_release():
+    # Ugly hack to make os_release re-read versions
+    import charmhelpers.contrib.openstack.utils as utils
+    utils.os_rel = None
+
+
+def neutron_db_manage(actions):
+    reset_os_release()
+    net_manager = network_manager()
+    if net_manager in ['neutron', 'quantum']:
+        plugin = neutron_plugin()
+        conf = neutron_plugin_attribute(plugin, 'config', net_manager)
+        if net_manager == 'quantum':
+            cmd = QUANTUM_DB_MANAGE
+        else:
+            cmd = NEUTRON_DB_MANAGE
+        subprocess.check_call([
+            cmd, '--config-file=/etc/{mgr}/{mgr}.conf'.format(mgr=net_manager),
+            '--config-file={}'.format(conf)].append(actions)
+        )
+
 
 def _do_openstack_upgrade(new_src):
+    enable_policy_rcd()
+    cur_os_rel = os_release('nova-common')
     new_os_rel = get_os_codename_install_source(new_src)
     log('Performing OpenStack upgrade to %s.' % (new_os_rel))
 
@@ -341,18 +394,30 @@ def _do_openstack_upgrade(new_src):
         '--option', 'Dpkg::Options::=--force-confdef',
     ]
 
+    if cur_os_rel == 'grizzly':
+        # NOTE(jamespage) pre-stamp grizzly database before upgrade
+        neutron_db_manage(['stamp', 'grizzly'])
+
     apt_update(fatal=True)
     apt_upgrade(options=dpkg_opts, fatal=True, dist=True)
     apt_install(determine_packages(), fatal=True)
 
     # set CONFIGS to load templates from new release
+    reset_os_release()
     configs = register_configs(release=new_os_rel)
     configs.write_all()
 
-    [service_stop(s) for s in services()]
+    neutron_db_manage(['upgrade', 'head'])
+    if new_os_rel == 'icehouse':
+        # NOTE(jamespage) add migration to ML2 after upgrade to icehouse
+        pass
+
     if eligible_leader(CLUSTER_RES):
         migrate_database()
     [service_start(s) for s in services()]
+
+    disable_policy_rcd()
+
     return configs
 
 
