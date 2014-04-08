@@ -237,8 +237,8 @@ def resource_map():
     return resource_map
 
 
-def register_configs():
-    release = os_release('nova-common')
+def register_configs(release=None):
+    release = release or os_release('nova-common')
     configs = templating.OSConfigRenderer(templates_dir=TEMPLATES,
                                           openstack_release=release)
     for cfg, rscs in resource_map().iteritems():
@@ -332,9 +332,6 @@ def get_step_upgrade_source(new_src):
 
 
 def _do_openstack_upgrade(new_src):
-    # NOTE(jamespage) horrible hack to make utils forget a cached value
-    import charmhelpers.contrib.openstack.utils as utils
-    utils.os_rel = None
     new_os_rel = get_os_codename_install_source(new_src)
     log('Performing OpenStack upgrade to %s.' % (new_os_rel))
 
@@ -349,7 +346,7 @@ def _do_openstack_upgrade(new_src):
     apt_install(determine_packages(), fatal=True)
 
     # set CONFIGS to load templates from new release
-    configs = register_configs()
+    configs = register_configs(os_release=new_os_rel)
     configs.write_all()
 
     [service_stop(s) for s in services()]
@@ -360,15 +357,10 @@ def _do_openstack_upgrade(new_src):
 
 
 def do_openstack_upgrade():
-    # NOTE(jamespage) horrible hack to make utils forget a cached value
-    import charmhelpers.contrib.openstack.utils as utils
-    utils.os_rel = None
     new_src = config('openstack-origin')
-
     step_src = get_step_upgrade_source(new_src)
     if step_src is not None:
         _do_openstack_upgrade(step_src)
-
     return _do_openstack_upgrade(new_src)
 
 
