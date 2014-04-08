@@ -346,7 +346,7 @@ def _do_openstack_upgrade(new_src):
     apt_install(determine_packages(), fatal=True)
 
     # set CONFIGS to load templates from new release
-    configs = register_configs(os_release=new_os_rel)
+    configs = register_configs(release=new_os_rel)
     configs.write_all()
 
     [service_stop(s) for s in services()]
