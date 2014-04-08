@@ -307,11 +307,34 @@ def save_script_rc():
     _save_script_rc(**env_vars)
 
 
-def do_openstack_upgrade():
+def get_step_upgrade_source(new_src):
+    '''
+    Determine if upgrade skips a release and, if so, return source
+    of skipped release.
+    '''
+    sources = {
+        #target_src: (cur_pocket, step_src)
+        'cloud:precise-icehouse':
+            ('precise-updates/grizzly', 'cloud:precise-havana'),
+        'cloud:precise-icehouse/proposed':
+            ('precise-proposed/grizzly', 'cloud:precise-havana/proposed')
+    }
+
+    with open('/etc/apt/sources.list.d/cloud-archive.list', 'r') as f:
+        line = f.readline()
+        for target_src, (cur_pocket, step_src) in sources.items():
+            if target_src != new_src:
+                continue
+            if cur_pocket in line:
+                return step_src
+
+    return None
+
+
+def _do_openstack_upgrade(new_src):
     # NOTE(jamespage) horrible hack to make utils forget a cached value
     import charmhelpers.contrib.openstack.utils as utils
     utils.os_rel = None
-    new_src = config('openstack-origin')
     new_os_rel = get_os_codename_install_source(new_src)
     log('Performing OpenStack upgrade to %s.' % (new_os_rel))
 
@@ -334,6 +357,19 @@ def do_openstack_upgrade():
         migrate_database()
     [service_start(s) for s in services()]
     return configs
+
+
+def do_openstack_upgrade():
+    # NOTE(jamespage) horrible hack to make utils forget a cached value
+    import charmhelpers.contrib.openstack.utils as utils
+    utils.os_rel = None
+    new_src = config('openstack-origin')
+
+    step_src = get_step_upgrade_source(new_src)
+    if step_src is not None:
+        _do_openstack_upgrade(step_src)
+
+    return _do_openstack_upgrade(new_src)
 
 
 def volume_service():
