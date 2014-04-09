@@ -367,7 +367,6 @@ def reset_os_release():
 
 
 def neutron_db_manage(actions):
-    reset_os_release()
     net_manager = network_manager()
     if net_manager in ['neutron', 'quantum']:
         plugin = neutron_plugin()
@@ -420,7 +419,7 @@ def _do_openstack_upgrade(new_src):
         '--option', 'Dpkg::Options::=--force-confdef',
     ]
 
-    # NOTE(jamespage) pre-stamp database before upgrade
+    # NOTE(jamespage) pre-stamp neutron database before upgrade from grizzly
     if cur_os_rel == 'grizzly':
         neutron_db_manage(['stamp', 'grizzly'])
 
@@ -428,18 +427,25 @@ def _do_openstack_upgrade(new_src):
     apt_upgrade(options=dpkg_opts, fatal=True, dist=True)
     apt_install(determine_packages(), fatal=True)
 
-    # set CONFIGS to load templates from new release
-    reset_os_release()
-    configs = register_configs(release=new_os_rel)
-    configs.write_all()
+    if cur_os_rel == 'grizzly':
+        # NOTE(jamespage) when upgrading from grizzly->havana, config
+        # files need to be generated prior to performing the db upgrade
+        reset_os_release()
+        configs = register_configs(release=new_os_rel)
+        configs.write_all()
+        neutron_db_manage(['upgrade', 'head'])
+    else:
+        # NOTE(jamespage) upgrade with existing config files as the
+        # havana->icehouse migration enables new service_plugins which
+        # create issues with db upgrades
+        neutron_db_manage(['upgrade', 'head'])
+        reset_os_release()
+        configs = register_configs(release=new_os_rel)
+        configs.write_all()
 
     if new_os_rel == 'icehouse':
-        # NOTE(jamespage) add migration to ML2 after upgrade to icehouse
+        # NOTE(jamespage) default plugin switch to ml2@icehouse
         ml2_migration()
-
-    if cur_os_rel == 'grizzly' and new_os_rel == 'havana':
-        # NOTE(jamespage) only force an upgrade when going grizzly->havana
-        neutron_db_manage(['upgrade', 'havana'])
 
     if eligible_leader(CLUSTER_RES):
         migrate_database()
