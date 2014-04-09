@@ -38,7 +38,6 @@ from charmhelpers.core.hookenv import (
 )
 
 from charmhelpers.core.host import (
-    service_stop,
     service_start
 )
 
@@ -263,7 +262,7 @@ def services():
 def determine_ports():
     '''Assemble a list of API ports for services we are managing'''
     ports = []
-    for cfg, services in restart_map().iteritems():
+    for services in restart_map().values():
         for service in services:
             try:
                 ports.append(API_PORTS[service])
@@ -279,7 +278,7 @@ def api_port(service):
 def determine_packages():
     # currently all packages match service names
     packages = [] + BASE_PACKAGES
-    for k, v in resource_map().iteritems():
+    for v in resource_map().values():
         packages.extend(v['services'])
     if network_manager() in ['neutron', 'quantum']:
         pkgs = neutron_plugin_attribute(neutron_plugin(), 'server_packages',
@@ -313,11 +312,11 @@ def get_step_upgrade_source(new_src):
     of skipped release.
     '''
     sources = {
-        #target_src: (cur_pocket, step_src)
+        # target_src: (cur_pocket, step_src)
         'cloud:precise-icehouse':
-            ('precise-updates/grizzly', 'cloud:precise-havana'),
+        ('precise-updates/grizzly', 'cloud:precise-havana'),
         'cloud:precise-icehouse/proposed':
-            ('precise-proposed/grizzly', 'cloud:precise-havana/proposed')
+        ('precise-proposed/grizzly', 'cloud:precise-havana/proposed')
     }
 
     with open('/etc/apt/sources.list.d/cloud-archive.list', 'r') as f:
