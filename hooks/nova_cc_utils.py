@@ -378,7 +378,7 @@ def neutron_db_manage(actions):
             cmd = NEUTRON_DB_MANAGE
         subprocess.check_call([
             cmd, '--config-file=/etc/{mgr}/{mgr}.conf'.format(mgr=net_manager),
-            '--config-file={}'.format(conf)].extend(actions)
+            '--config-file={}'.format(conf)] + actions
         )
 
 
