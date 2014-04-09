@@ -13,17 +13,29 @@ import nova_cc_utils as utils
 hookenv.config = _conf
 
 TO_PATCH = [
+    'apt_update',
+    'apt_upgrade',
+    'apt_install',
     'config',
+    'configure_installation_source',
+    'disable_policy_rcd',
+    'eligible_leader',
+    'enable_policy_rcd',
+    'get_os_codename_install_source',
     'log',
+    'ml2_migration',
     'network_manager',
+    'neutron_db_manage',
     'neutron_plugin',
     'neutron_plugin_attribute',
     'os_release',
+    'register_configs',
     'relation_ids',
     'remote_unit',
     '_save_script_rc',
     'service_stop',
-    'service_start'
+    'service_start',
+    'services'
 ]
 
 SCRIPTRC_ENV_VARS = {
@@ -103,6 +115,12 @@ PLUGIN_ATTRIBUTES = {
         'server_services': ['quantum-server'],
     }
 }
+
+
+DPKG_OPTS = [
+    '--option', 'Dpkg::Options::=--force-confnew',
+    '--option', 'Dpkg::Options::=--force-confdef',
+]
 
 
 def fake_plugin_attribute(plugin, attr, net_manager):
@@ -458,3 +476,84 @@ class NovaCCUtilsTests(CharmTestCase):
         _known_hosts.assert_called_with(None)
         utils.remove_known_host('test', 'bar')
         _known_hosts.assert_called_with('bar')
+
+
+    @patch('subprocess.check_output')
+    def test_migrate_database(self, check_output):
+        "Migrate database with nova-manage"
+        utils.migrate_database()
+        check_output.assert_called_with(['nova-manage', 'db', 'sync'])
+
+
+    @patch.object(utils, 'get_step_upgrade_source')
+    @patch.object(utils, 'migrate_database')
+    @patch.object(utils, 'determine_packages')
+    def test_upgrade_grizzly_icehouse(self, determine_packages,
+                                      migrate_database,
+                                      get_step_upgrade_source):
+        "Simulate a call to do_openstack_upgrade() for grizzly->icehouse"
+        get_step_upgrade_source.return_value = 'cloud:precise-havana'
+        self.os_release.side_effect = ['grizzly', 'havana']
+        self.get_os_codename_install_source.side_effect = ['havana', 'icehouse']
+        self.eligible_leader.return_value = True
+        utils.do_openstack_upgrade()
+        expected = [call(['stamp', 'grizzly']), call(['upgrade', 'head']),
+                    call(['upgrade', 'head'])]
+        self.assertEquals(utils.neutron_db_manage.call_args_list, expected)
+        self.apt_update.assert_called_with(fatal=True)
+        self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
+                                            dist=True)
+        self.apt_install.assert_called_with(determine_packages(), fatal=True)
+        expected = [call(release='havana'), call(release='icehouse')]
+        self.assertEquals(utils.register_configs.call_args_list, expected)
+        self.assertEquals(utils.ml2_migration.call_count, 1)
+        self.assertTrue(migrate_database.call_count, 2)
+
+
+    @patch.object(utils, 'get_step_upgrade_source')
+    @patch.object(utils, 'migrate_database')
+    @patch.object(utils, 'determine_packages')
+    def test_upgrade_havana_icehouse(self, determine_packages,
+                                     migrate_database,
+                                     get_step_upgrade_source):
+        "Simulate a call to do_openstack_upgrade() for havana->icehouse"
+        get_step_upgrade_source.return_value = None
+        self.os_release.return_value = 'havana'
+        self.get_os_codename_install_source.return_value = 'icehouse'
+        self.eligible_leader.return_value = True
+        utils.do_openstack_upgrade()
+        utils.neutron_db_manage.assert_called_with(['upgrade', 'head'])
+        self.apt_update.assert_called_with(fatal=True)
+        self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
+                                            dist=True)
+        self.apt_install.assert_called_with(determine_packages(), fatal=True)
+        utils.register_configs.assert_called_with(release='icehouse')
+        self.assertEquals(utils.ml2_migration.call_count, 1)
+        self.assertTrue(migrate_database.call_count, 1)
+
+
+    @patch.object(utils, '_do_openstack_upgrade')
+    def test_ugrade_grizzly_icehouse_source(self, _do_openstack_upgrade):
+        "Verify get_step_upgrade_source() for grizzly->icehouse"
+        self.config.side_effect = None
+        self.config.return_value = 'cloud:precise-icehouse'
+        with patch_open() as (_open, _file):
+            _file.read = MagicMock()
+            _file.readline.return_value = "deb url precise-updates/grizzly main"
+            utils.do_openstack_upgrade()
+            expected = [call('cloud:precise-havana'),
+                        call('cloud:precise-icehouse')]
+            self.assertEquals(_do_openstack_upgrade.call_args_list, expected)
+
+
+    @patch.object(utils, '_do_openstack_upgrade')
+    def test_ugrade_havana_icehouse_source(self, _do_openstack_upgrade):
+        "Verify get_step_upgrade_source() for havana->icehouse"
+        self.config.side_effect = None
+        self.config.return_value = 'cloud:precise-icehouse'
+        with patch_open() as (_open, _file):
+            _file.read = MagicMock()
+            _file.readline.return_value = "deb url precise-updates/havana main"
+            utils.do_openstack_upgrade()
+            expected = [call('cloud:precise-icehouse')]
+            self.assertEquals(_do_openstack_upgrade.call_args_list, expected)
