@@ -421,7 +421,8 @@ def _do_openstack_upgrade(new_src):
     ]
 
     # NOTE(jamespage) pre-stamp database before upgrade
-    neutron_db_manage(['stamp', cur_os_rel])
+    if cur_os_rel == 'grizzly':
+        neutron_db_manage(['stamp', 'grizzly'])
 
     apt_update(fatal=True)
     apt_upgrade(options=dpkg_opts, fatal=True, dist=True)
@@ -436,7 +437,9 @@ def _do_openstack_upgrade(new_src):
         # NOTE(jamespage) add migration to ML2 after upgrade to icehouse
         ml2_migration()
 
-    neutron_db_manage(['upgrade', 'head'])
+    if cur_os_rel == 'grizzly' and new_os_rel == 'havana':
+        # NOTE(jamespage) only force an upgrade when going grizzly->havana
+        neutron_db_manage(['upgrade', 'havana'])
 
     if eligible_leader(CLUSTER_RES):
         migrate_database()
