@@ -382,6 +382,32 @@ def neutron_db_manage(actions):
         )
 
 
+def get_db_connection():
+    config = ConfigParser.RawConfigParser()
+    config.read('/etc/neutron/neutron.conf')
+    try:
+        return config.get('database', 'connection')
+    except:
+        return None
+
+
+def ml2_migration():
+    reset_os_release()
+    net_manager = network_manager()
+    if net_manager == 'neutron':
+        plugin = neutron_plugin()
+        if plugin == 'ovs':
+            cmd = [
+                'python',
+                '/usr/lib/python2.7/dist-packages/neutron'
+                '/db/migration/migrate_to_ml2.py',
+                '--tunnel-type', 'gre',
+                '--release', 'icehouse',
+                'openvswitch', get_db_connection()
+            ]
+            subprocess.check_call(cmd)
+
+
 def _do_openstack_upgrade(new_src):
     enable_policy_rcd()
     cur_os_rel = os_release('nova-common')
@@ -407,10 +433,11 @@ def _do_openstack_upgrade(new_src):
     configs = register_configs(release=new_os_rel)
     configs.write_all()
 
-    neutron_db_manage(['upgrade', 'head'])
     if new_os_rel == 'icehouse':
         # NOTE(jamespage) add migration to ML2 after upgrade to icehouse
-        pass
+        ml2_migration()
+
+    neutron_db_manage(['upgrade', 'head'])
 
     if eligible_leader(CLUSTER_RES):
         migrate_database()
