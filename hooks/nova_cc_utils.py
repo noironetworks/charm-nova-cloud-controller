@@ -420,9 +420,8 @@ def _do_openstack_upgrade(new_src):
         '--option', 'Dpkg::Options::=--force-confdef',
     ]
 
-    if cur_os_rel == 'grizzly':
-        # NOTE(jamespage) pre-stamp grizzly database before upgrade
-        neutron_db_manage(['stamp', 'grizzly'])
+    # NOTE(jamespage) pre-stamp database before upgrade
+    neutron_db_manage(['stamp', cur_os_rel])
 
     apt_update(fatal=True)
     apt_upgrade(options=dpkg_opts, fatal=True, dist=True)
