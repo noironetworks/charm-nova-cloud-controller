@@ -396,6 +396,7 @@ def ml2_migration():
     if net_manager == 'neutron':
         plugin = neutron_plugin()
         if plugin == 'ovs':
+            log('Migrating from openvswitch to ml2 plugin')
             cmd = [
                 'python',
                 '/usr/lib/python2.7/dist-packages/neutron'
