@@ -537,7 +537,8 @@ class NovaCCUtilsTests(CharmTestCase):
         self.config.return_value = 'cloud:precise-icehouse'
         with patch_open() as (_open, _file):
             _file.read = MagicMock()
-            _file.readline.return_value = "deb url precise-updates/grizzly main"
+            _file.readline.return_value = ("deb url"
+                                           " precise-updates/grizzly main")
             utils.do_openstack_upgrade()
             expected = [call('cloud:precise-havana'),
                         call('cloud:precise-icehouse')]

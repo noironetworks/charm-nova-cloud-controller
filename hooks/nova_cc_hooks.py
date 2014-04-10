@@ -128,7 +128,8 @@ def amqp_changed():
 
 @hooks.hook('shared-db-relation-joined')
 def db_joined():
-    if is_relation_made('pgsql-nova-db') or is_relation_made('pgsql-neutron-db'):
+    if is_relation_made('pgsql-nova-db') or \
+            is_relation_made('pgsql-neutron-db'):
         # error, postgresql is used
         e = ('Attempting to associate a mysql database when there is already '
              'associated a postgresql one')
@@ -149,8 +150,8 @@ def db_joined():
 def pgsql_nova_db_joined():
     if is_relation_made('shared-db'):
         # raise error
-        e = ('Attempting to associate a postgresql database when there is already '
-             'associated a mysql one')
+        e = ('Attempting to associate a postgresql database'
+             ' when there is already associated a mysql one')
         log(e, level=ERROR)
         raise Exception(e)
 
@@ -161,8 +162,8 @@ def pgsql_nova_db_joined():
 def pgsql_neutron_db_joined():
     if is_relation_made('shared-db'):
         # raise error
-        e = ('Attempting to associate a postgresql database when there is already '
-             'associated a mysql one')
+        e = ('Attempting to associate a postgresql database'
+             ' when there is already associated a mysql one')
         log(e, level=ERROR)
         raise Exception(e)
 

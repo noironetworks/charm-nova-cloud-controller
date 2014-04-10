@@ -169,8 +169,8 @@ class NovaCCHooksTests(CharmTestCase):
         with self.assertRaises(Exception) as context:
             hooks.db_joined()
         self.assertEqual(context.exception.message,
-                         'Attempting to associate a mysql database when there is already '
-                         'associated a postgresql one')
+                         'Attempting to associate a mysql database when'
+                         ' there is already associated a postgresql one')
 
     def test_postgresql_nova_joined_with_db(self):
         self.is_relation_made.return_value = True
@@ -178,8 +178,8 @@ class NovaCCHooksTests(CharmTestCase):
         with self.assertRaises(Exception) as context:
             hooks.pgsql_nova_db_joined()
         self.assertEqual(context.exception.message,
-                         'Attempting to associate a postgresql database when there is already '
-                         'associated a mysql one')
+                         'Attempting to associate a postgresql database when'
+                         ' there is already associated a mysql one')
 
     def test_postgresql_neutron_joined_with_db(self):
         self.is_relation_made.return_value = True
@@ -187,8 +187,8 @@ class NovaCCHooksTests(CharmTestCase):
         with self.assertRaises(Exception) as context:
             hooks.pgsql_neutron_db_joined()
         self.assertEqual(context.exception.message,
-                         'Attempting to associate a postgresql database when there is already '
-                         'associated a mysql one')
+                         'Attempting to associate a postgresql database when'
+                         ' there is already associated a mysql one')
 
     @patch.object(hooks, 'CONFIGS')
     def test_db_changed_missing_relation_data(self, configs):
