@@ -176,12 +176,7 @@ def db_changed():
     if 'shared-db' not in CONFIGS.complete_contexts():
         log('shared-db relation incomplete. Peer not ready?')
         return
-    CONFIGS.write(NOVA_CONF)
-
-    if network_manager() in ['neutron', 'quantum']:
-        plugin = neutron_plugin()
-        # DB config might have been moved to main neutron.conf in H?
-        CONFIGS.write(neutron_plugin_attribute(plugin, 'config'))
+    CONFIGS.write_all()
 
     if eligible_leader(CLUSTER_RES):
         migrate_database()
@@ -196,7 +191,7 @@ def postgresql_nova_db_changed():
     if 'pgsql-nova-db' not in CONFIGS.complete_contexts():
         log('pgsql-nova-db relation incomplete. Peer not ready?')
         return
-    CONFIGS.write(NOVA_CONF)
+    CONFIGS.write_all()
 
     if eligible_leader(CLUSTER_RES):
         migrate_database()

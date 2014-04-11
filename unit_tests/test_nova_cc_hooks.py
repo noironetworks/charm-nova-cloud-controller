@@ -223,13 +223,11 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'CONFIGS')
     def test_db_changed(self, configs):
         self._shared_db_test(configs)
-        self.assertEquals([call('/etc/nova/nova.conf')],
-                          configs.write.call_args_list)
+        self.assertTrue(configs.write_all.called)
         self.migrate_database.assert_called_with()
 
     @patch.object(hooks, 'CONFIGS')
     def test_postgresql_db_changed(self, configs):
         self._postgresql_db_test(configs)
-        self.assertEquals([call('/etc/nova/nova.conf')],
-                          configs.write.call_args_list)
+        self.assertTrue(configs.write_all.called)
         self.migrate_database.assert_called_with()
