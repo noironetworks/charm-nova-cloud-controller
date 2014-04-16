@@ -1,12 +1,17 @@
 
 from charmhelpers.core.hookenv import (
-    config, relation_ids, relation_set, log, ERROR)
+    config, relation_ids, relation_set, log, ERROR,
+    unit_get)
 
 from charmhelpers.fetch import apt_install, filter_installed_packages
 from charmhelpers.contrib.openstack import context, neutron, utils
 
 from charmhelpers.contrib.hahelpers.cluster import (
-    determine_apache_port, determine_api_port)
+    determine_apache_port,
+    determine_api_port,
+    https,
+    is_clustered
+)
 
 
 class ApacheSSLContext(context.ApacheSSLContext):
@@ -112,6 +117,24 @@ class HAProxyContext(context.HAProxyContext):
         return ctxt
 
 
+def canonical_url(vip_setting='vip'):
+    '''
+    Returns the correct HTTP URL to this host given the state of HTTPS
+    configuration and hacluster.
+
+    :vip_setting:                str: Setting in charm config that specifies
+                                      VIP address.
+    '''
+    scheme = 'http'
+    if https():
+        scheme = 'https'
+    if is_clustered():
+        addr = config(vip_setting)
+    else:
+        addr = unit_get('private-address')
+    return '%s://%s' % (scheme, addr)
+
+
 class NeutronCCContext(context.NeutronContext):
     interfaces = []
 
@@ -148,10 +171,12 @@ class NeutronCCContext(context.NeutronContext):
                     ','.join(_config['nvp-controllers'].split())
                 ctxt['nvp_controllers_list'] = \
                     _config['nvp-controllers'].split()
+        ctxt['nova_url'] = "{}:8774/v2".format(canonical_url())
         return ctxt
 
 
 class IdentityServiceContext(context.IdentityServiceContext):
+
     def __call__(self):
         ctxt = super(IdentityServiceContext, self).__call__()
         if not ctxt:
@@ -159,7 +184,23 @@ class IdentityServiceContext(context.IdentityServiceContext):
 
         # the ec2 api needs to know the location of the keystone ec2
         # tokens endpoint, set in nova.conf
-        ec2_tokens = 'http://%s:%s/v2.0/ec2tokens' % (ctxt['service_host'],
-                                                      ctxt['service_port'])
+        ec2_tokens = '%s://%s:%s/v2.0/ec2tokens' % (
+            ctxt['service_protocol'] or 'http',
+            ctxt['service_host'],
+            ctxt['service_port']
+        )
         ctxt['keystone_ec2_url'] = ec2_tokens
+        ctxt['region'] = config('region')
         return ctxt
+
+
+class NovaPostgresqlDBContext(context.PostgresqlDBContext):
+    interfaces = ['pgsql-nova-db']
+
+
+class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
+    interfaces = ['pgsql-neutron-db']
+
+    def __init__(self):
+        super(NeutronPostgresqlDBContext,
+              self).__init__(config('neutron-database'))

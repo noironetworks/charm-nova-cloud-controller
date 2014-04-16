@@ -120,16 +120,20 @@ options:
     type: string
     description: |
       SSL certificate to install and use for API ports.  Setting this value
-      and ssl_key will enable reverse proxying, point Glance's entry in the
+      and ssl_key will enable reverse proxying, point Nova's entry in the
       Keystone catalog to use https, and override any certficiate and key
       issued by Keystone (if it is configured to do so).
   ssl_key:
     type: string
     description: SSL key to use with certificate specified as ssl_cert.
+  ssl_ca:
+    type: string
+    description: |
+      SSL CA to use with the certificate and key provided - this is only
+      required if you are providing a privately signed ssl_cert and ssl_key.
   use-syslog:
     type: boolean
     default: False
-    description: |
       If set to True, supporting services will log to syslog.
   # Neutron NVP Plugin configuration
   nvp-controllers:

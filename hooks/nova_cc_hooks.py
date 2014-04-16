@@ -13,7 +13,9 @@ from charmhelpers.core.hookenv import (
     UnregisteredHookError,
     config,
     charm_dir,
+    is_relation_made,
     log,
+    ERROR,
     relation_get,
     relation_ids,
     relation_set,
@@ -96,8 +98,9 @@ def install():
 @hooks.hook('config-changed')
 @restart_on_change(restart_map(), stopstart=True)
 def config_changed():
+    global CONFIGS
     if openstack_upgrade_available('nova-common'):
-        do_openstack_upgrade(configs=CONFIGS)
+        CONFIGS = do_openstack_upgrade()
     save_script_rc()
     configure_https()
     CONFIGS.write_all()
@@ -110,6 +113,7 @@ def amqp_joined(relation_id=None):
 
 
 @hooks.hook('amqp-relation-changed')
+@hooks.hook('amqp-relation-departed')
 @restart_on_change(restart_map())
 def amqp_changed():
     if 'amqp' not in CONFIGS.complete_contexts():
@@ -124,6 +128,14 @@ def amqp_changed():
 
 @hooks.hook('shared-db-relation-joined')
 def db_joined():
+    if is_relation_made('pgsql-nova-db') or \
+            is_relation_made('pgsql-neutron-db'):
+        # error, postgresql is used
+        e = ('Attempting to associate a mysql database when there is already '
+             'associated a postgresql one')
+        log(e, level=ERROR)
+        raise Exception(e)
+
     relation_set(nova_database=config('database'),
                  nova_username=config('database-user'),
                  nova_hostname=unit_get('private-address'))
@@ -134,24 +146,67 @@ def db_joined():
                      neutron_hostname=unit_get('private-address'))
 
 
+@hooks.hook('pgsql-nova-db-relation-joined')
+def pgsql_nova_db_joined():
+    if is_relation_made('shared-db'):
+        # raise error
+        e = ('Attempting to associate a postgresql database'
+             ' when there is already associated a mysql one')
+        log(e, level=ERROR)
+        raise Exception(e)
+
+    relation_set(database=config('database'))
+
+
+@hooks.hook('pgsql-neutron-db-relation-joined')
+def pgsql_neutron_db_joined():
+    if is_relation_made('shared-db'):
+        # raise error
+        e = ('Attempting to associate a postgresql database'
+             ' when there is already associated a mysql one')
+        log(e, level=ERROR)
+        raise Exception(e)
+
+    relation_set(database=config('neutron-database'))
+
+
 @hooks.hook('shared-db-relation-changed')
 @restart_on_change(restart_map())
 def db_changed():
     if 'shared-db' not in CONFIGS.complete_contexts():
         log('shared-db relation incomplete. Peer not ready?')
         return
-    CONFIGS.write(NOVA_CONF)
-
-    if network_manager() in ['neutron', 'quantum']:
-        plugin = neutron_plugin()
-        # DB config might have been moved to main neutron.conf in H?
-        CONFIGS.write(neutron_plugin_attribute(plugin, 'config'))
+    CONFIGS.write_all()
 
     if eligible_leader(CLUSTER_RES):
         migrate_database()
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
          for rid in relation_ids('cloud-compute')]
+
+
+@hooks.hook('pgsql-nova-db-relation-changed')
+@restart_on_change(restart_map())
+def postgresql_nova_db_changed():
+    if 'pgsql-nova-db' not in CONFIGS.complete_contexts():
+        log('pgsql-nova-db relation incomplete. Peer not ready?')
+        return
+    CONFIGS.write_all()
+
+    if eligible_leader(CLUSTER_RES):
+        migrate_database()
+        log('Triggering remote cloud-compute restarts.')
+        [compute_joined(rid=rid, remote_restart=True)
+         for rid in relation_ids('cloud-compute')]
+
+
+@hooks.hook('pgsql-neutron-db-relation-changed')
+@restart_on_change(restart_map())
+def postgresql_neutron_db_changed():
+    if network_manager() in ['neutron', 'quantum']:
+        plugin = neutron_plugin()
+        # DB config might have been moved to main neutron.conf in H?
+        CONFIGS.write(neutron_plugin_attribute(plugin, 'config'))
 
 
 @hooks.hook('image-service-relation-changed')
@@ -211,6 +266,8 @@ def _auth_config():
     cfg = {
         'auth_host': ks_auth_host,
         'auth_port': auth_token_config('auth_port'),
+        'auth_protocol': auth_token_config('auth_protocol'),
+        'service_protocol': auth_token_config('service_protocol'),
         'service_port': auth_token_config('service_port'),
         'service_username': auth_token_config('admin_user'),
         'service_password': auth_token_config('admin_password'),
@@ -226,7 +283,8 @@ def _auth_config():
 def save_novarc():
     auth = _auth_config()
     # XXX hard-coded http
-    ks_url = 'http://%s:%s/v2.0' % (auth['auth_host'], auth['auth_port'])
+    ks_url = '%s://%s:%s/v2.0' % (auth['auth_protocol'],
+                                  auth['auth_host'], auth['auth_port'])
     with open('/etc/quantum/novarc', 'wb') as out:
         out.write('export OS_USERNAME=%s\n' % auth['service_username'])
         out.write('export OS_PASSWORD=%s\n' % auth['service_password'])
@@ -385,7 +443,9 @@ def ha_changed():
             'identity-service-relation-broken',
             'image-service-relation-broken',
             'nova-volume-service-relation-broken',
-            'shared-db-relation-broken'
+            'shared-db-relation-broken',
+            'pgsql-nova-db-relation-broken',
+            'pgsql-neutron-db-relation-broken',
             'quantum-network-service-relation-broken')
 def relation_broken():
     CONFIGS.write_all()
@@ -436,6 +496,8 @@ def nova_vmware_relation_changed():
 def upgrade_charm():
     for r_id in relation_ids('amqp'):
         amqp_joined(relation_id=r_id)
+    for r_id in relation_ids('identity-service'):
+        identity_joined(rid=r_id)
 
 
 def main():
