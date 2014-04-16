@@ -147,7 +147,7 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.NeutronPostgresqlDBContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext(),
-                     nova_cc_context.HAProxyContext()
+                     nova_cc_context.HAProxyContext(),
                      context.SyslogContext()],
     }),
     (NEUTRON_DEFAULT, {
