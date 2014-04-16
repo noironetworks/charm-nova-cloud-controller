@@ -22,8 +22,9 @@ from charmhelpers.contrib.openstack.utils import (
     save_script_rc as _save_script_rc)
 
 from charmhelpers.fetch import (
-    apt_install,
+    apt_upgrade,
     apt_update,
+    apt_install,
 )
 
 from charmhelpers.core.hookenv import (
@@ -34,6 +35,10 @@ from charmhelpers.core.hookenv import (
     remote_unit,
     INFO,
     ERROR,
+)
+
+from charmhelpers.core.host import (
+    service_start
 )
 
 
@@ -49,6 +54,7 @@ BASE_PACKAGES = [
     'haproxy',
     'python-keystoneclient',
     'python-mysqldb',
+    'python-psycopg2',
     'uuid',
 ]
 
@@ -69,11 +75,15 @@ API_PORTS = {
     'quantum-server': 9696,
 }
 
-NOVA_CONF = '/etc/nova/nova.conf'
-NOVA_API_PASTE = '/etc/nova/api-paste.ini'
-QUANTUM_CONF = '/etc/quantum/quantum.conf'
-QUANTUM_API_PASTE = '/etc/quantum/api-paste.ini'
-NEUTRON_CONF = '/etc/neutron/neutron.conf'
+NOVA_CONF_DIR = "/etc/nova"
+QUANTUM_CONF_DIR = "/etc/quantum"
+NEUTRON_CONF_DIR = "/etc/neutron"
+
+NOVA_CONF = '%s/nova.conf' % NOVA_CONF_DIR
+NOVA_API_PASTE = '%s/api-paste.ini' % NOVA_CONF_DIR
+QUANTUM_CONF = '%s/quantum.conf' % QUANTUM_CONF_DIR
+QUANTUM_API_PASTE = '%s/api-paste.ini' % QUANTUM_CONF_DIR
+NEUTRON_CONF = '%s/neutron.conf' % NEUTRON_CONF_DIR
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
@@ -83,8 +93,10 @@ QUANTUM_DEFAULT = '/etc/default/quantum-server'
 BASE_RESOURCE_MAP = OrderedDict([
     (NOVA_CONF, {
         'services': BASE_SERVICES,
-        'contexts': [context.AMQPContext(),
-                     context.SharedDBContext(relation_prefix='nova'),
+        'contexts': [context.AMQPContext(ssl_dir=NOVA_CONF_DIR),
+                     context.SharedDBContext(
+                         relation_prefix='nova', ssl_dir=NOVA_CONF_DIR),
+                     nova_cc_context.NovaPostgresqlDBContext(),
                      context.ImageServiceContext(),
                      context.OSConfigFlagContext(),
                      context.SubordinateConfigContext(
@@ -104,11 +116,17 @@ BASE_RESOURCE_MAP = OrderedDict([
     }),
     (QUANTUM_CONF, {
         'services': ['quantum-server'],
-        'contexts': [context.AMQPContext(),
-                     context.SyslogContext(),
+        'contexts': [context.AMQPContext(ssl_dir=QUANTUM_CONF_DIR),
+                     context.SharedDBContext(
+                         user=config('neutron-database-user'),
+                         database=config('neutron-database'),
+                         relation_prefix='neutron',
+                         ssl_dir=QUANTUM_CONF_DIR),
+                     nova_cc_context.NeutronPostgresqlDBContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
-                     nova_cc_context.NeutronCCContext()],
+                     nova_cc_context.NeutronCCContext(),
+                     context.SyslogContext()],
     }),
     (QUANTUM_DEFAULT, {
         'services': ['quantum-server'],
@@ -120,11 +138,17 @@ BASE_RESOURCE_MAP = OrderedDict([
     }),
     (NEUTRON_CONF, {
         'services': ['neutron-server'],
-        'contexts': [context.AMQPContext(),
-                     context.SyslogContext(),
+        'contexts': [context.AMQPContext(ssl_dir=NEUTRON_CONF_DIR),
+                     context.SharedDBContext(
+                         user=config('neutron-database-user'),
+                         database=config('neutron-database'),
+                         relation_prefix='neutron',
+                         ssl_dir=NEUTRON_CONF_DIR),
+                     nova_cc_context.NeutronPostgresqlDBContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext(),
-                     nova_cc_context.HAProxyContext()],
+                     nova_cc_context.HAProxyContext(),
+                     context.SyslogContext()],
     }),
     (NEUTRON_DEFAULT, {
         'services': ['neutron-server'],
@@ -195,6 +219,10 @@ def resource_map():
             resource_map[conf]['contexts'].append(
                 nova_cc_context.NeutronCCContext())
 
+            # update for postgres
+            resource_map[conf]['contexts'].append(
+                nova_cc_context.NeutronPostgresqlDBContext())
+
     # nova-conductor for releases >= G.
     if os_release('nova-common') not in ['essex', 'folsom']:
         resource_map['/etc/nova/nova.conf']['services'] += ['nova-conductor']
@@ -211,8 +239,8 @@ def resource_map():
     return resource_map
 
 
-def register_configs():
-    release = os_release('nova-common')
+def register_configs(release=None):
+    release = release or os_release('nova-common')
     configs = templating.OSConfigRenderer(templates_dir=TEMPLATES,
                                           openstack_release=release)
     for cfg, rscs in resource_map().iteritems():
@@ -226,10 +254,18 @@ def restart_map():
                         if v['services']])
 
 
+def services():
+    ''' Returns a list of services associate with this charm '''
+    _services = []
+    for v in restart_map().values():
+        _services = _services + v
+    return list(set(_services))
+
+
 def determine_ports():
     '''Assemble a list of API ports for services we are managing'''
     ports = []
-    for cfg, services in restart_map().iteritems():
+    for services in restart_map().values():
         for service in services:
             try:
                 ports.append(API_PORTS[service])
@@ -245,7 +281,7 @@ def api_port(service):
 def determine_packages():
     # currently all packages match service names
     packages = [] + BASE_PACKAGES
-    for k, v in resource_map().iteritems():
+    for v in resource_map().values():
         packages.extend(v['services'])
     if network_manager() in ['neutron', 'quantum']:
         pkgs = neutron_plugin_attribute(neutron_plugin(), 'server_packages',
@@ -273,27 +309,162 @@ def save_script_rc():
     _save_script_rc(**env_vars)
 
 
-def do_openstack_upgrade(configs):
-    new_src = config('openstack-origin')
+def get_step_upgrade_source(new_src):
+    '''
+    Determine if upgrade skips a release and, if so, return source
+    of skipped release.
+    '''
+    sources = {
+        # target_src: (cur_pocket, step_src)
+        'cloud:precise-icehouse':
+        ('precise-updates/grizzly', 'cloud:precise-havana'),
+        'cloud:precise-icehouse/proposed':
+        ('precise-proposed/grizzly', 'cloud:precise-havana/proposed')
+    }
+
+    with open('/etc/apt/sources.list.d/cloud-archive.list', 'r') as f:
+        line = f.readline()
+        for target_src, (cur_pocket, step_src) in sources.items():
+            if target_src != new_src:
+                continue
+            if cur_pocket in line:
+                return step_src
+
+    return None
+
+POLICY_RC_D = """#!/bin/bash
+
+set -e
+
+case $1 in
+  neutron-server|quantum-server|nova-*)
+    [ $2 = "start" ] && exit 101
+    ;;
+  *)
+    ;;
+esac
+
+exit 0
+"""
+
+
+def enable_policy_rcd():
+    with open('/usr/sbin/policy-rc.d', 'w') as policy:
+        policy.write(POLICY_RC_D)
+    os.chmod('/usr/sbin/policy-rc.d', 0o755)
+
+
+def disable_policy_rcd():
+    os.unlink('/usr/sbin/policy-rc.d')
+
+
+QUANTUM_DB_MANAGE = "/usr/bin/quantum-db-manage"
+NEUTRON_DB_MANAGE = "/usr/bin/neutron-db-manage"
+
+
+def reset_os_release():
+    # Ugly hack to make os_release re-read versions
+    import charmhelpers.contrib.openstack.utils as utils
+    utils.os_rel = None
+
+
+def neutron_db_manage(actions):
+    net_manager = network_manager()
+    if net_manager in ['neutron', 'quantum']:
+        plugin = neutron_plugin()
+        conf = neutron_plugin_attribute(plugin, 'config', net_manager)
+        if net_manager == 'quantum':
+            cmd = QUANTUM_DB_MANAGE
+        else:
+            cmd = NEUTRON_DB_MANAGE
+        subprocess.check_call([
+            cmd, '--config-file=/etc/{mgr}/{mgr}.conf'.format(mgr=net_manager),
+            '--config-file={}'.format(conf)] + actions
+        )
+
+
+def get_db_connection():
+    config = ConfigParser.RawConfigParser()
+    config.read('/etc/neutron/neutron.conf')
+    try:
+        return config.get('database', 'connection')
+    except:
+        return None
+
+
+def ml2_migration():
+    reset_os_release()
+    net_manager = network_manager()
+    if net_manager == 'neutron':
+        plugin = neutron_plugin()
+        if plugin == 'ovs':
+            log('Migrating from openvswitch to ml2 plugin')
+            cmd = [
+                'python',
+                '/usr/lib/python2.7/dist-packages/neutron'
+                '/db/migration/migrate_to_ml2.py',
+                '--tunnel-type', 'gre',
+                '--release', 'icehouse',
+                'openvswitch', get_db_connection()
+            ]
+            subprocess.check_call(cmd)
+
+
+def _do_openstack_upgrade(new_src):
+    enable_policy_rcd()
+    cur_os_rel = os_release('nova-common')
     new_os_rel = get_os_codename_install_source(new_src)
     log('Performing OpenStack upgrade to %s.' % (new_os_rel))
 
     configure_installation_source(new_src)
-    apt_update()
-
     dpkg_opts = [
         '--option', 'Dpkg::Options::=--force-confnew',
         '--option', 'Dpkg::Options::=--force-confdef',
     ]
 
-    apt_install(packages=determine_packages(), options=dpkg_opts, fatal=True)
+    # NOTE(jamespage) pre-stamp neutron database before upgrade from grizzly
+    if cur_os_rel == 'grizzly':
+        neutron_db_manage(['stamp', 'grizzly'])
 
-    # set CONFIGS to load templates from new release and regenerate config
-    configs.set_release(openstack_release=new_os_rel)
-    configs.write_all()
+    apt_update(fatal=True)
+    apt_upgrade(options=dpkg_opts, fatal=True, dist=True)
+    apt_install(determine_packages(), fatal=True)
+
+    if cur_os_rel == 'grizzly':
+        # NOTE(jamespage) when upgrading from grizzly->havana, config
+        # files need to be generated prior to performing the db upgrade
+        reset_os_release()
+        configs = register_configs(release=new_os_rel)
+        configs.write_all()
+        neutron_db_manage(['upgrade', 'head'])
+    else:
+        # NOTE(jamespage) upgrade with existing config files as the
+        # havana->icehouse migration enables new service_plugins which
+        # create issues with db upgrades
+        neutron_db_manage(['upgrade', 'head'])
+        reset_os_release()
+        configs = register_configs(release=new_os_rel)
+        configs.write_all()
+
+    if new_os_rel == 'icehouse':
+        # NOTE(jamespage) default plugin switch to ml2@icehouse
+        ml2_migration()
 
     if eligible_leader(CLUSTER_RES):
         migrate_database()
+    [service_start(s) for s in services()]
+
+    disable_policy_rcd()
+
+    return configs
+
+
+def do_openstack_upgrade():
+    new_src = config('openstack-origin')
+    step_src = get_step_upgrade_source(new_src)
+    if step_src is not None:
+        _do_openstack_upgrade(step_src)
+    return _do_openstack_upgrade(new_src)
 
 
 def volume_service():
@@ -315,10 +486,10 @@ def migrate_database():
 
 
 def auth_token_config(setting):
-    '''
+    """
     Returns currently configured value for setting in api-paste.ini's
     authtoken section, or None.
-    '''
+    """
     config = ConfigParser.RawConfigParser()
     config.read('/etc/nova/api-paste.ini')
     try:
@@ -363,7 +534,10 @@ def authorized_keys(user=None):
 
 def ssh_known_host_key(host, user=None):
     cmd = ['ssh-keygen', '-f', known_hosts(user), '-H', '-F', host]
-    return subprocess.check_output(cmd).strip()
+    try:
+        return subprocess.check_output(cmd).strip()
+    except subprocess.CalledProcessError:
+        return None
 
 
 def remove_known_host(host, user=None):
@@ -459,10 +633,14 @@ def determine_endpoints(url):
     '''Generates a dictionary containing all relevant endpoints to be
     passed to keystone as relation settings.'''
     region = config('region')
+    os_rel = os_release('nova-common')
 
-    # TODO: Configurable nova API version.
-    nova_url = ('%s:%s/v1.1/$(tenant_id)s' %
-                (url, api_port('nova-api-os-compute')))
+    if os_rel >= 'grizzly':
+        nova_url = ('%s:%s/v2/$(tenant_id)s' %
+                    (url, api_port('nova-api-os-compute')))
+    else:
+        nova_url = ('%s:%s/v1.1/$(tenant_id)s' %
+                    (url, api_port('nova-api-os-compute')))
     ec2_url = '%s:%s/services/Cloud' % (url, api_port('nova-api-ec2'))
     nova_volume_url = ('%s:%s/v1/$(tenant_id)s' %
                        (url, api_port('nova-api-os-compute')))
