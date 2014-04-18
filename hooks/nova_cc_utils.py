@@ -627,7 +627,7 @@ def ssh_compute_remove(public_key, user=None):
 
     with open(authorized_keys(user), 'w') as _keys:
         keys = '\n'.join(keys)
-        if not keys[-1] == '\n':
+        if not keys.endswith('\n'):
             keys += '\n'
         _keys.write(keys)
 
