@@ -104,6 +104,11 @@ BASE_RESOURCE_MAP = OrderedDict([
                          service='nova',
                          config_file=NOVA_CONF,
                      ),
+                     context.SubordinateConfigContext(
+                         interface='nova-cell',
+                         service='nova',
+                         config_file=NOVA_CONF,
+                     ),
                      context.SyslogContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
@@ -236,6 +241,11 @@ def resource_map():
         for s in vmware_ctxt['services']:
             if s not in resource_map[NOVA_CONF]['services']:
                 resource_map[NOVA_CONF]['services'].append(s)
+    novacell_ctxt = context.SubordinateConfigContext(interface='nova-cell',
+                                                     service='nova',
+                                                     config_file=NOVA_CONF)
+    novacell_ctxt = novacell_ctxt()
+
     return resource_map
 
 

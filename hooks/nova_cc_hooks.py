@@ -19,6 +19,7 @@ from charmhelpers.core.hookenv import (
     relation_get,
     relation_ids,
     relation_set,
+    related_units,
     open_port,
     unit_get,
 )
@@ -124,6 +125,8 @@ def amqp_changed():
         CONFIGS.write(QUANTUM_CONF)
     if network_manager() == 'neutron':
         CONFIGS.write(NEUTRON_CONF)
+    [nova_cell_relation_joined(rid=rid)
+        for rid in relation_ids('nova-cell')]
 
 
 @hooks.hook('shared-db-relation-joined')
@@ -449,6 +452,8 @@ def ha_changed():
             'quantum-network-service-relation-broken')
 def relation_broken():
     CONFIGS.write_all()
+    [nova_cell_relation_joined(rid=rid)
+        for rid in relation_ids('nova-cell')]
 
 
 def configure_https():
@@ -498,6 +503,39 @@ def upgrade_charm():
         amqp_joined(relation_id=r_id)
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
+
+@hooks.hook('nova-cell-relation-joined')
+def nova_cell_relation_joined(rid=None):
+    print "nova_cell_relation_joined" + rid
+    if is_relation_made('shared-db',['nova_password']):
+        relation_set(relation_id=rid, dbready=True)
+    else:
+        relation_set(relation_id=rid, dbready=False)
+    if is_relation_made('amqp',['password']):
+        amqp_rids=relation_ids('amqp')
+        amqp_units=related_units(amqp_rids[0])
+        if len(amqp_rids) > 1 or  len(amqp_units) > 1:
+            print "Too many rabbits!"
+        rabbit_info = relation_get(unit=amqp_units[0], rid=amqp_rids[0])
+        rabbit_info['vhost'] = config('rabbit-vhost')
+        rabbit_info['username'] = config('rabbit-user')
+        if 'password' in rabbit_info:
+            relation_set(relation_id=rid, **rabbit_info)
+    else:
+        relation_set(relation_id=rid, password='')
+
+@hooks.hook('nova-cell-relation-changed')
+def nova_cell_relation_changed():
+    CONFIGS.complete_contexts()
+    print "bob"
+    cellname = relation_get('cell_name')
+    celltype = relation_get('cell_type')
+    # XXX Can we trust this ? Does the presence of a password always imply db is setup? (probably not)
+    if is_relation_made('shared-db',['nova_password']):
+        relation_set(dbready=True)
+    else:
+        relation_set(dbready=False)
+    CONFIGS.write(NOVA_CONF)
 
 
 def main():

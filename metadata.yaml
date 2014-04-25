@@ -9,6 +9,9 @@ categories:
 provides:
   cloud-controller:
     interface: nova
+  nova-cell:
+    interface: nova-cell
+    scope: container
 requires:
   shared-db:
     interface: mysql-shared
