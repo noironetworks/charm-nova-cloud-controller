@@ -186,6 +186,8 @@ def db_changed():
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
          for rid in relation_ids('cloud-compute')]
+    [nova_cell_relation_joined(rid=rid)
+        for rid in relation_ids('nova-cell')]
 
 
 @hooks.hook('pgsql-nova-db-relation-changed')
