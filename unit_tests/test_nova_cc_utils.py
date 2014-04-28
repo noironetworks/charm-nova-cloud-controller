@@ -498,7 +498,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.eligible_leader.return_value = True
         utils.do_openstack_upgrade()
         expected = [call(['stamp', 'grizzly']), call(['upgrade', 'head']),
-                    call(['upgrade', 'head'])]
+                    call(['stamp', 'havana']), call(['upgrade', 'head'])]
         self.assertEquals(self.neutron_db_manage.call_args_list, expected)
         self.apt_update.assert_called_with(fatal=True)
         self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,

@@ -441,6 +441,7 @@ def _do_openstack_upgrade(new_src):
         # NOTE(jamespage) upgrade with existing config files as the
         # havana->icehouse migration enables new service_plugins which
         # create issues with db upgrades
+        neutron_db_manage(['stamp', cur_os_rel])
         neutron_db_manage(['upgrade', 'head'])
         reset_os_release()
         configs = register_configs(release=new_os_rel)
