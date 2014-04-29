@@ -163,4 +163,11 @@ options:
     description: |
       This is uuid of the default NVP L3 Gateway Service.
   # end of NVP configuration
+  worker-multiplier:
+    type: int
+    default: 1
+    description: |
+      The CPU multiplier to use when configuring worker processes for
+      Nova and Neutron.  By default, the number of workers for each daemon
+      is set to the number of CPU's a service unit has.
 

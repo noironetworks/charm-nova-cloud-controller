@@ -56,6 +56,7 @@ BASE_PACKAGES = [
     'python-mysqldb',
     'python-psycopg2',
     'uuid',
+    'python-psutil'
 ]
 
 BASE_SERVICES = [
@@ -108,7 +109,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.VolumeServiceContext(),
-                     nova_cc_context.NeutronCCContext()],
+                     nova_cc_context.NeutronCCContext(),
+                     nova_cc_context.WorkerConfigContext()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in BASE_SERVICES if 'api' in s],
@@ -148,7 +150,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext(),
-                     context.SyslogContext()],
+                     context.SyslogContext(),
+                     nova_cc_context.WorkerConfigContext()],
     }),
     (NEUTRON_DEFAULT, {
         'services': ['neutron-server'],
