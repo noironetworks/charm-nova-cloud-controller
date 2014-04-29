@@ -1,4 +1,4 @@
-
+import psutil
 from charmhelpers.core.hookenv import (
     config, relation_ids, relation_set, log, ERROR,
     unit_get)
@@ -204,3 +204,12 @@ class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
     def __init__(self):
         super(NeutronPostgresqlDBContext,
               self).__init__(config('neutron-database'))
+
+
+class WorkerConfigContext(context.OSContextGenerator):
+    def __call__(self):
+        multiplier = config('worker-multiplier') or 1
+        ctxt = {
+            "workers": psutil.NUM_CPUS * multiplier
+        }
+        return ctxt

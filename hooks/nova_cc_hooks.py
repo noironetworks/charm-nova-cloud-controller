@@ -28,7 +28,8 @@ from charmhelpers.core.host import (
 )
 
 from charmhelpers.fetch import (
-    apt_install, apt_update
+    apt_install, apt_update,
+    filter_installed_packages
 )
 
 from charmhelpers.contrib.openstack.utils import (
@@ -494,6 +495,8 @@ def nova_vmware_relation_changed():
 
 @hooks.hook('upgrade-charm')
 def upgrade_charm():
+    apt_install(filter_installed_packages(determine_packages()),
+                fatal=True)
     for r_id in relation_ids('amqp'):
         amqp_joined(relation_id=r_id)
     for r_id in relation_ids('identity-service'):

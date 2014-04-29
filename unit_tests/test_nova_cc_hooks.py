@@ -1,4 +1,4 @@
-from mock import call, MagicMock, patch
+from mock import MagicMock, patch
 from test_utils import CharmTestCase
 
 with patch('charmhelpers.core.hookenv.config') as config:
