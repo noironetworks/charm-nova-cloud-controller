@@ -9,9 +9,6 @@ categories:
 provides:
   cloud-controller:
     interface: nova
-  nova-cell:
-    interface: nova-cell
-    scope: container
 requires:
   shared-db:
     interface: mysql-shared
@@ -33,6 +30,8 @@ requires:
     interface: nova-volume
   quantum-network-service:
     interface: quantum
+  nova-cell:
+    interface: nova-cell
   ha:
     interface: hacluster
     scope: container
