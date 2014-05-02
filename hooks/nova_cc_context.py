@@ -1,7 +1,7 @@
 
 from charmhelpers.core.hookenv import (
     config, relation_ids, relation_set, log, ERROR,
-    unit_get)
+    unit_get, related_units, relation_get)
 
 from charmhelpers.fetch import apt_install, filter_installed_packages
 from charmhelpers.contrib.openstack import context, neutron, utils
@@ -25,6 +25,23 @@ class ApacheSSLContext(context.ApacheSSLContext):
         from nova_cc_utils import determine_ports
         self.external_ports = determine_ports()
         return super(ApacheSSLContext, self).__call__()
+
+class NovaCellContext(context.OSContextGenerator):
+    interfaces = ['nova-cell']
+
+    def __call__(self):
+        log('Generating template context for identity-service')
+        ctxt = {}
+        for rid in relation_ids('nova-cell'):
+            for unit in related_units(rid):
+                rdata = relation_get(rid=rid, unit=unit)
+                ctxt = {
+                    'cell_type': rdata.get('cell_type'),
+                    'cell_name': rdata.get('cell_name'),
+                }
+                if context.context_complete(ctxt):
+                    return ctxt
+        return {}
 
 
 class VolumeServiceContext(context.OSContextGenerator):

@@ -508,7 +508,6 @@ def upgrade_charm():
 
 @hooks.hook('nova-cell-relation-joined')
 def nova_cell_relation_joined(rid=None):
-    print "nova_cell_relation_joined" + rid
     if is_relation_made('shared-db',['nova_password']):
         relation_set(relation_id=rid, dbready=True)
     else:
@@ -529,9 +528,6 @@ def nova_cell_relation_joined(rid=None):
 @hooks.hook('nova-cell-relation-changed')
 def nova_cell_relation_changed():
     CONFIGS.complete_contexts()
-    print "bob"
-    cellname = relation_get('cell_name')
-    celltype = relation_get('cell_type')
     # XXX Can we trust this ? Does the presence of a password always imply db is setup? (probably not)
     if is_relation_made('shared-db',['nova_password']):
         relation_set(dbready=True)
