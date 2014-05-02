@@ -405,7 +405,7 @@ class NovaCCUtilsTests(CharmTestCase):
             "\nssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC27Us7lSjCpa7bumXAgc "
             "nova-compute-1\n"
             "ssh-rsa CCCCB3NzaC1yc2ECCCCDCQCBCCCBCQC27Us7lSjCpa7bumXCgc "
-            "nova-compute-3\n\n"
+            "nova-compute-3\n"
         )
         isfile.return_value = True
         self.remote_unit.return_value = 'nova-compute/2'
