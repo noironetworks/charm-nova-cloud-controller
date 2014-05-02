@@ -54,8 +54,8 @@ from nova_cc_utils import (
     save_script_rc,
     ssh_compute_add,
     ssh_compute_remove,
-    ssh_known_hosts_lines_b64,
-    ssh_authorized_keys_lines_b64,
+    ssh_known_hosts_lines,
+    ssh_authorized_keys_lines,
     register_configs,
     restart_map,
     volume_service,
@@ -347,16 +347,17 @@ def compute_changed():
             log('SSH migration set but peer did not publish key.')
             return
         ssh_compute_add(key)
-        for line in ssh_known_hosts_lines_b64():
-            relation_name = 'known_hosts_{}'.format(index)
-            relation_set(relation_name=line)
-            index+=1
         index = 0
+        for line in ssh_known_hosts_lines():
+            relation_set(relation_settings=
+                         {'known_hosts_{}'.format(index): line})
+            index += 1
         relation_set(known_hosts_max_index=index)
-        for line in ssh_authorized_keys_lines_b64():
-            relation_name = 'authorized_keys_{}'.format(index)
-            relation_set(relation_name=line)
-            index+=1
+        index = 0
+        for line in ssh_authorized_keys_lines():
+            relation_set(relation_settings=
+                         {'authorized_keys_{}'.format(index): line})
+            index += 1
         relation_set(authorized_keys_max_index=index)
     if relation_get('nova_ssh_public_key'):
         key = relation_get('nova_ssh_public_key')
