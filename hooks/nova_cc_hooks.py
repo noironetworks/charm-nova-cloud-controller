@@ -510,10 +510,6 @@ def upgrade_charm():
 
 @hooks.hook('nova-cell-relation-joined')
 def nova_cell_relation_joined(rid=None, remote_restart=False):
-    if is_relation_made('shared-db', ['nova_password']):
-        relation_set(relation_id=rid, dbready=True)
-    else:
-        relation_set(relation_id=rid, dbready=False)
     if remote_restart:
         relation_set(relation_id=rid, restart_trigger = str(uuid.uuid4()))
     if is_relation_made('amqp', ['password']):
