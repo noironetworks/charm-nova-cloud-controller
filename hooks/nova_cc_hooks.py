@@ -514,6 +514,8 @@ def nova_cell_relation_joined(rid=None, remote_restart=False):
         relation_set(relation_id=rid, dbready=True)
     else:
         relation_set(relation_id=rid, dbready=False)
+    if remote_restart:
+        relation_set(relation_id=rid, restart_trigger = str(uuid.uuid4()))
     if is_relation_made('amqp', ['password']):
         amqp_rids = relation_ids('amqp')
         amqp_units = related_units(amqp_rids[0])
@@ -522,8 +524,6 @@ def nova_cell_relation_joined(rid=None, remote_restart=False):
         rel_settings = relation_get(unit=amqp_units[0], rid=amqp_rids[0])
         rel_settings['vhost'] = config('rabbit-vhost')
         rel_settings['username'] = config('rabbit-user')
-        if remote_restart:
-            rel_settings['restart_trigger'] = str(uuid.uuid4())
         if 'password' in rel_settings:
             relation_set(relation_id=rid, **rel_settings)
     else:
