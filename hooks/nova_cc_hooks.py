@@ -186,6 +186,9 @@ def db_changed():
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
          for rid in relation_ids('cloud-compute')]
+        log('Triggering remote cell restarts.')
+        [nova_cell_relation_joined(rid=rid, remote_restart=True)
+         for rid in relation_ids('nova-cell')]
     [nova_cell_relation_joined(rid=rid)
         for rid in relation_ids('nova-cell')]
 
@@ -507,7 +510,7 @@ def upgrade_charm():
         identity_joined(rid=r_id)
 
 @hooks.hook('nova-cell-relation-joined')
-def nova_cell_relation_joined(rid=None):
+def nova_cell_relation_joined(rid=None, remote_restart=False):
     if is_relation_made('shared-db',['nova_password']):
         relation_set(relation_id=rid, dbready=True)
     else:
@@ -517,11 +520,13 @@ def nova_cell_relation_joined(rid=None):
         amqp_units=related_units(amqp_rids[0])
         if len(amqp_rids) > 1 or  len(amqp_units) > 1:
             print "Too many rabbits!"
-        rabbit_info = relation_get(unit=amqp_units[0], rid=amqp_rids[0])
-        rabbit_info['vhost'] = config('rabbit-vhost')
-        rabbit_info['username'] = config('rabbit-user')
-        if 'password' in rabbit_info:
-            relation_set(relation_id=rid, **rabbit_info)
+        rel_settings = relation_get(unit=amqp_units[0], rid=amqp_rids[0])
+        rel_settings['vhost'] = config('rabbit-vhost')
+        rel_settings['username'] = config('rabbit-user')
+        if remote_restart:
+            rel_settings['restart_trigger'] = str(uuid.uuid4())
+        if 'password' in rel_settings:
+            relation_set(relation_id=rid, **rel_settings)
     else:
         relation_set(relation_id=rid, password='')
 
