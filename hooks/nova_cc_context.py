@@ -26,6 +26,7 @@ class ApacheSSLContext(context.ApacheSSLContext):
         self.external_ports = determine_ports()
         return super(ApacheSSLContext, self).__call__()
 
+
 class NovaCellContext(context.OSContextGenerator):
     interfaces = ['nova-cell']
 
