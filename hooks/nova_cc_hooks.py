@@ -365,17 +365,17 @@ def compute_changed():
         index = 0
         for line in ssh_known_hosts_lines(user='nova'):
             relation_set(relation_settings=
-                         {'{}_known_hosts_{}'.format('nova',index): line})
+                         {'{}_known_hosts_{}'.format('nova', index): line})
             index += 1
         relation_set(relation_settings=
-                {'{}_known_hosts_max_index'.format('nova'): index})
+                     {'{}_known_hosts_max_index'.format('nova'): index})
         index = 0
         for line in ssh_authorized_keys_lines(user='nova'):
             relation_set(relation_settings=
                          {'{}_authorized_keys_{}'.format('nova', index): line})
             index += 1
         relation_set(relation_settings=
-                {'{}_authorized_keys_max_index'.format('nova'): index})
+                     {'{}_authorized_keys_max_index'.format('nova'): index})
 
 
 @hooks.hook('cloud-compute-relation-departed')
