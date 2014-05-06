@@ -362,8 +362,22 @@ def compute_changed():
     if relation_get('nova_ssh_public_key'):
         key = relation_get('nova_ssh_public_key')
         ssh_compute_add(key, user='nova')
-        relation_set(nova_known_hosts=ssh_known_hosts_b64(user='nova'),
-                     nova_authorized_keys=ssh_authorized_keys_b64(user='nova'))
+        index = 0
+        for line in ssh_known_hosts_lines(user='nova'):
+            relation_set(relation_settings=
+                         {'{}_known_hosts_{}'.format('nova',index): line})
+            index += 1
+        relation_set(relation_settings=
+                {'{}_known_hosts_max_index'.format('nova'): index})
+        index = 0
+        for line in ssh_authorized_keys_lines(user='nova'):
+            relation_set(relation_settings=
+                         {'{}_authorized_keys_{}'.format('nova', index): line})
+            index += 1
+        relation_set(relation_settings=
+                {'{}_authorized_keys_max_index'.format('nova'): index})
+#        relation_set(nova_known_hosts=ssh_known_hosts_b64(user='nova'),
+#                     nova_authorized_keys=ssh_authorized_keys_b64(user='nova'))
 
 
 @hooks.hook('cloud-compute-relation-departed')
