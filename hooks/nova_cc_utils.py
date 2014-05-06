@@ -603,14 +603,24 @@ def ssh_compute_add(public_key, user=None):
         add_authorized_key(public_key, user)
 
 
-def ssh_known_hosts_b64(user=None):
+def ssh_known_hosts_lines(user=None):
+    known_hosts_list = []
+
     with open(known_hosts(user)) as hosts:
-        return b64encode(hosts.read())
+        for hosts_line in hosts:
+            if hosts_line.rstrip():
+                known_hosts_list.append(hosts_line.rstrip())
+    return(known_hosts_list)
 
 
-def ssh_authorized_keys_b64(user=None):
+def ssh_authorized_keys_lines(user=None):
+    authorized_keys_list = []
+
     with open(authorized_keys(user)) as keys:
-        return b64encode(keys.read())
+        for authkey_line in keys:
+            if authkey_line.rstrip():
+                authorized_keys_list.append(authkey_line.rstrip())
+    return(authorized_keys_list)
 
 
 def ssh_compute_remove(public_key, user=None):
