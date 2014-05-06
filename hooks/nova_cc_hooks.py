@@ -376,8 +376,6 @@ def compute_changed():
             index += 1
         relation_set(relation_settings=
                 {'{}_authorized_keys_max_index'.format('nova'): index})
-#        relation_set(nova_known_hosts=ssh_known_hosts_b64(user='nova'),
-#                     nova_authorized_keys=ssh_authorized_keys_b64(user='nova'))
 
 
 @hooks.hook('cloud-compute-relation-departed')
