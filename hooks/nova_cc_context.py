@@ -31,7 +31,7 @@ class NovaCellContext(context.OSContextGenerator):
     interfaces = ['nova-cell']
 
     def __call__(self):
-        log('Generating template context for identity-service')
+        log('Generating template context for cell')
         ctxt = {}
         for rid in relation_ids('nova-cell'):
             for unit in related_units(rid):
@@ -44,6 +44,14 @@ class NovaCellContext(context.OSContextGenerator):
                     return ctxt
         return {}
 
+class NeutronAPIContext(context.OSContextGenerator):
+    def __call__(self):
+        log('Generating template context for neutron plugin')
+        ctxt = {}
+        for rid in relation_ids('neutron-api'):
+            for unit in related_units(rid):
+                ctxt = relation_get(rid=rid, unit=unit)
+        return ctxt
 
 class VolumeServiceContext(context.OSContextGenerator):
     interfaces = []
@@ -222,3 +230,4 @@ class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
     def __init__(self):
         super(NeutronPostgresqlDBContext,
               self).__init__(config('neutron-database'))
+

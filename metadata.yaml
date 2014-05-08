@@ -32,6 +32,8 @@ requires:
     interface: quantum
   nova-cell:
     interface: nova-cell
+  neutron-api:
+    interface: neutron-api
   ha:
     interface: hacluster
     scope: container

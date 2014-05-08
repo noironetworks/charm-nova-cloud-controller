@@ -536,6 +536,11 @@ def nova_cell_relation_changed():
         relation_set(dbready=False)
     CONFIGS.write(NOVA_CONF)
 
+@hooks.hook('neutron-api-relation-changed')
+def neutron_api_relation_changed():
+    print "In neutron-api-relation-changed"
+    CONFIGS.write(NOVA_CONF)
+
 
 def main():
     try:
