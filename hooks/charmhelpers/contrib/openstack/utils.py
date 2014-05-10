@@ -183,7 +183,7 @@ def get_os_version_package(pkg, fatal=True):
         if cname == codename:
             return version
     #e = "Could not determine OpenStack version for package: %s" % pkg
-    #error_out(e)
+    # error_out(e)
 
 
 os_rel = None
@@ -401,6 +401,8 @@ def ns_query(address):
         rtype = 'PTR'
     elif isinstance(address, basestring):
         rtype = 'A'
+    else:
+        return None
 
     answers = dns.resolver.query(address, rtype)
     if answers:
