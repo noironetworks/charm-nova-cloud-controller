@@ -28,12 +28,12 @@ class ApacheSSLContext(context.ApacheSSLContext):
 
 
 class NovaCellContext(context.OSContextGenerator):
-    interfaces = ['nova-cell']
+    interfaces = ['cell']
 
     def __call__(self):
         log('Generating template context for cell')
         ctxt = {}
-        for rid in relation_ids('nova-cell'):
+        for rid in relation_ids('cell'):
             for unit in related_units(rid):
                 rdata = relation_get(rid=rid, unit=unit)
                 ctxt = {

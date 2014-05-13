@@ -30,7 +30,7 @@ requires:
     interface: nova-volume
   quantum-network-service:
     interface: quantum
-  nova-cell:
+  cell:
     interface: nova-cell
   neutron-api:
     interface: neutron-api

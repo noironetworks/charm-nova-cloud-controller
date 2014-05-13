@@ -126,7 +126,7 @@ def amqp_changed():
     if network_manager() == 'neutron':
         CONFIGS.write(NEUTRON_CONF)
     [nova_cell_relation_joined(rid=rid)
-        for rid in relation_ids('nova-cell')]
+        for rid in relation_ids('cell')]
 
 
 @hooks.hook('shared-db-relation-joined')
@@ -188,7 +188,7 @@ def db_changed():
          for rid in relation_ids('cloud-compute')]
         log('Triggering remote cell restarts.')
         [nova_cell_relation_joined(rid=rid, remote_restart=True)
-         for rid in relation_ids('nova-cell')]
+         for rid in relation_ids('cell')]
 
 
 @hooks.hook('pgsql-nova-db-relation-changed')
@@ -456,7 +456,7 @@ def ha_changed():
 def relation_broken():
     CONFIGS.write_all()
     [nova_cell_relation_joined(rid=rid)
-        for rid in relation_ids('nova-cell')]
+        for rid in relation_ids('cell')]
 
 
 def configure_https():
@@ -508,7 +508,7 @@ def upgrade_charm():
         identity_joined(rid=r_id)
 
 
-@hooks.hook('nova-cell-relation-joined')
+@hooks.hook('cell-relation-joined')
 def nova_cell_relation_joined(rid=None, remote_restart=False):
     if remote_restart:
         relation_set(relation_id=rid, restart_trigger = str(uuid.uuid4()))
@@ -526,7 +526,7 @@ def nova_cell_relation_joined(rid=None, remote_restart=False):
         relation_set(relation_id=rid, password='')
 
 
-@hooks.hook('nova-cell-relation-changed')
+@hooks.hook('cell-relation-changed')
 def nova_cell_relation_changed():
     CONFIGS.complete_contexts()
     # XXX Can we trust this ? Does the presence of a password always imply db is setup? (probably not)
