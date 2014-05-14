@@ -213,3 +213,10 @@ class WorkerConfigContext(context.OSContextGenerator):
             "workers": psutil.NUM_CPUS * multiplier
         }
         return ctxt
+
+
+class NovaConfigContext(WorkerConfigContext):
+    def __call__(self):
+        ctxt = super(NovaConfigContext, self).__call__()
+        ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
+        return ctxt
