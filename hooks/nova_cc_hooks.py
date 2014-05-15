@@ -510,22 +510,23 @@ def upgrade_charm():
 def neutron_api_relation_joined():
     with open('/etc/init/neutron-server.override', 'wb') as out:
         out.write('manual\n')
+    os.rename(NEUTRON_CONF, NEUTRON_CONF + '_unused')
     if service_running('neutron-server'):
         service_stop('neutron-server')
     for rid in relation_ids('identity-service'):
         identity_joined(rid=rid)
 
 @hooks.hook('neutron-api-relation-changed')
+@restart_on_change(restart_map())
 def neutron_api_relation_changed():
     CONFIGS.write(NOVA_CONF)
 
 @hooks.hook('neutron-api-relation-broken')
+@restart_on_change(restart_map())
 def neutron_api_relation_broken():
-    CONFIGS.write_all()
     if os.path.isfile('/etc/init/neutron-server.override'):
         os.remove('/etc/init/neutron-server.override')
-    if not service_running('neutron-server'):
-        service_start('neutron-server')
+    CONFIGS.write_all()
 
 def main():
     try:
