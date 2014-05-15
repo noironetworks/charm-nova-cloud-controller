@@ -512,6 +512,8 @@ def neutron_api_relation_joined():
         out.write('manual\n')
     if service_running('neutron-server'):
         service_stop('neutron-server')
+    for rid in relation_ids('identity-service'):
+        identity_joined(rid=rid)
 
 @hooks.hook('neutron-api-relation-changed')
 def neutron_api_relation_changed():
