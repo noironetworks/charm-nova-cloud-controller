@@ -691,7 +691,15 @@ def determine_endpoints(url):
         })
 
     # XXX: Keep these relations named quantum_*??
-    if network_manager() in ['quantum', 'neutron']:
+    if is_relation_made('neutron-api'):
+        endpoints.update({
+            'quantum_service': '',
+            'quantum_region': '',
+            'quantum_public_url': '',
+            'quantum_admin_url': '',
+            'quantum_internal_url': '',
+        })
+    elif network_manager() in ['quantum', 'neutron']:
         endpoints.update({
             'quantum_service': 'quantum',
             'quantum_region': region,
