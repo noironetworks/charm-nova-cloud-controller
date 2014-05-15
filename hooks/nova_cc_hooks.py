@@ -19,12 +19,16 @@ from charmhelpers.core.hookenv import (
     relation_get,
     relation_ids,
     relation_set,
+    related_units,
     open_port,
     unit_get,
 )
 
 from charmhelpers.core.host import (
-    restart_on_change
+    restart_on_change,
+    service_running,
+    service_stop,
+    service_start,
 )
 
 from charmhelpers.fetch import (
@@ -499,6 +503,25 @@ def upgrade_charm():
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
 
+
+@hooks.hook('neutron-api-relation-joined')
+def neutron_api_relation_joined():
+    with open('/etc/init/neutron-server.override', 'wb') as out:
+        out.write('manual\n')
+    if service_running('neutron-server'):
+        service_stop('neutron-server')
+
+@hooks.hook('neutron-api-relation-changed')
+def neutron_api_relation_changed():
+    CONFIGS.write(NOVA_CONF)
+
+@hooks.hook('neutron-api-relation-broken')
+def neutron_api_relation_broken():
+    CONFIGS.write_all()
+    if os.path.isfile('/etc/init/neutron-server.override'):
+        os.remove('/etc/init/neutron-server.override')
+    if not service_running('neutron-server'):
+        service_start('neutron-server')
 
 def main():
     try:

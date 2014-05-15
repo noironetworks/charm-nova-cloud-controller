@@ -1,7 +1,7 @@
 
 from charmhelpers.core.hookenv import (
     config, relation_ids, relation_set, log, ERROR,
-    unit_get)
+    unit_get, related_units, relation_get)
 
 from charmhelpers.fetch import apt_install, filter_installed_packages
 from charmhelpers.contrib.openstack import context, neutron, utils
@@ -26,6 +26,15 @@ class ApacheSSLContext(context.ApacheSSLContext):
         self.external_ports = determine_ports()
         return super(ApacheSSLContext, self).__call__()
 
+
+class NeutronAPIContext(context.OSContextGenerator):
+    def __call__(self):
+        log('Generating template context for neutron plugin')
+        ctxt = {}
+        for rid in relation_ids('neutron-api'):
+            for unit in related_units(rid):
+                ctxt = relation_get(rid=rid, unit=unit)
+        return ctxt
 
 class VolumeServiceContext(context.OSContextGenerator):
     interfaces = []
