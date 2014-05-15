@@ -194,10 +194,8 @@ def resource_map():
         resource_map.pop(APACHE_24_CONF)
 
     if is_relation_made('neutron-api'):
-        resource_map.pop(QUANTUM_CONF)
-        resource_map.pop(QUANTUM_DEFAULT)
-        resource_map.pop(NEUTRON_CONF)
-        resource_map.pop(NEUTRON_DEFAULT)
+        [resource_map.pop(k) for k in list(resource_map.iterkeys())
+         if 'quantum' in k or 'neutron' in k]
         resource_map[NOVA_CONF]['contexts'].append(
             nova_cc_context.NeutronAPIContext())
     else:

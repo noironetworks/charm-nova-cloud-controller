@@ -124,10 +124,11 @@ def amqp_changed():
         log('amqp relation incomplete. Peer not ready?')
         return
     CONFIGS.write(NOVA_CONF)
-    if network_manager() == 'quantum':
-        CONFIGS.write(QUANTUM_CONF)
-    if network_manager() == 'neutron':
-        CONFIGS.write(NEUTRON_CONF)
+    if not is_relation_made('neutron-api'):
+        if network_manager() == 'quantum':
+            CONFIGS.write(QUANTUM_CONF)
+        if network_manager() == 'neutron':
+            CONFIGS.write(NEUTRON_CONF)
 
 
 @hooks.hook('shared-db-relation-joined')
@@ -239,12 +240,13 @@ def identity_changed():
         return
     CONFIGS.write('/etc/nova/api-paste.ini')
     CONFIGS.write(NOVA_CONF)
-    if network_manager() == 'quantum':
-        CONFIGS.write(QUANTUM_API_PASTE)
-        CONFIGS.write(QUANTUM_CONF)
-        save_novarc()
-    if network_manager() == 'neutron':
-        CONFIGS.write(NEUTRON_CONF)
+    if not is_relation_made('neutron-api'):
+        if network_manager() == 'quantum':
+            CONFIGS.write(QUANTUM_API_PASTE)
+            CONFIGS.write(QUANTUM_CONF)
+            save_novarc()
+        if network_manager() == 'neutron':
+            CONFIGS.write(NEUTRON_CONF)
     [compute_joined(rid) for rid in relation_ids('cloud-compute')]
     [quantum_joined(rid) for rid in relation_ids('quantum-network-service')]
     [nova_vmware_relation_joined(rid) for rid in relation_ids('nova-vmware')]
