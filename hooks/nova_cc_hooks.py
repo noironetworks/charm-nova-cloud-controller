@@ -45,6 +45,10 @@ from charmhelpers.contrib.openstack.neutron import (
     neutron_plugin_attribute,
 )
 
+from nova_cc_context import (
+    NeutronAPIContext
+    )
+
 from nova_cc_utils import (
     api_port,
     auth_token_config,
@@ -307,19 +311,28 @@ def keystone_compute_settings():
         if ks_auth_config:
             rel_settings.update(ks_auth_config)
 
-        rel_settings.update({
-            # XXX: Rename these relations settings?
-            'quantum_plugin': neutron_plugin(),
-            'region': config('region'),
-            'quantum_security_groups': config('quantum-security-groups'),
-            'quantum_url': (canonical_url(CONFIGS) + ':' +
-                            str(api_port('neutron-server'))),
-        })
+        if is_relation_made('neutron-api'):
+            neutron_api_info = NeutronAPIContext()
+            rel_settings.update({
+                # XXX: Rename these relations settings?
+                'quantum_plugin': neutron_api_info()['neutron_plugin'],
+                'region': config('region'),
+                'quantum_security_groups':  neutron_api_info()['neutron_security_groups'],
+                'quantum_url': neutron_api_info()['neutron_url'],
+            })
+        else:
+            rel_settings.update({
+                # XXX: Rename these relations settings?
+                'quantum_plugin': neutron_plugin(),
+                'region': config('region'),
+                'quantum_security_groups': config('quantum-security-groups'),
+                'quantum_url': (canonical_url(CONFIGS) + ':' +
+                                str(api_port('neutron-server'))),
+            })
 
     ks_ca = keystone_ca_cert_b64()
     if ks_auth_config and ks_ca:
         rel_settings['ca_cert'] = ks_ca
-
     return rel_settings
 
 
@@ -334,7 +347,6 @@ def compute_joined(rid=None, remote_restart=False):
         # this may not even be needed.
         'ec2_host': unit_get('private-address'),
     }
-
     # update relation setting if we're attempting to restart remote
     # services
     if remote_restart:
@@ -520,6 +532,8 @@ def neutron_api_relation_joined():
 @restart_on_change(restart_map())
 def neutron_api_relation_changed():
     CONFIGS.write(NOVA_CONF)
+    for rid in relation_ids('cloud-compute'):
+        compute_joined(rid=rid)
 
 @hooks.hook('neutron-api-relation-broken')
 @restart_on_change(restart_map())
