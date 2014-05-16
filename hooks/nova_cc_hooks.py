@@ -313,13 +313,14 @@ def keystone_compute_settings():
 
         if is_relation_made('neutron-api'):
             neutron_api_info = NeutronAPIContext()
-            rel_settings.update({
-                # XXX: Rename these relations settings?
-                'quantum_plugin': neutron_api_info()['neutron_plugin'],
-                'region': config('region'),
-                'quantum_security_groups':  neutron_api_info()['neutron_security_groups'],
-                'quantum_url': neutron_api_info()['neutron_url'],
-            })
+            if 'neutron_plugin' in neutron_api_info():
+                rel_settings.update({
+                    # XXX: Rename these relations settings?
+                    'quantum_plugin': neutron_api_info()['neutron_plugin'] or "",
+                    'region': config('region'),
+                    'quantum_security_groups':  neutron_api_info()['neutron_security_groups'],
+                    'quantum_url': neutron_api_info()['neutron_url'],
+                })
         else:
             rel_settings.update({
                 # XXX: Rename these relations settings?
@@ -519,14 +520,17 @@ def upgrade_charm():
 
 
 @hooks.hook('neutron-api-relation-joined')
-def neutron_api_relation_joined():
+def neutron_api_relation_joined(rid=None):
     with open('/etc/init/neutron-server.override', 'wb') as out:
         out.write('manual\n')
-    os.rename(NEUTRON_CONF, NEUTRON_CONF + '_unused')
+    if os.path.isfile(NEUTRON_CONF):
+        os.rename(NEUTRON_CONF, NEUTRON_CONF + '_unused')
     if service_running('neutron-server'):
         service_stop('neutron-server')
-    for rid in relation_ids('identity-service'):
-        identity_joined(rid=rid)
+    for id_rid in relation_ids('identity-service'):
+        identity_joined(rid=id_rid)
+    nova_url = canonical_url(CONFIGS) + ":8774/v2"
+    relation_set(relation_id=rid, nova_url=nova_url)
 
 @hooks.hook('neutron-api-relation-changed')
 @restart_on_change(restart_map())
