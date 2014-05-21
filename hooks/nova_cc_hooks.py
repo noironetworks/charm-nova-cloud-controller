@@ -302,6 +302,37 @@ def save_novarc():
         out.write('export OS_AUTH_URL=%s\n' % ks_url)
         out.write('export OS_REGION_NAME=%s\n' % config('region'))
 
+def neutron_settings():
+    neutron_settings = {}
+    if is_relation_made('neutron-api'):
+        neutron_api_info = NeutronAPIContext()
+        if 'neutron_plugin' in neutron_api_info():
+            quantum_plugin = neutron_api_info()['neutron_plugin']
+            quantum_security_groups = neutron_api_info()['neutron_security_groups'] 
+            quantum_url = neutron_api_info()['neutron_url']
+        else:
+            quantum_plugin = neutron_plugin()
+            quantum_security_groups = config('quantum-security-groups')
+            quantum_url = canonical_url(CONFIGS) + ':' + str(api_port('neutron-server'))
+        neutron_settings.update({
+            # XXX: Rename these relations settings?
+            'quantum_plugin': quantum_plugin,
+            'region': config('region'),
+            'quantum_security_groups':  quantum_security_groups,
+            'quantum_url': quantum_url,
+        })
+    else:
+        neutron_settings.update({
+            # XXX: Rename these relations settings?
+            'quantum_plugin': neutron_plugin(),
+            'region': config('region'),
+            'quantum_security_groups': config('quantum-security-groups'),
+            'quantum_url': (canonical_url(CONFIGS) + ':' +
+                            str(api_port('neutron-server'))),
+        })
+    neutron_settings['quantum_host'] = urlparse(neutron_settings['quantum_url']).hostname
+    neutron_settings['quantum_port'] = urlparse(neutron_settings['quantum_url']).port
+    return neutron_settings
 
 def keystone_compute_settings():
     ks_auth_config = _auth_config()
@@ -310,34 +341,7 @@ def keystone_compute_settings():
     if network_manager() in ['quantum', 'neutron']:
         if ks_auth_config:
             rel_settings.update(ks_auth_config)
-
-        if is_relation_made('neutron-api'):
-            neutron_api_info = NeutronAPIContext()
-            if 'neutron_plugin' in neutron_api_info():
-                quantum_plugin = neutron_api_info()['neutron_plugin']
-                quantum_security_groups = neutron_api_info()['neutron_security_groups'] 
-                quantum_url = neutron_api_info()['neutron_url']
-            else:
-                quantum_plugin = neutron_plugin()
-                quantum_security_groups = config('quantum-security-groups')
-                quantum_url = canonical_url(CONFIGS) + ':' + str(api_port('neutron-server'))
-            rel_settings.update({
-                # XXX: Rename these relations settings?
-                'quantum_plugin': quantum_plugin,
-                'region': config('region'),
-                'quantum_security_groups':  quantum_security_groups,
-                'quantum_url': quantum_url,
-            })
-        else:
-            rel_settings.update({
-                # XXX: Rename these relations settings?
-                'quantum_plugin': neutron_plugin(),
-                'region': config('region'),
-                'quantum_security_groups': config('quantum-security-groups'),
-                'quantum_url': (canonical_url(CONFIGS) + ':' +
-                                str(api_port('neutron-server'))),
-            })
-
+        rel_settings.update(neutron_settings())
     ks_ca = keystone_ca_cert_b64()
     if ks_auth_config and ks_ca:
         rel_settings['ca_cert'] = ks_ca
@@ -393,15 +397,7 @@ def quantum_joined(rid=None):
     if not eligible_leader(CLUSTER_RES):
         return
 
-    url = canonical_url(CONFIGS) + ':9696'
-    # XXX: Can we rename to neutron_*?
-    rel_settings = {
-        'quantum_host': urlparse(url).hostname,
-        'quantum_url': url,
-        'quantum_port': 9696,
-        'quantum_plugin': neutron_plugin(),
-        'region': config('region')
-    }
+    rel_settings = neutron_settings()
 
     # inform quantum about local keystone auth config
     ks_auth_config = _auth_config()
@@ -411,7 +407,6 @@ def quantum_joined(rid=None):
     ks_ca = keystone_ca_cert_b64()
     if ks_auth_config and ks_ca:
         rel_settings['ca_cert'] = ks_ca
-
     relation_set(relation_id=rid, **rel_settings)
 
 
@@ -554,6 +549,10 @@ def neutron_api_relation_broken():
     if os.path.isfile('/etc/init/neutron-server.override'):
         os.remove('/etc/init/neutron-server.override')
     CONFIGS.write_all()
+    for rid in relation_ids('cloud-compute'):
+        compute_joined(rid=rid)
+    for rid in relation_ids('quantum-network-service'):
+        quantum_joined(rid=rid)
 
 def main():
     try:
