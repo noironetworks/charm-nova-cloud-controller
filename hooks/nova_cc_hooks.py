@@ -545,6 +545,8 @@ def neutron_api_relation_changed():
     CONFIGS.write(NOVA_CONF)
     for rid in relation_ids('cloud-compute'):
         compute_joined(rid=rid)
+    for rid in relation_ids('quantum-network-service'):
+        quantum_joined(rid=rid)
 
 @hooks.hook('neutron-api-relation-broken')
 @restart_on_change(restart_map())
