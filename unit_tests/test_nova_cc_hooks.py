@@ -116,6 +116,28 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertEquals(sorted(self.relation_set.call_args_list),
                           sorted(expected_relations))
 
+    def test_compute_changed_nova_public_key(self):
+        self.test_relation.set({
+            'nova_ssh_public_key': 'fookey',
+            'private-address': '10.0.0.1'})
+        self.ssh_known_hosts_lines.return_value = [
+            'k_h_0', 'k_h_1', 'k_h_2']
+        self.ssh_authorized_keys_lines.return_value = [
+            'auth_0', 'auth_1', 'auth_2']
+        hooks.compute_changed()
+        self.ssh_compute_add.assert_called_with('fookey', user='nova')
+        expected_relations = [
+            call(relation_settings={'nova_authorized_keys_0': 'auth_0'}),
+            call(relation_settings={'nova_authorized_keys_1': 'auth_1'}),
+            call(relation_settings={'nova_authorized_keys_2': 'auth_2'}),
+            call(relation_settings={'nova_known_hosts_0': 'k_h_0'}),
+            call(relation_settings={'nova_known_hosts_1': 'k_h_1'}),
+            call(relation_settings={'nova_known_hosts_2': 'k_h_2'}),
+            call(relation_settings={'nova_known_hosts_max_index': 3}),
+            call(relation_settings={'nova_authorized_keys_max_index': 3})]
+        self.assertEquals(sorted(self.relation_set.call_args_list),
+                          sorted(expected_relations))
+
     @patch.object(hooks, '_auth_config')
     def test_compute_joined_neutron(self, auth_config):
         self.network_manager.return_value = 'neutron'
