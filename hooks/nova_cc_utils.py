@@ -510,8 +510,11 @@ def keystone_ca_cert_b64():
         return b64encode(_in.read())
 
 
-def ssh_directory_for_unit(user=None):
-    remote_service = remote_unit().split('/')[0]
+def ssh_directory_for_unit(remunit=None, user=None):
+    if remunit:
+        remote_service = remunit.split('/')[0]
+    else:
+        remote_service = remote_unit().split('/')[0]
     if user:
         remote_service = "{}_{}".format(remote_service, user)
     _dir = os.path.join(NOVA_SSH_DIR, remote_service)
@@ -525,29 +528,29 @@ def ssh_directory_for_unit(user=None):
     return _dir
 
 
-def known_hosts(user=None):
-    return os.path.join(ssh_directory_for_unit(user), 'known_hosts')
+def known_hosts(unit=None, user=None):
+    return os.path.join(ssh_directory_for_unit(unit, user), 'known_hosts')
 
 
-def authorized_keys(user=None):
-    return os.path.join(ssh_directory_for_unit(user), 'authorized_keys')
+def authorized_keys(unit=None, user=None):
+    return os.path.join(ssh_directory_for_unit(unit, user), 'authorized_keys')
 
 
-def ssh_known_host_key(host, user=None):
-    cmd = ['ssh-keygen', '-f', known_hosts(user), '-H', '-F', host]
+def ssh_known_host_key(host, uid=None, user=None):
+    cmd = ['ssh-keygen', '-f', known_hosts(uid, user), '-H', '-F', host]
     try:
         return subprocess.check_output(cmd).strip()
     except subprocess.CalledProcessError:
         return None
 
 
-def remove_known_host(host, user=None):
+def remove_known_host(host, uid=None, user=None):
     log('Removing SSH known host entry for compute host at %s' % host)
-    cmd = ['ssh-keygen', '-f', known_hosts(user), '-R', host]
+    cmd = ['ssh-keygen', '-f', known_hosts(uid, user), '-R', host]
     subprocess.check_call(cmd)
 
 
-def add_known_host(host, user=None):
+def add_known_host(host, uid=None, user=None):
     '''Add variations of host to a known hosts file.'''
     cmd = ['ssh-keyscan', '-H', '-t', 'rsa', host]
     try:
@@ -556,33 +559,34 @@ def add_known_host(host, user=None):
         log('Could not obtain SSH host key from %s' % host, level=ERROR)
         raise e
 
-    current_key = ssh_known_host_key(host, user)
+    current_key = ssh_known_host_key(host, uid, user)
     if current_key:
         if remote_key == current_key:
             log('Known host key for compute host %s up to date.' % host)
             return
         else:
-            remove_known_host(host, user)
+            remove_known_host(host, uid, user)
 
     log('Adding SSH host key to known hosts for compute node at %s.' % host)
-    with open(known_hosts(user), 'a') as out:
+    with open(known_hosts(uid, user), 'a') as out:
         out.write(remote_key + '\n')
 
 
-def ssh_authorized_key_exists(public_key, user=None):
-    with open(authorized_keys(user)) as keys:
+def ssh_authorized_key_exists(public_key, uid=None, user=None):
+    with open(authorized_keys(uid, user)) as keys:
         return (' %s ' % public_key) in keys.read()
 
 
-def add_authorized_key(public_key, user=None):
-    with open(authorized_keys(user), 'a') as keys:
+def add_authorized_key(public_key, uid=None, user=None):
+    with open(authorized_keys(uid, user), 'a') as keys:
         keys.write(public_key + '\n')
 
 
-def ssh_compute_add(public_key, user=None):
+def ssh_compute_add(public_key, rid=None, uid=None, user=None):
     # If remote compute node hands us a hostname, ensure we have a
     # known hosts entry for its IP, hostname and FQDN.
-    private_address = relation_get('private-address')
+    private_address = relation_get(rid=rid, unit=uid,
+                                   attribute='private-address')
     hosts = [private_address]
 
     if not is_ip(private_address):
@@ -594,41 +598,41 @@ def ssh_compute_add(public_key, user=None):
         hosts.append(hn.split('.')[0])
 
     for host in list(set(hosts)):
-        if not ssh_known_host_key(host, user):
-            add_known_host(host, user)
+        if not ssh_known_host_key(host, uid, user):
+            add_known_host(host, uid, user)
 
-    if not ssh_authorized_key_exists(public_key, user):
+    if not ssh_authorized_key_exists(public_key, uid, user):
         log('Saving SSH authorized key for compute host at %s.' %
             private_address)
-        add_authorized_key(public_key, user)
+        add_authorized_key(public_key, uid, user)
 
 
-def ssh_known_hosts_lines(user=None):
+def ssh_known_hosts_lines(uid=None, user=None):
     known_hosts_list = []
 
-    with open(known_hosts(user)) as hosts:
+    with open(known_hosts(uid, user)) as hosts:
         for hosts_line in hosts:
             if hosts_line.rstrip():
                 known_hosts_list.append(hosts_line.rstrip())
     return(known_hosts_list)
 
 
-def ssh_authorized_keys_lines(user=None):
+def ssh_authorized_keys_lines(uid=None, user=None):
     authorized_keys_list = []
 
-    with open(authorized_keys(user)) as keys:
+    with open(authorized_keys(uid, user)) as keys:
         for authkey_line in keys:
             if authkey_line.rstrip():
                 authorized_keys_list.append(authkey_line.rstrip())
     return(authorized_keys_list)
 
 
-def ssh_compute_remove(public_key, user=None):
-    if not (os.path.isfile(authorized_keys(user)) or
-            os.path.isfile(known_hosts(user))):
+def ssh_compute_remove(public_key, uid=None, user=None):
+    if not (os.path.isfile(authorized_keys(uid, user)) or
+            os.path.isfile(known_hosts(uid, user))):
         return
 
-    with open(authorized_keys(user)) as _keys:
+    with open(authorized_keys(uid, user)) as _keys:
         keys = [k.strip() for k in _keys.readlines()]
 
     if public_key not in keys:
@@ -636,7 +640,7 @@ def ssh_compute_remove(public_key, user=None):
 
     [keys.remove(key) for key in keys if key == public_key]
 
-    with open(authorized_keys(user), 'w') as _keys:
+    with open(authorized_keys(uid, user), 'w') as _keys:
         keys = '\n'.join(keys)
         if not keys.endswith('\n'):
             keys += '\n'
