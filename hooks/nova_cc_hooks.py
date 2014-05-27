@@ -341,10 +341,11 @@ def compute_joined(rid=None, remote_restart=False):
 
 @hooks.hook('cloud-compute-relation-changed')
 def compute_changed(rid=None, uid=None):
-    migration_auth = relation_get(rid=rid,
-                                  unit=uid, attribute='migration_auth_type')
-    if migration_auth == 'ssh':
-        key = relation_get(rid=rid, unit=uid, attribute='ssh_public_key')
+    rel_settings = relation_get(rid=rid, unit=uid)
+    if 'migration_auth_type' not in rel_settings:
+        return
+    if rel_settings['migration_auth_type'] == 'ssh':
+        key = rel_settings['ssh_public_key']
         if not key:
             log('SSH migration set but peer did not publish key.')
             return
@@ -361,9 +362,9 @@ def compute_changed(rid=None, uid=None):
                          {'authorized_keys_{}'.format(index): line})
             index += 1
         relation_set(relation_id=rid, authorized_keys_max_index=index)
-    if relation_get(rid=rid, unit=uid, attribute='nova_ssh_public_key'):
-        key = relation_get(rid=rid, unit=uid, attribute='nova_ssh_public_key')
-        ssh_compute_add(key, rid=rid, uid=uid, user='nova')
+    if rel_settings['nova_ssh_public_key']:
+        ssh_compute_add(rel_settings['nova_ssh_public_key'],
+                        rid=rid, uid=uid, user='nova')
         index = 0
         for line in ssh_known_hosts_lines(uid=uid, user='nova'):
             relation_set(relation_id=rid, relation_settings=
@@ -522,6 +523,9 @@ def upgrade_charm():
         amqp_joined(relation_id=r_id)
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
+    for r_id in relation_ids('cloud-compute'):
+        for unit in related_units(r_id):
+            compute_changed(r_id, unit)
 
 
 def main():
