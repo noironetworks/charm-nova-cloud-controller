@@ -362,6 +362,8 @@ def compute_changed(rid=None, uid=None):
                          {'authorized_keys_{}'.format(index): line})
             index += 1
         relation_set(relation_id=rid, authorized_keys_max_index=index)
+    if 'nova_ssh_public_key' not in rel_settings:
+        return
     if rel_settings['nova_ssh_public_key']:
         ssh_compute_add(rel_settings['nova_ssh_public_key'],
                         rid=rid, uid=uid, user='nova')
