@@ -105,12 +105,18 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.compute_changed()
         self.ssh_compute_add.assert_called_with('fookey', rid=None, uid=None)
         expected_relations = [
-            call(relation_settings={'authorized_keys_0': 'auth_0'}, relation_id=None),
-            call(relation_settings={'authorized_keys_1': 'auth_1'}, relation_id=None),
-            call(relation_settings={'authorized_keys_2': 'auth_2'}, relation_id=None),
-            call(relation_settings={'known_hosts_0': 'k_h_0'}, relation_id=None),
-            call(relation_settings={'known_hosts_1': 'k_h_1'}, relation_id=None),
-            call(relation_settings={'known_hosts_2': 'k_h_2'}, relation_id=None),
+            call(relation_settings={'authorized_keys_0': 'auth_0'},
+                 relation_id=None),
+            call(relation_settings={'authorized_keys_1': 'auth_1'},
+                 relation_id=None),
+            call(relation_settings={'authorized_keys_2': 'auth_2'},
+                 relation_id=None),
+            call(relation_settings={'known_hosts_0': 'k_h_0'},
+                 relation_id=None),
+            call(relation_settings={'known_hosts_1': 'k_h_1'},
+                 relation_id=None),
+            call(relation_settings={'known_hosts_2': 'k_h_2'},
+                 relation_id=None),
             call(authorized_keys_max_index=3, relation_id=None),
             call(known_hosts_max_index=3, relation_id=None)]
         self.assertEquals(sorted(self.relation_set.call_args_list),
@@ -125,16 +131,25 @@ class NovaCCHooksTests(CharmTestCase):
         self.ssh_authorized_keys_lines.return_value = [
             'auth_0', 'auth_1', 'auth_2']
         hooks.compute_changed()
-        self.ssh_compute_add.assert_called_with('fookey', user='nova', rid=None, uid=None)
+        self.ssh_compute_add.assert_called_with('fookey', user='nova',
+                                                rid=None, uid=None)
         expected_relations = [
-            call(relation_settings={'nova_authorized_keys_0': 'auth_0'}, relation_id=None),
-            call(relation_settings={'nova_authorized_keys_1': 'auth_1'}, relation_id=None),
-            call(relation_settings={'nova_authorized_keys_2': 'auth_2'}, relation_id=None),
-            call(relation_settings={'nova_known_hosts_0': 'k_h_0'}, relation_id=None),
-            call(relation_settings={'nova_known_hosts_1': 'k_h_1'}, relation_id=None),
-            call(relation_settings={'nova_known_hosts_2': 'k_h_2'}, relation_id=None),
-            call(relation_settings={'nova_known_hosts_max_index': 3}, relation_id=None),
-            call(relation_settings={'nova_authorized_keys_max_index': 3}, relation_id=None)]
+            call(relation_settings={'nova_authorized_keys_0': 'auth_0'},
+                 relation_id=None),
+            call(relation_settings={'nova_authorized_keys_1': 'auth_1'},
+                 relation_id=None),
+            call(relation_settings={'nova_authorized_keys_2': 'auth_2'},
+                 relation_id=None),
+            call(relation_settings={'nova_known_hosts_0': 'k_h_0'},
+                 relation_id=None),
+            call(relation_settings={'nova_known_hosts_1': 'k_h_1'},
+                 relation_id=None),
+            call(relation_settings={'nova_known_hosts_2': 'k_h_2'},
+                 relation_id=None),
+            call(relation_settings={'nova_known_hosts_max_index': 3},
+                 relation_id=None),
+            call(relation_settings={'nova_authorized_keys_max_index': 3},
+                 relation_id=None)]
         self.assertEquals(sorted(self.relation_set.call_args_list),
                           sorted(expected_relations))
 
