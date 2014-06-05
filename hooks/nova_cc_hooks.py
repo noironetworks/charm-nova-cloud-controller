@@ -19,12 +19,16 @@ from charmhelpers.core.hookenv import (
     relation_get,
     relation_ids,
     relation_set,
+    related_units,
     open_port,
     unit_get,
 )
 
 from charmhelpers.core.host import (
-    restart_on_change
+    restart_on_change,
+    service_running,
+    service_stop,
+    service_start,
 )
 
 from charmhelpers.fetch import (
@@ -40,6 +44,10 @@ from charmhelpers.contrib.openstack.neutron import (
     network_manager,
     neutron_plugin_attribute,
 )
+
+from nova_cc_context import (
+    NeutronAPIContext
+    )
 
 from nova_cc_utils import (
     api_port,
@@ -120,10 +128,11 @@ def amqp_changed():
         log('amqp relation incomplete. Peer not ready?')
         return
     CONFIGS.write(NOVA_CONF)
-    if network_manager() == 'quantum':
-        CONFIGS.write(QUANTUM_CONF)
-    if network_manager() == 'neutron':
-        CONFIGS.write(NEUTRON_CONF)
+    if not is_relation_made('neutron-api'):
+        if network_manager() == 'quantum':
+            CONFIGS.write(QUANTUM_CONF)
+        if network_manager() == 'neutron':
+            CONFIGS.write(NEUTRON_CONF)
 
 
 @hooks.hook('shared-db-relation-joined')
@@ -235,12 +244,13 @@ def identity_changed():
         return
     CONFIGS.write('/etc/nova/api-paste.ini')
     CONFIGS.write(NOVA_CONF)
-    if network_manager() == 'quantum':
-        CONFIGS.write(QUANTUM_API_PASTE)
-        CONFIGS.write(QUANTUM_CONF)
-        save_novarc()
-    if network_manager() == 'neutron':
-        CONFIGS.write(NEUTRON_CONF)
+    if not is_relation_made('neutron-api'):
+        if network_manager() == 'quantum':
+            CONFIGS.write(QUANTUM_API_PASTE)
+            CONFIGS.write(QUANTUM_CONF)
+            save_novarc()
+        if network_manager() == 'neutron':
+            CONFIGS.write(NEUTRON_CONF)
     [compute_joined(rid) for rid in relation_ids('cloud-compute')]
     [quantum_joined(rid) for rid in relation_ids('quantum-network-service')]
     [nova_vmware_relation_joined(rid) for rid in relation_ids('nova-vmware')]
@@ -292,6 +302,37 @@ def save_novarc():
         out.write('export OS_AUTH_URL=%s\n' % ks_url)
         out.write('export OS_REGION_NAME=%s\n' % config('region'))
 
+def neutron_settings():
+    neutron_settings = {}
+    if is_relation_made('neutron-api'):
+        neutron_api_info = NeutronAPIContext()
+        if 'neutron_plugin' in neutron_api_info():
+            quantum_plugin = neutron_api_info()['neutron_plugin']
+            quantum_security_groups = neutron_api_info()['neutron_security_groups'] 
+            quantum_url = neutron_api_info()['neutron_url']
+        else:
+            quantum_plugin = neutron_plugin()
+            quantum_security_groups = config('quantum-security-groups')
+            quantum_url = canonical_url(CONFIGS) + ':' + str(api_port('neutron-server'))
+        neutron_settings.update({
+            # XXX: Rename these relations settings?
+            'quantum_plugin': quantum_plugin,
+            'region': config('region'),
+            'quantum_security_groups':  quantum_security_groups,
+            'quantum_url': quantum_url,
+        })
+    else:
+        neutron_settings.update({
+            # XXX: Rename these relations settings?
+            'quantum_plugin': neutron_plugin(),
+            'region': config('region'),
+            'quantum_security_groups': config('quantum-security-groups'),
+            'quantum_url': (canonical_url(CONFIGS) + ':' +
+                            str(api_port('neutron-server'))),
+        })
+    neutron_settings['quantum_host'] = urlparse(neutron_settings['quantum_url']).hostname
+    neutron_settings['quantum_port'] = urlparse(neutron_settings['quantum_url']).port
+    return neutron_settings
 
 def keystone_compute_settings():
     ks_auth_config = _auth_config()
@@ -300,20 +341,10 @@ def keystone_compute_settings():
     if network_manager() in ['quantum', 'neutron']:
         if ks_auth_config:
             rel_settings.update(ks_auth_config)
-
-        rel_settings.update({
-            # XXX: Rename these relations settings?
-            'quantum_plugin': neutron_plugin(),
-            'region': config('region'),
-            'quantum_security_groups': config('quantum-security-groups'),
-            'quantum_url': (canonical_url(CONFIGS) + ':' +
-                            str(api_port('neutron-server'))),
-        })
-
+        rel_settings.update(neutron_settings())
     ks_ca = keystone_ca_cert_b64()
     if ks_auth_config and ks_ca:
         rel_settings['ca_cert'] = ks_ca
-
     return rel_settings
 
 
@@ -328,7 +359,6 @@ def compute_joined(rid=None, remote_restart=False):
         # this may not even be needed.
         'ec2_host': unit_get('private-address'),
     }
-
     # update relation setting if we're attempting to restart remote
     # services
     if remote_restart:
@@ -367,15 +397,7 @@ def quantum_joined(rid=None):
     if not eligible_leader(CLUSTER_RES):
         return
 
-    url = canonical_url(CONFIGS) + ':9696'
-    # XXX: Can we rename to neutron_*?
-    rel_settings = {
-        'quantum_host': urlparse(url).hostname,
-        'quantum_url': url,
-        'quantum_port': 9696,
-        'quantum_plugin': neutron_plugin(),
-        'region': config('region')
-    }
+    rel_settings = neutron_settings()
 
     # inform quantum about local keystone auth config
     ks_auth_config = _auth_config()
@@ -385,7 +407,6 @@ def quantum_joined(rid=None):
     ks_ca = keystone_ca_cert_b64()
     if ks_auth_config and ks_ca:
         rel_settings['ca_cert'] = ks_ca
-
     relation_set(relation_id=rid, **rel_settings)
 
 
@@ -499,6 +520,39 @@ def upgrade_charm():
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
 
+
+@hooks.hook('neutron-api-relation-joined')
+def neutron_api_relation_joined(rid=None):
+    with open('/etc/init/neutron-server.override', 'wb') as out:
+        out.write('manual\n')
+    if os.path.isfile(NEUTRON_CONF):
+        os.rename(NEUTRON_CONF, NEUTRON_CONF + '_unused')
+    if service_running('neutron-server'):
+        service_stop('neutron-server')
+    for id_rid in relation_ids('identity-service'):
+        identity_joined(rid=id_rid)
+    nova_url = canonical_url(CONFIGS) + ":8774/v2"
+    relation_set(relation_id=rid, nova_url=nova_url)
+
+@hooks.hook('neutron-api-relation-changed')
+@restart_on_change(restart_map())
+def neutron_api_relation_changed():
+    CONFIGS.write(NOVA_CONF)
+    for rid in relation_ids('cloud-compute'):
+        compute_joined(rid=rid)
+    for rid in relation_ids('quantum-network-service'):
+        quantum_joined(rid=rid)
+
+@hooks.hook('neutron-api-relation-broken')
+@restart_on_change(restart_map())
+def neutron_api_relation_broken():
+    if os.path.isfile('/etc/init/neutron-server.override'):
+        os.remove('/etc/init/neutron-server.override')
+    CONFIGS.write_all()
+    for rid in relation_ids('cloud-compute'):
+        compute_joined(rid=rid)
+    for rid in relation_ids('quantum-network-service'):
+        quantum_joined(rid=rid)
 
 def main():
     try:
