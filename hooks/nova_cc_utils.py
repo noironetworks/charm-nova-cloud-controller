@@ -583,6 +583,8 @@ def ssh_compute_add(public_key, user=None):
     # known hosts entry for its IP, hostname and FQDN.
     private_address = relation_get('private-address')
     hosts = [private_address]
+    if relation_get('hostname'):
+        hosts.append(relation_get('hostname'))
 
     if not is_ip(private_address):
         hosts.append(get_host_ip(private_address))
