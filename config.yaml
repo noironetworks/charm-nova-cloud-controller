@@ -69,10 +69,12 @@ options:
       Quantum plugin to use for network management; supports
       .
         ovs - OpenvSwitch Plugin
-        nvp - Nicira Network Virtualization Platform
+        nvp|nsx - Nicira Network Virtualization Platform/
+                  VMware NSX Network Virtualization Platform
+                  (renamed for Icehouse)
       .
       This configuration only has context when used with
-      network-manager Quantum.
+      network-manager Quantum|Neutron.
   quantum-security-groups:
     type: string
     default: "no"
@@ -136,18 +138,18 @@ options:
     default: False
     description: |
       If set to True, supporting services will log to syslog.
-  # Neutron NVP Plugin configuration
+  # Neutron NVP and VMware NSX plugin configuration
   nvp-controllers:
     type: string
-    description: Space delimited addresses of NVP controllers
+    description: Space delimited addresses of NVP/NSX controllers
   nvp-username:
     type: string
     default: admin
-    description: Username to connect to NVP controllers with
+    description: Username to connect to NVP/NSX controllers with
   nvp-password:
     type: string
     default: admin
-    description: Password to connect to NVP controllers with
+    description: Password to connect to NVP/NSX controllers with
   nvp-cluster-name:
     type: string
     default: example
@@ -155,12 +157,11 @@ options:
   nvp-tz-uuid:
     type: string
     description: |
-      This is uuid of the default NVP Transport zone that will be used for
+      This is uuid of the default NVP/NSX Transport zone that will be used for
       creating tunneled isolated Quantum networks.  It needs to be created
       in NVP before starting Quantum with the nvp plugin.
   nvp-l3-uuid:
     type: string
     description: |
-      This is uuid of the default NVP L3 Gateway Service.
-  # end of NVP configuration
-
+      This is uuid of the default NVP/NSX L3 Gateway Service.
+  # end of NVP/NSX configuration
