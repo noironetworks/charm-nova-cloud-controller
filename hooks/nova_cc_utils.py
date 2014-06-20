@@ -210,15 +210,14 @@ def resource_map():
         if net_manager != 'neutron':
             [resource_map.pop(k) for k in list(resource_map.iterkeys())
              if 'neutron' in k]
-    
-    
-        # add neutron plugin requirements. nova-c-c only needs the neutron-server
-        # associated with configs, not the plugin agent.
+        # add neutron plugin requirements. nova-c-c only needs the
+        # neutron-server associated with configs, not the plugin agent.
         if net_manager in ['quantum', 'neutron']:
             plugin = neutron_plugin()
             if plugin:
                 conf = neutron_plugin_attribute(plugin, 'config', net_manager)
-                ctxts = (neutron_plugin_attribute(plugin, 'contexts', net_manager)
+                ctxts = (neutron_plugin_attribute(plugin, 'contexts',
+                                                  net_manager)
                          or [])
                 services = neutron_plugin_attribute(plugin, 'server_services',
                                                     net_manager)
@@ -227,11 +226,11 @@ def resource_map():
                 resource_map[conf]['contexts'] = ctxts
                 resource_map[conf]['contexts'].append(
                     nova_cc_context.NeutronCCContext())
-    
+
                 # update for postgres
                 resource_map[conf]['contexts'].append(
                     nova_cc_context.NeutronPostgresqlDBContext())
-       
+
     # nova-conductor for releases >= G.
     if os_release('nova-common') not in ['essex', 'folsom']:
         resource_map['/etc/nova/nova.conf']['services'] += ['nova-conductor']

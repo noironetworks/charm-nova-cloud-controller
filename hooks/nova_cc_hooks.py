@@ -19,7 +19,6 @@ from charmhelpers.core.hookenv import (
     relation_get,
     relation_ids,
     relation_set,
-    related_units,
     open_port,
     unit_get,
 )
@@ -28,7 +27,6 @@ from charmhelpers.core.host import (
     restart_on_change,
     service_running,
     service_stop,
-    service_start,
 )
 
 from charmhelpers.fetch import (
@@ -302,18 +300,21 @@ def save_novarc():
         out.write('export OS_AUTH_URL=%s\n' % ks_url)
         out.write('export OS_REGION_NAME=%s\n' % config('region'))
 
+
 def neutron_settings():
     neutron_settings = {}
     if is_relation_made('neutron-api'):
         neutron_api_info = NeutronAPIContext()
         if 'neutron_plugin' in neutron_api_info():
             quantum_plugin = neutron_api_info()['neutron_plugin']
-            quantum_security_groups = neutron_api_info()['neutron_security_groups'] 
+            quantum_security_groups = \
+                neutron_api_info()['neutron_security_groups']
             quantum_url = neutron_api_info()['neutron_url']
         else:
             quantum_plugin = neutron_plugin()
             quantum_security_groups = config('quantum-security-groups')
-            quantum_url = canonical_url(CONFIGS) + ':' + str(api_port('neutron-server'))
+            quantum_url = canonical_url(CONFIGS) + ':' + \
+                str(api_port('neutron-server'))
         neutron_settings.update({
             # XXX: Rename these relations settings?
             'quantum_plugin': quantum_plugin,
@@ -330,9 +331,12 @@ def neutron_settings():
             'quantum_url': (canonical_url(CONFIGS) + ':' +
                             str(api_port('neutron-server'))),
         })
-    neutron_settings['quantum_host'] = urlparse(neutron_settings['quantum_url']).hostname
-    neutron_settings['quantum_port'] = urlparse(neutron_settings['quantum_url']).port
+    neutron_settings['quantum_host'] = \
+        urlparse(neutron_settings['quantum_url']).hostname
+    neutron_settings['quantum_port'] = \
+        urlparse(neutron_settings['quantum_url']).port
     return neutron_settings
+
 
 def keystone_compute_settings():
     ks_auth_config = _auth_config()
@@ -534,6 +538,7 @@ def neutron_api_relation_joined(rid=None):
     nova_url = canonical_url(CONFIGS) + ":8774/v2"
     relation_set(relation_id=rid, nova_url=nova_url)
 
+
 @hooks.hook('neutron-api-relation-changed')
 @restart_on_change(restart_map())
 def neutron_api_relation_changed():
@@ -542,6 +547,7 @@ def neutron_api_relation_changed():
         compute_joined(rid=rid)
     for rid in relation_ids('quantum-network-service'):
         quantum_joined(rid=rid)
+
 
 @hooks.hook('neutron-api-relation-broken')
 @restart_on_change(restart_map())
@@ -553,6 +559,7 @@ def neutron_api_relation_broken():
         compute_joined(rid=rid)
     for rid in relation_ids('quantum-network-service'):
         quantum_joined(rid=rid)
+
 
 def main():
     try:

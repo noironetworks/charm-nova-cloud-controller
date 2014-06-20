@@ -36,6 +36,7 @@ class NeutronAPIContext(context.OSContextGenerator):
                 ctxt = relation_get(rid=rid, unit=unit)
         return ctxt
 
+
 class VolumeServiceContext(context.OSContextGenerator):
     interfaces = []
 

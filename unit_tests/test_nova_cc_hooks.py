@@ -126,7 +126,7 @@ class NovaCCHooksTests(CharmTestCase):
             relation_id=None,
             quantum_url='http://nova-cc-host1:9696',
             ca_cert='foocert64',
-            quantum_port=9696, 
+            quantum_port=9696,
             quantum_host='nova-cc-host1',
             quantum_security_groups='no',
             region='RegionOne',
@@ -140,10 +140,10 @@ class NovaCCHooksTests(CharmTestCase):
     def test_compute_joined_neutron_api_rel(self, auth_config, napi):
         def mock_NeutronAPIContext():
             return {
-                    'neutron_plugin': 'bob',
-                    'neutron_security_groups': 'yes',
-                    'neutron_url': 'http://nova-cc-host1:9696',
-                   }
+                'neutron_plugin': 'bob',
+                'neutron_security_groups': 'yes',
+                'neutron_url': 'http://nova-cc-host1:9696',
+            }
         napi.return_value = mock_NeutronAPIContext
         self.is_relation_made.return_value = True
         self.network_manager.return_value = 'neutron'
@@ -160,7 +160,7 @@ class NovaCCHooksTests(CharmTestCase):
             relation_id=None,
             quantum_url='http://nova-cc-host1:9696',
             ca_cert='foocert64',
-            quantum_port=9696, 
+            quantum_port=9696,
             quantum_host='nova-cc-host1',
             quantum_security_groups='yes',
             region='RegionOne',
@@ -277,6 +277,7 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'CONFIGS')
     def test_neutron_api_relation_joined(self, configs, isfile, rename):
         neutron_conf = '/etc/neutron/neutron.conf'
+        nova_url = 'http://novaurl:8774/v2'
         isfile.return_value = True
         self.service_running.return_value = True
         _identity_joined = self.patch('identity_joined')
@@ -287,7 +288,8 @@ class NovaCCHooksTests(CharmTestCase):
             self.service_stop.assert_called_with('neutron-server')
             rename.assert_called_with(neutron_conf, neutron_conf + '_unused')
             self.assertTrue(_identity_joined.called)
-            self.relation_set.assert_called_with(relation_id=None, nova_url='http://novaurl:8774/v2')
+            self.relation_set.assert_called_with(relation_id=None,
+                                                 nova_url=nova_url)
 
     @patch.object(hooks, 'CONFIGS')
     def test_neutron_api_relation_changed(self, configs):
@@ -312,4 +314,3 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(configs.write_all.called)
         self.assertTrue(_compute_joined.called)
         self.assertTrue(_quantum_joined.called)
-
