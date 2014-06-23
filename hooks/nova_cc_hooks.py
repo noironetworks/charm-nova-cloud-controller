@@ -303,7 +303,7 @@ def save_novarc():
 
 def neutron_settings():
     neutron_settings = {}
-    if is_relation_made('neutron-api', 'neutron_plugin'):
+    if is_relation_made('neutron-api', 'neutron-plugin'):
         neutron_api_info = NeutronAPIContext()
         neutron_settings.update({
             # XXX: Rename these relations settings?
