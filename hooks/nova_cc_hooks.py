@@ -303,24 +303,14 @@ def save_novarc():
 
 def neutron_settings():
     neutron_settings = {}
-    if is_relation_made('neutron-api'):
+    if is_relation_made('neutron-api', 'neutron_plugin'):
         neutron_api_info = NeutronAPIContext()
-        if 'neutron_plugin' in neutron_api_info():
-            quantum_plugin = neutron_api_info()['neutron_plugin']
-            quantum_security_groups = \
-                neutron_api_info()['neutron_security_groups']
-            quantum_url = neutron_api_info()['neutron_url']
-        else:
-            quantum_plugin = neutron_plugin()
-            quantum_security_groups = config('quantum-security-groups')
-            quantum_url = canonical_url(CONFIGS) + ':' + \
-                str(api_port('neutron-server'))
         neutron_settings.update({
             # XXX: Rename these relations settings?
-            'quantum_plugin': quantum_plugin,
+            'quantum_plugin': neutron_api_info()['neutron_plugin'],
             'region': config('region'),
-            'quantum_security_groups':  quantum_security_groups,
-            'quantum_url': quantum_url,
+            'quantum_security_groups':  neutron_api_info()['neutron_security_groups'],
+            'quantum_url': neutron_api_info()['neutron_url'],
         })
     else:
         neutron_settings.update({

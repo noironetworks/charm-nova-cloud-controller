@@ -13,6 +13,15 @@ from charmhelpers.contrib.hahelpers.cluster import (
     is_clustered
 )
 
+def context_complete(ctxt):
+    _missing = []
+    for k, v in ctxt.iteritems():
+        if v is None or v == '':
+            _missing.append(k)
+    if _missing:
+        log('Missing required data: %s' % ' '.join(_missing), level='INFO')
+        return False
+    return True
 
 class ApacheSSLContext(context.ApacheSSLContext):
 
@@ -29,12 +38,20 @@ class ApacheSSLContext(context.ApacheSSLContext):
 
 class NeutronAPIContext(context.OSContextGenerator):
     def __call__(self):
-        log('Generating template context for neutron plugin')
+        log('Generating template context from neutron api relation')
         ctxt = {}
         for rid in relation_ids('neutron-api'):
             for unit in related_units(rid):
-                ctxt = relation_get(rid=rid, unit=unit)
-        return ctxt
+                rdata = relation_get(rid=rid, unit=unit)
+                ctxt = {
+                    'neutron_url': rdata.get('neutron-url'),
+                    'neutron_plugin': rdata.get('neutron-plugin'),
+                    'neutron_security_groups': rdata.get('neutron-security-groups'),
+                    'network_manager': 'neutron',
+                }
+                if context_complete(ctxt):
+                    return ctxt
+        return {}
 
 
 class VolumeServiceContext(context.OSContextGenerator):
