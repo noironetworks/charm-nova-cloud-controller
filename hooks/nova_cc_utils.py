@@ -97,6 +97,7 @@ BASE_RESOURCE_MAP = OrderedDict([
         'contexts': [context.AMQPContext(ssl_dir=NOVA_CONF_DIR),
                      context.SharedDBContext(
                          relation_prefix='nova', ssl_dir=NOVA_CONF_DIR),
+                     nova_cc_context.NovaPostgresqlDBContext(),
                      context.ImageServiceContext(),
                      context.OSConfigFlagContext(),
                      context.SubordinateConfigContext(
@@ -200,8 +201,6 @@ def resource_map():
     else:
         resource_map[NOVA_CONF]['contexts'].append(
             nova_cc_context.NeutronCCContext())
-        resource_map[NOVA_CONF]['contexts'].append(
-            nova_cc_context.NeutronPostgresqlDBContext())
         # pop out irrelevant resources from the OrderedDict (easier than adding
         # them late)
         if net_manager != 'quantum':
@@ -691,11 +690,11 @@ def determine_endpoints(url):
     # XXX: Keep these relations named quantum_*??
     if is_relation_made('neutron-api'):
         endpoints.update({
-            'quantum_service': '',
-            'quantum_region': '',
-            'quantum_public_url': '',
-            'quantum_admin_url': '',
-            'quantum_internal_url': '',
+            'quantum_service': None,
+            'quantum_region': None,
+            'quantum_public_url': None,
+            'quantum_admin_url': None,
+            'quantum_internal_url': None,
         })
     elif network_manager() in ['quantum', 'neutron']:
         endpoints.update({
