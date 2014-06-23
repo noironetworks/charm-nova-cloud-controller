@@ -309,7 +309,8 @@ def neutron_settings():
             # XXX: Rename these relations settings?
             'quantum_plugin': neutron_api_info()['neutron_plugin'],
             'region': config('region'),
-            'quantum_security_groups':  neutron_api_info()['neutron_security_groups'],
+            'quantum_security_groups':
+            neutron_api_info()['neutron_security_groups'],
             'quantum_url': neutron_api_info()['neutron_url'],
         })
     else:
