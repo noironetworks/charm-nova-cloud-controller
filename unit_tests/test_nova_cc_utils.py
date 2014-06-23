@@ -478,11 +478,11 @@ class NovaCCUtilsTests(CharmTestCase):
         self.network_manager.return_value = 'quantum'
         endpoints = deepcopy(BASE_ENDPOINTS)
         endpoints.update({
-            'quantum_admin_url': '',
-            'quantum_internal_url': '',
-            'quantum_public_url': '',
-            'quantum_region': '',
-            'quantum_service': ''})
+            'quantum_admin_url': None,
+            'quantum_internal_url': None,
+            'quantum_public_url': None,
+            'quantum_region': None,
+            'quantum_service': None})
         self.assertEquals(
             endpoints, utils.determine_endpoints('http://foohost.com'))
 

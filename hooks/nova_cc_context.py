@@ -13,6 +13,7 @@ from charmhelpers.contrib.hahelpers.cluster import (
     is_clustered
 )
 
+
 def context_complete(ctxt):
     _missing = []
     for k, v in ctxt.iteritems():
@@ -22,6 +23,7 @@ def context_complete(ctxt):
         log('Missing required data: %s' % ' '.join(_missing), level='INFO')
         return False
     return True
+
 
 class ApacheSSLContext(context.ApacheSSLContext):
 
@@ -46,7 +48,8 @@ class NeutronAPIContext(context.OSContextGenerator):
                 ctxt = {
                     'neutron_url': rdata.get('neutron-url'),
                     'neutron_plugin': rdata.get('neutron-plugin'),
-                    'neutron_security_groups': rdata.get('neutron-security-groups'),
+                    'neutron_security_groups':
+                    rdata.get('neutron-security-groups'),
                     'network_manager': 'neutron',
                 }
                 if context_complete(ctxt):
