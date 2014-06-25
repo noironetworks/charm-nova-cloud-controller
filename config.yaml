@@ -165,3 +165,20 @@ options:
     description: |
       This is uuid of the default NVP/NSX L3 Gateway Service.
   # end of NVP/NSX configuration
+  # Network configuration options
+  # by default all access is over 'private-address'
+  os-internal-network:
+    type: string
+    description: |
+      The IP address and netmask of the OpenStack Internal network (e.g.,
+      192.168.0.0/24)
+      .
+      This network will be used for admin and internal endpoints.
+  os-public-network:
+    type: string
+    description: |
+      The IP address and netmask of the OpenStack Public network (e.g.,
+      192.168.0.0/24)
+      .
+      This network will be used for public endpoints.
+
