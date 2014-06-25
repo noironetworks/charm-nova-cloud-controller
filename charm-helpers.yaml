@@ -7,5 +7,6 @@ include:
     - contrib.storage
     - contrib.hahelpers:
         - apache
+        - cluster
     - payload.execd
     - contrib.network.ip
