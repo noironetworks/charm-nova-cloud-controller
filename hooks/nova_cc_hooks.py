@@ -80,6 +80,7 @@ from charmhelpers.contrib.hahelpers.cluster import (
 )
 
 from charmhelpers.payload.execd import execd_preinstall
+from charmhelpers.contrib.network.ip import get_address_in_network
 
 hooks = Hooks()
 CONFIGS = register_configs()
@@ -110,6 +111,8 @@ def config_changed():
     save_script_rc()
     configure_https()
     CONFIGS.write_all()
+    for r_id in relation_ids('identity-service'):
+        identity_joined(rid=r_id)    
 
 
 @hooks.hook('amqp-relation-joined')
@@ -230,8 +233,14 @@ def image_service_changed():
 def identity_joined(rid=None):
     if not eligible_leader(CLUSTER_RES):
         return
-    base_url = canonical_url(CONFIGS)
-    relation_set(relation_id=rid, **determine_endpoints(base_url))
+    public_url = canonical_url(CONFIGS,
+                               address=get_address_in_network(config('os-public-network'),
+                                                              unit_get('public-address')))
+    internal_url = canonical_url(CONFIGS,
+                                 address=get_address_in_network(config('os-internal-network'),
+                                                                unit_get('private-address')))
+    relation_set(relation_id=rid, **determine_endpoints(public_url,
+                                                        internal_url))
 
 
 @hooks.hook('identity-service-relation-changed')
@@ -319,8 +328,10 @@ def neutron_settings():
             'quantum_plugin': neutron_plugin(),
             'region': config('region'),
             'quantum_security_groups': config('quantum-security-groups'),
-            'quantum_url': (canonical_url(CONFIGS) + ':' +
-                            str(api_port('neutron-server'))),
+            'quantum_url': "{}:{}".format(canonical_url(CONFIGS,
+                                                        get_address_in_network(config('os-internal-network'),
+                                                                               unit_get('private-address'))),
+                                          str(api_port('neutron-server'))),
         })
     neutron_url = urlparse(neutron_settings['quantum_url'])
     neutron_settings['quantum_host'] = neutron_url.hostname
@@ -495,8 +506,10 @@ def nova_vmware_relation_joined(rid=None):
         rel_settings.update({
             'quantum_plugin': neutron_plugin(),
             'quantum_security_groups': config('quantum-security-groups'),
-            'quantum_url': (canonical_url(CONFIGS) + ':' +
-                            str(api_port('neutron-server')))})
+            'quantum_url': "{}:{}".format(canonical_url(CONFIGS,
+                                                        get_address_in_network(config('os-internal-network'),
+                                                                               unit_get('private-address'))),
+                                          str(api_port('neutron-server')))})
 
     relation_set(relation_id=rid, **rel_settings)
 

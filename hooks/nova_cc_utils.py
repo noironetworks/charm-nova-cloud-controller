@@ -643,50 +643,63 @@ def ssh_compute_remove(public_key, user=None):
         _keys.write(keys)
 
 
-def determine_endpoints(url):
+def determine_endpoints(public_url, internal_url):
     '''Generates a dictionary containing all relevant endpoints to be
     passed to keystone as relation settings.'''
     region = config('region')
     os_rel = os_release('nova-common')
 
     if os_rel >= 'grizzly':
-        nova_url = ('%s:%s/v2/$(tenant_id)s' %
-                    (url, api_port('nova-api-os-compute')))
+        nova_public_url = ('%s:%s/v2/$(tenant_id)s' %
+                           (public_url, api_port('nova-api-os-compute')))
+        nova_internal_url = ('%s:%s/v2/$(tenant_id)s' %
+                             (internal_url, api_port('nova-api-os-compute')))
     else:
-        nova_url = ('%s:%s/v1.1/$(tenant_id)s' %
-                    (url, api_port('nova-api-os-compute')))
-    ec2_url = '%s:%s/services/Cloud' % (url, api_port('nova-api-ec2'))
-    nova_volume_url = ('%s:%s/v1/$(tenant_id)s' %
-                       (url, api_port('nova-api-os-compute')))
-    neutron_url = '%s:%s' % (url, api_port('neutron-server'))
-    s3_url = '%s:%s' % (url, api_port('nova-objectstore'))
+        nova_public_url = ('%s:%s/v1.1/$(tenant_id)s' %
+                           (public_url, api_port('nova-api-os-compute')))
+        nova_internal_url = ('%s:%s/v1.1/$(tenant_id)s' %
+                             (internal_url, api_port('nova-api-os-compute')))
+        
+    ec2_public_url = '%s:%s/services/Cloud' % (public_url, api_port('nova-api-ec2'))
+    ec2_internal_url = '%s:%s/services/Cloud' % (internal_url, api_port('nova-api-ec2'))
+    
+    nova_volume_public_url = ('%s:%s/v1/$(tenant_id)s' %
+                              (public_url, api_port('nova-api-os-compute')))
+    nova_volume_internal_url = ('%s:%s/v1/$(tenant_id)s' %
+                                (internal_url, api_port('nova-api-os-compute')))
+
+    neutron_public_url = '%s:%s' % (public_url, api_port('neutron-server'))
+    neutron_internal_url = '%s:%s' % (internal_url, api_port('neutron-server'))
+    
+    s3_public_url = '%s:%s' % (public_url, api_port('nova-objectstore'))
+    s3_internal_url = '%s:%s' % (internal_url, api_port('nova-objectstore'))
 
     # the base endpoints
     endpoints = {
         'nova_service': 'nova',
         'nova_region': region,
-        'nova_public_url': nova_url,
-        'nova_admin_url': nova_url,
-        'nova_internal_url': nova_url,
+        'nova_public_url': nova_public_url,
+        'nova_admin_url': nova_internal_url,
+        'nova_internal_url': nova_internal_url,
         'ec2_service': 'ec2',
         'ec2_region': region,
-        'ec2_public_url': ec2_url,
-        'ec2_admin_url': ec2_url,
-        'ec2_internal_url': ec2_url,
+        'ec2_public_url': ec2_public_url,
+        'ec2_admin_url': ec2_internal_url,
+        'ec2_internal_url': ec2_internal_url,
         's3_service': 's3',
         's3_region': region,
-        's3_public_url': s3_url,
-        's3_admin_url': s3_url,
-        's3_internal_url': s3_url,
+        's3_public_url': s3_public_url,
+        's3_admin_url': s3_internal_url,
+        's3_internal_url': s3_internal_url,
     }
 
     if relation_ids('nova-volume-service'):
         endpoints.update({
             'nova-volume_service': 'nova-volume',
             'nova-volume_region': region,
-            'nova-volume_public_url': nova_volume_url,
-            'nova-volume_admin_url': nova_volume_url,
-            'nova-volume_internal_url': nova_volume_url,
+            'nova-volume_public_url': nova_volume_public_url,
+            'nova-volume_admin_url': nova_volume_internal_url,
+            'nova-volume_internal_url': nova_volume_internal_url,
         })
 
     # XXX: Keep these relations named quantum_*??
@@ -702,9 +715,9 @@ def determine_endpoints(url):
         endpoints.update({
             'quantum_service': 'quantum',
             'quantum_region': region,
-            'quantum_public_url': neutron_url,
-            'quantum_admin_url': neutron_url,
-            'quantum_internal_url': neutron_url,
+            'quantum_public_url': neutron_public_url,
+            'quantum_admin_url': neutron_internal_url,
+            'quantum_internal_url': neutron_internal_url,
         })
 
     return endpoints
