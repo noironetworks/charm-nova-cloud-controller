@@ -239,8 +239,12 @@ def identity_joined(rid=None):
     internal_url = canonical_url(CONFIGS,
                                  address=get_address_in_network(config('os-internal-network'),
                                                                 unit_get('private-address')))
+    admin_url = canonical_url(CONFIGS,
+                              address=get_address_in_network(config('os-admin-network'),
+                                                             unit_get('private-address')))
     relation_set(relation_id=rid, **determine_endpoints(public_url,
-                                                        internal_url))
+                                                        internal_url,
+                                                        admin_url))
 
 
 @hooks.hook('identity-service-relation-changed')
