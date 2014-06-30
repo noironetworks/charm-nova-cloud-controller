@@ -252,6 +252,7 @@ def identity_changed():
     [compute_joined(rid) for rid in relation_ids('cloud-compute')]
     [quantum_joined(rid) for rid in relation_ids('quantum-network-service')]
     [nova_vmware_relation_joined(rid) for rid in relation_ids('nova-vmware')]
+    [neutron_api_relation_joined(rid) for rid in relation_ids('neutron-api')]
     configure_https()
 
 
