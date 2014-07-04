@@ -73,14 +73,17 @@ from nova_cc_utils import (
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
-    canonical_url,
     eligible_leader,
     get_hacluster_config,
     is_leader,
 )
 
 from charmhelpers.payload.execd import execd_preinstall
-from charmhelpers.contrib.network.ip import get_address_in_network
+
+from charmhelpers.contrib.openstack.ip import (
+    canonical_url,
+    PUBLIC, INTERNAL, ADMIN
+)
 
 hooks = Hooks()
 CONFIGS = register_configs()
@@ -233,15 +236,9 @@ def image_service_changed():
 def identity_joined(rid=None):
     if not eligible_leader(CLUSTER_RES):
         return
-    public_url = canonical_url(CONFIGS,
-                               address=get_address_in_network(config('os-public-network'),
-                                                              unit_get('public-address')))
-    internal_url = canonical_url(CONFIGS,
-                                 address=get_address_in_network(config('os-internal-network'),
-                                                                unit_get('private-address')))
-    admin_url = canonical_url(CONFIGS,
-                              address=get_address_in_network(config('os-admin-network'),
-                                                             unit_get('private-address')))
+    public_url = canonical_url(CONFIGS, PUBLIC)
+    internal_url = canonical_url(CONFIGS, INTERNAL)
+    admin_url = canonical_url(CONFIGS, ADMIN)
     relation_set(relation_id=rid, **determine_endpoints(public_url,
                                                         internal_url,
                                                         admin_url))
@@ -332,9 +329,7 @@ def neutron_settings():
             'quantum_plugin': neutron_plugin(),
             'region': config('region'),
             'quantum_security_groups': config('quantum-security-groups'),
-            'quantum_url': "{}:{}".format(canonical_url(CONFIGS,
-                                                        get_address_in_network(config('os-internal-network'),
-                                                                               unit_get('private-address'))),
+            'quantum_url': "{}:{}".format(canonical_url(CONFIGS, INTERNAL),
                                           str(api_port('neutron-server'))),
         })
     neutron_url = urlparse(neutron_settings['quantum_url'])
@@ -510,9 +505,7 @@ def nova_vmware_relation_joined(rid=None):
         rel_settings.update({
             'quantum_plugin': neutron_plugin(),
             'quantum_security_groups': config('quantum-security-groups'),
-            'quantum_url': "{}:{}".format(canonical_url(CONFIGS,
-                                                        get_address_in_network(config('os-internal-network'),
-                                                                               unit_get('private-address'))),
+            'quantum_url': "{}:{}".format(canonical_url(CONFIGS, INTERNAL),
                                           str(api_port('neutron-server')))})
 
     relation_set(relation_id=rid, **rel_settings)
@@ -542,7 +535,7 @@ def neutron_api_relation_joined(rid=None):
         service_stop('neutron-server')
     for id_rid in relation_ids('identity-service'):
         identity_joined(rid=id_rid)
-    nova_url = canonical_url(CONFIGS) + ":8774/v2"
+    nova_url = canonical_url(CONFIGS, INTERNAL) + ":8774/v2"
     relation_set(relation_id=rid, nova_url=nova_url)
 
 
