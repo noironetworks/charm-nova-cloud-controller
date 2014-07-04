@@ -441,6 +441,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.relation_ids.return_value = []
         self.assertEquals(
             BASE_ENDPOINTS, utils.determine_endpoints('http://foohost.com',
+                                                      'http://foohost.com',
                                                       'http://foohost.com'))
 
     def test_determine_endpoints_nova_volume(self):
@@ -458,6 +459,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'nova-volume_service': 'nova-volume'})
         self.assertEquals(
             endpoints, utils.determine_endpoints('http://foohost.com',
+                                                 'http://foohost.com',
                                                  'http://foohost.com'))
 
     def test_determine_endpoints_quantum_neutron(self):
@@ -473,6 +475,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'quantum_service': 'quantum'})
         self.assertEquals(
             endpoints, utils.determine_endpoints('http://foohost.com',
+                                                 'http://foohost.com',
                                                  'http://foohost.com'))
 
     def test_determine_endpoints_neutron_api_rel(self):
@@ -488,6 +491,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'quantum_service': None})
         self.assertEquals(
             endpoints, utils.determine_endpoints('http://foohost.com',
+                                                 'http://foohost.com',
                                                  'http://foohost.com'))
 
     @patch.object(utils, 'known_hosts')

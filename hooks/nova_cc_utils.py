@@ -42,7 +42,6 @@ from charmhelpers.core.host import (
     service_start,
 )
 
-
 import nova_cc_context
 
 TEMPLATES = 'templates/'
