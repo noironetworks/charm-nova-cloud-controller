@@ -111,6 +111,8 @@ def config_changed():
     save_script_rc()
     configure_https()
     CONFIGS.write_all()
+    [compute_joined(rid=rid)
+      for rid in relation_ids('cloud-compute')]
 
 
 @hooks.hook('amqp-relation-joined')
@@ -354,7 +356,7 @@ def console_settings():
     else:
         proxy_ip = canonical_url(CONFIGS)
     rel_settings['console_proxy_address'] = \
-        "%s:%s" % (proxy_ip, console_attributes('proxy-port'))
+        "%s:%s/spice_auto.html" % (proxy_ip, console_attributes('proxy-port'))
     return rel_settings
 
 
