@@ -36,6 +36,7 @@ from charmhelpers.fetch import (
 from charmhelpers.contrib.openstack.utils import (
     configure_installation_source,
     openstack_upgrade_available,
+    console_attributes,
 )
 
 from charmhelpers.contrib.openstack.neutron import (
@@ -343,6 +344,20 @@ def keystone_compute_settings():
     return rel_settings
 
 
+def console_settings():
+    rel_settings = {}
+    if not console_attributes('proto'):
+        return {}
+    rel_settings['console_access_protocol'] = console_attributes('proto')
+    if len(config('console-proxy-ip')) > 0:
+        proxy_ip = "http://" + config('console-proxy-ip')
+    else:
+        proxy_ip = canonical_url(CONFIGS)
+    rel_settings['console_proxy_address'] = \
+        "%s:%s" % (proxy_ip, console_attributes('proxy-port'))
+    return rel_settings
+
+
 @hooks.hook('cloud-compute-relation-joined')
 def compute_joined(rid=None, remote_restart=False):
     if not eligible_leader(CLUSTER_RES):
@@ -360,6 +375,7 @@ def compute_joined(rid=None, remote_restart=False):
         rel_settings['restart_trigger'] = str(uuid.uuid4())
 
     rel_settings.update(keystone_compute_settings())
+    rel_settings.update(console_settings())
     relation_set(relation_id=rid, **rel_settings)
 
 

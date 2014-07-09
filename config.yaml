@@ -165,3 +165,15 @@ options:
     description: |
       This is uuid of the default NVP/NSX L3 Gateway Service.
   # end of NVP/NSX configuration
+  console-access-protocol:
+    type: string
+    default: None
+    description: |
+       Protocol to use when accessing virtual machine console. Supported types
+       are None, spice and vnc
+  console-proxy-ip:
+    type: string
+    default: ''
+    description: |
+       If console-access-protocol != None then this is the ip published to
+       clients for access to console proxy
