@@ -36,7 +36,6 @@ from charmhelpers.fetch import (
 from charmhelpers.contrib.openstack.utils import (
     configure_installation_source,
     openstack_upgrade_available,
-    console_attributes,
 )
 
 from charmhelpers.contrib.openstack.neutron import (
@@ -70,7 +69,8 @@ from nova_cc_utils import (
     NOVA_CONF,
     QUANTUM_CONF,
     NEUTRON_CONF,
-    QUANTUM_API_PASTE
+    QUANTUM_API_PASTE,
+    console_attributes,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
