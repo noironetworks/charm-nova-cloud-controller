@@ -170,7 +170,7 @@ options:
     default: None
     description: |
        Protocol to use when accessing virtual machine console. Supported types
-       are None, spice and vnc
+       are None, spice and novnc
   console-proxy-ip:
     type: string
     default: ''
