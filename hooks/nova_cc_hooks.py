@@ -356,7 +356,8 @@ def console_settings():
     else:
         proxy_ip = canonical_url(CONFIGS)
     rel_settings['console_proxy_address'] = \
-        "%s:%s/spice_auto.html" % (proxy_ip, console_attributes('proxy-port'))
+        "%s:%s/%s" % (proxy_ip, console_attributes('proxy-port'),
+            console_attributes('proxy-page'))
     return rel_settings
 
 
