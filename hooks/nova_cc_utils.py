@@ -172,6 +172,14 @@ CA_CERT_PATH = '/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt'
 
 NOVA_SSH_DIR = '/etc/nova/compute_ssh/'
 
+CONSOLE_CONFIG = {
+    'spice': {
+        'packages': ['nova-spiceproxy', 'nova-consoleauth'],
+        'services': ['nova-spiceproxy', 'nova-consoleauth'],
+        'proxy-port': 6082,
+    }
+}
+
 
 def resource_map():
     '''
@@ -234,6 +242,10 @@ def resource_map():
     if os_release('nova-common') not in ['essex', 'folsom']:
         resource_map['/etc/nova/nova.conf']['services'] += ['nova-conductor']
 
+    if config('console-access-protocol'):
+        resource_map['/etc/nova/nova.conf']['services'] += \
+            console_attributes('services')
+
     # also manage any configs that are being updated by subordinates.
     vmware_ctxt = context.SubordinateConfigContext(interface='nova-vmware',
                                                    service='nova',
@@ -286,6 +298,22 @@ def api_port(service):
     return API_PORTS[service]
 
 
+def console_attributes_protocol():
+    if config('console-access-protocol').lower() == "none":
+        return None
+    else:
+        return config('console-access-protocol')
+
+
+def console_attributes(attr):
+    console_proto = console_attributes_protocol()
+    if attr == 'protocol':
+        return console_proto
+    if console_proto in CONSOLE_CONFIG:
+        return CONSOLE_CONFIG[console_proto][attr]
+    return None
+
+
 def determine_packages():
     # currently all packages match service names
     packages = [] + BASE_PACKAGES
@@ -295,6 +323,7 @@ def determine_packages():
         pkgs = neutron_plugin_attribute(neutron_plugin(), 'server_packages',
                                         network_manager())
         packages.extend(pkgs)
+    packages.extend(console_attributes('packages'))
     return list(set(packages))
 
 
