@@ -346,9 +346,9 @@ def keystone_compute_settings():
 
 def console_settings():
     rel_settings = {}
-    if not console_attributes('proto'):
+    if not console_attributes('protocol'):
         return {}
-    rel_settings['console_access_protocol'] = console_attributes('proto')
+    rel_settings['console_access_protocol'] = console_attributes('protocol')
     if len(config('console-proxy-ip')) > 0:
         proxy_ip = "http://" + config('console-proxy-ip')
     else:
