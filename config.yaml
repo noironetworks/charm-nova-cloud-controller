@@ -170,10 +170,15 @@ options:
     default: None
     description: |
        Protocol to use when accessing virtual machine console. Supported types
-       are None, spice and novnc
+       are None, spice xvpvnc, novnc and vnc (for both xvpvnc and novnc)
   console-proxy-ip:
     type: string
     default: ''
     description: |
        If console-access-protocol != None then this is the ip published to
        clients for access to console proxy
+  console-keymap:
+    type: string
+    default: 'en-us'
+    description: |
+       Console keymap

@@ -112,7 +112,7 @@ def config_changed():
     configure_https()
     CONFIGS.write_all()
     [compute_joined(rid=rid)
-      for rid in relation_ids('cloud-compute')]
+        for rid in relation_ids('cloud-compute')]
 
 
 @hooks.hook('amqp-relation-joined')
@@ -348,16 +348,29 @@ def keystone_compute_settings():
 
 def console_settings():
     rel_settings = {}
-    if not console_attributes('protocol'):
+    proto = console_attributes('protocol')
+    if not proto:
         return {}
-    rel_settings['console_access_protocol'] = console_attributes('protocol')
+    rel_settings['console_keymap'] = config('console-keymap')
+    rel_settings['console_access_protocol'] = proto
     if len(config('console-proxy-ip')) > 0:
         proxy_ip = "http://" + config('console-proxy-ip')
     else:
         proxy_ip = canonical_url(CONFIGS)
-    rel_settings['console_proxy_address'] = \
-        "%s:%s/%s" % (proxy_ip, console_attributes('proxy-port'),
-            console_attributes('proxy-page'))
+    if proto == 'vnc':
+        protocols = ['novnc', 'xvpvnc']
+    else:
+        protocols = [proto]
+    for _proto in protocols:
+        rel_settings['console_proxy_%s_address' % (_proto)] = \
+            "%s:%s/%s" % (proxy_ip,
+                          console_attributes('proxy-port', proto=_proto),
+                          console_attributes('proxy-page', proto=_proto))
+        rel_settings['console_proxy_%s_host' % (_proto)] = \
+            "%s:%s/%s" % (proxy_ip)
+        rel_settings['console_proxy_%s_port' % (_proto)] = \
+            "%s:%s/%s" % (console_attributes('proxy-port', proto=_proto))
+
     return rel_settings
 
 

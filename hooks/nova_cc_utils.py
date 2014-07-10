@@ -184,7 +184,13 @@ CONSOLE_CONFIG = {
         'services': ['nova-novncproxy', 'nova-consoleauth'],
         'proxy-page': '/vnc_auto.html',
         'proxy-port': 6080,
-    }
+    },
+    'xvpvnc': {
+        'packages': ['nova-xvpvncproxy', 'nova-consoleauth'],
+        'services': ['nova-xvpvncproxy', 'nova-consoleauth'],
+        'proxy-page': '/console',
+        'proxy-port': 6081,
+    },
 }
 
 
@@ -312,10 +318,22 @@ def console_attributes_protocol():
         return config('console-access-protocol')
 
 
-def console_attributes(attr):
-    console_proto = console_attributes_protocol()
+def console_attributes(attr, proto=None):
+    '''Leave proto unset to query attributes of the protocal specified at
+    runtime'''
+    if proto:
+        console_proto = proto
+    else:
+        console_proto = console_attributes_protocol()
     if attr == 'protocol':
         return console_proto
+    # 'vnc' is a virtual type made up of novnc and xvpvnc
+    if console_proto == 'vnc':
+        if attr in ['packages', 'services']:
+            return list(set(CONSOLE_CONFIG['novnc'][attr] +
+                        CONSOLE_CONFIG['xvpvnc'][attr]))
+        else:
+            return None
     if console_proto in CONSOLE_CONFIG:
         return CONSOLE_CONFIG[console_proto][attr]
     return None
