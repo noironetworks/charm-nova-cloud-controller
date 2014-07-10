@@ -255,7 +255,7 @@ def resource_map():
     if os_release('nova-common') not in ['essex', 'folsom']:
         resource_map['/etc/nova/nova.conf']['services'] += ['nova-conductor']
 
-    if config('console-access-protocol'):
+    if console_attributes('services'):
         resource_map['/etc/nova/nova.conf']['services'] += \
             console_attributes('services')
 
@@ -348,7 +348,8 @@ def determine_packages():
         pkgs = neutron_plugin_attribute(neutron_plugin(), 'server_packages',
                                         network_manager())
         packages.extend(pkgs)
-    packages.extend(console_attributes('packages'))
+    if console_attributes('packages'):
+        packages.extend(console_attributes('packages'))
     return list(set(packages))
 
 
