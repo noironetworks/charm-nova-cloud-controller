@@ -367,8 +367,8 @@ def console_settings():
     for _proto in protocols:
         rel_settings['console_proxy_%s_address' % (_proto)] = \
             "%s:%s%s" % (proxy_base_addr,
-                          console_attributes('proxy-port', proto=_proto),
-                          console_attributes('proxy-page', proto=_proto))
+                         console_attributes('proxy-port', proto=_proto),
+                         console_attributes('proxy-page', proto=_proto))
         rel_settings['console_proxy_%s_host' % (_proto)] = \
             urlparse(proxy_base_addr).hostname
         rel_settings['console_proxy_%s_port' % (_proto)] = \

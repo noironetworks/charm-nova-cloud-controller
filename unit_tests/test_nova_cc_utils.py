@@ -212,6 +212,43 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertIn('nova-api-os-volume',
                       _map['/etc/nova/nova.conf']['services'])
 
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_console_xvpvnc(self, subcontext):
+        self.test_config.set('console-access-protocol', 'xvpvnc')
+        self.relation_ids.return_value = []
+        _map = utils.resource_map()
+        console_services = ['nova-xvpvncproxy', 'nova-consoleauth']
+        for service in console_services:
+            self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
+
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_console_novnc(self, subcontext):
+        self.test_config.set('console-access-protocol', 'novnc')
+        self.relation_ids.return_value = []
+        _map = utils.resource_map()
+        console_services = ['nova-novncproxy', 'nova-consoleauth']
+        for service in console_services:
+            self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
+
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_console_vnc(self, subcontext):
+        self.test_config.set('console-access-protocol', 'vnc')
+        self.relation_ids.return_value = []
+        _map = utils.resource_map()
+        console_services = ['nova-novncproxy', 'nova-xvpvncproxy',
+                            'nova-consoleauth']
+        for service in console_services:
+            self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
+
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_console_spice(self, subcontext):
+        self.test_config.set('console-access-protocol', 'spice')
+        self.relation_ids.return_value = []
+        _map = utils.resource_map()
+        console_services = ['nova-spiceproxy', 'nova-consoleauth']
+        for service in console_services:
+            self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
+
     @patch('os.path.exists')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_restart_map_api_before_frontends(self, subcontext, _exists):
@@ -233,6 +270,28 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertTrue('/etc/apache2/sites-available/'
                         'openstack_https_frontend' not in _map)
 
+    def test_console_attributes_none(self):
+        self.test_config.set('console-access-protocol', 'none')
+        _proto = utils.console_attributes('protocol')
+        self.assertEquals(_proto, None)
+
+    def test_console_attributes_spice(self):
+        _proto = utils.console_attributes('protocol', proto='spice')
+        self.assertEquals(_proto, 'spice')
+
+    def test_console_attributes_vnc(self):
+        self.test_config.set('console-access-protocol', 'vnc')
+        _proto = utils.console_attributes('protocol')
+        _servs = utils.console_attributes('services')
+        _pkgs = utils.console_attributes('packages')
+        _proxy_page = utils.console_attributes('proxy-page')
+        vnc_pkgs = ['nova-novncproxy', 'nova-xvpvncproxy', 'nova-consoleauth']
+        vnc_servs = ['nova-novncproxy', 'nova-xvpvncproxy', 'nova-consoleauth']
+        self.assertEquals(_proto, 'vnc')
+        self.assertEquals(_servs, vnc_servs)
+        self.assertEquals(_pkgs, vnc_pkgs)
+        self.assertEquals(_proxy_page, None)
+
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_determine_packages_quantum(self, subcontext):
         self._resource_map(network_manager='quantum')
@@ -251,6 +310,15 @@ class NovaCCUtilsTests(CharmTestCase):
         self.relation_ids.return_value = ['nova-volume-service:0']
         pkgs = utils.determine_packages()
         self.assertIn('nova-api-os-volume', pkgs)
+
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_determine_packages_console(self, subcontext):
+        self.test_config.set('console-access-protocol', 'spice')
+        self.relation_ids.return_value = []
+        pkgs = utils.determine_packages()
+        console_pkgs = ['nova-spiceproxy', 'nova-consoleauth']
+        for console_pkg in console_pkgs:
+            self.assertIn(console_pkg, pkgs)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_determine_packages_base(self, subcontext):
