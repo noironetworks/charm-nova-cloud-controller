@@ -366,10 +366,9 @@ def console_settings():
             "%s:%s/%s" % (proxy_ip,
                           console_attributes('proxy-port', proto=_proto),
                           console_attributes('proxy-page', proto=_proto))
-        rel_settings['console_proxy_%s_host' % (_proto)] = \
-            "%s:%s/%s" % (proxy_ip)
+        rel_settings['console_proxy_%s_host' % (_proto)] = proxy_ip
         rel_settings['console_proxy_%s_port' % (_proto)] = \
-            "%s:%s/%s" % (console_attributes('proxy-port', proto=_proto))
+            console_attributes('proxy-port', proto=_proto)
 
     return rel_settings
 
