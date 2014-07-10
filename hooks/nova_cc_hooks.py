@@ -111,8 +111,11 @@ def config_changed():
     save_script_rc()
     configure_https()
     CONFIGS.write_all()
-    [compute_joined(rid=rid)
-        for rid in relation_ids('cloud-compute')]
+    if console_attributes('protocol'):
+        apt_update()
+        apt_install(console_attributes('packages'), fatal=True)
+        [compute_joined(rid=rid)
+            for rid in relation_ids('cloud-compute')]
 
 
 @hooks.hook('amqp-relation-joined')
@@ -354,19 +357,20 @@ def console_settings():
     rel_settings['console_keymap'] = config('console-keymap')
     rel_settings['console_access_protocol'] = proto
     if len(config('console-proxy-ip')) > 0:
-        proxy_ip = "http://" + config('console-proxy-ip')
+        proxy_base_addr = "http://" + config('console-proxy-ip')
     else:
-        proxy_ip = canonical_url(CONFIGS)
+        proxy_base_addr = canonical_url(CONFIGS)
     if proto == 'vnc':
         protocols = ['novnc', 'xvpvnc']
     else:
         protocols = [proto]
     for _proto in protocols:
         rel_settings['console_proxy_%s_address' % (_proto)] = \
-            "%s:%s/%s" % (proxy_ip,
+            "%s:%s/%s" % (proxy_base_addr,
                           console_attributes('proxy-port', proto=_proto),
                           console_attributes('proxy-page', proto=_proto))
-        rel_settings['console_proxy_%s_host' % (_proto)] = proxy_ip
+        rel_settings['console_proxy_%s_host' % (_proto)] = \
+            urlparse(proxy_base_addr).hostname
         rel_settings['console_proxy_%s_port' % (_proto)] = \
             console_attributes('proxy-port', proto=_proto)
 
