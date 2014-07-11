@@ -104,10 +104,7 @@ BASE_RESOURCE_MAP = OrderedDict([
                          interface='nova-vmware',
                          service='nova',
                          config_file=NOVA_CONF),
-                     context.SubordinateConfigContext(
-                         interface='cell',
-                         service='nova',
-                         config_file=NOVA_CONF),
+                     nova_cc_context.NovaCellContext(),
                      context.SyslogContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
