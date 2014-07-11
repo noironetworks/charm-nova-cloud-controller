@@ -1,6 +1,6 @@
-from mock import call, MagicMock, patch
-from test_utils import CharmTestCase
-
+from mock import MagicMock, patch
+from test_utils import CharmTestCase, patch_open
+import os
 with patch('charmhelpers.core.hookenv.config') as config:
     config.return_value = 'neutron'
     import nova_cc_utils as utils
@@ -38,6 +38,8 @@ TO_PATCH = [
     'ssh_known_hosts_b64',
     'ssh_authorized_keys_b64',
     'save_script_rc',
+    'service_running',
+    'service_stop',
     'execd_preinstall',
     'network_manager',
     'volume_service',
@@ -107,6 +109,7 @@ class NovaCCHooksTests(CharmTestCase):
 
     @patch.object(hooks, '_auth_config')
     def test_compute_joined_neutron(self, auth_config):
+        self.is_relation_made.return_value = False
         self.network_manager.return_value = 'neutron'
         self.eligible_leader = True
         self.keystone_ca_cert_b64.return_value = 'foocert64'
@@ -122,11 +125,47 @@ class NovaCCHooksTests(CharmTestCase):
             relation_id=None,
             quantum_url='http://nova-cc-host1:9696',
             ca_cert='foocert64',
+            quantum_port=9696,
+            quantum_host='nova-cc-host1',
             quantum_security_groups='no',
             region='RegionOne',
             volume_service='cinder',
             ec2_host='nova-cc-host1',
             quantum_plugin='nvp',
+            network_manager='neutron', **FAKE_KS_AUTH_CFG)
+
+    @patch.object(hooks, 'NeutronAPIContext')
+    @patch.object(hooks, '_auth_config')
+    def test_compute_joined_neutron_api_rel(self, auth_config, napi):
+        def mock_NeutronAPIContext():
+            return {
+                'neutron_plugin': 'bob',
+                'neutron_security_groups': 'yes',
+                'neutron_url': 'http://nova-cc-host1:9696',
+            }
+        napi.return_value = mock_NeutronAPIContext
+        self.is_relation_made.return_value = True
+        self.network_manager.return_value = 'neutron'
+        self.eligible_leader = True
+        self.keystone_ca_cert_b64.return_value = 'foocert64'
+        self.volume_service.return_value = 'cinder'
+        self.unit_get.return_value = 'nova-cc-host1'
+        self.canonical_url.return_value = 'http://nova-cc-host1'
+        self.api_port.return_value = '9696'
+        self.neutron_plugin.return_value = 'nvp'
+        auth_config.return_value = FAKE_KS_AUTH_CFG
+        hooks.compute_joined()
+        self.relation_set.assert_called_with(
+            relation_id=None,
+            quantum_url='http://nova-cc-host1:9696',
+            ca_cert='foocert64',
+            quantum_port=9696,
+            quantum_host='nova-cc-host1',
+            quantum_security_groups='yes',
+            region='RegionOne',
+            volume_service='cinder',
+            ec2_host='nova-cc-host1',
+            quantum_plugin='bob',
             network_manager='neutron', **FAKE_KS_AUTH_CFG)
 
     @patch.object(hooks, '_auth_config')
@@ -231,3 +270,46 @@ class NovaCCHooksTests(CharmTestCase):
         self._postgresql_db_test(configs)
         self.assertTrue(configs.write_all.called)
         self.migrate_database.assert_called_with()
+
+    @patch.object(os, 'rename')
+    @patch.object(os.path, 'isfile')
+    @patch.object(hooks, 'CONFIGS')
+    def test_neutron_api_relation_joined(self, configs, isfile, rename):
+        neutron_conf = '/etc/neutron/neutron.conf'
+        nova_url = 'http://novaurl:8774/v2'
+        isfile.return_value = True
+        self.service_running.return_value = True
+        _identity_joined = self.patch('identity_joined')
+        self.relation_ids.side_effect = ['relid']
+        self.canonical_url.return_value = 'http://novaurl'
+        with patch_open() as (_open, _file):
+            hooks.neutron_api_relation_joined()
+            self.service_stop.assert_called_with('neutron-server')
+            rename.assert_called_with(neutron_conf, neutron_conf + '_unused')
+            self.assertTrue(_identity_joined.called)
+            self.relation_set.assert_called_with(relation_id=None,
+                                                 nova_url=nova_url)
+
+    @patch.object(hooks, 'CONFIGS')
+    def test_neutron_api_relation_changed(self, configs):
+        self.relation_ids.return_value = ['relid']
+        _compute_joined = self.patch('compute_joined')
+        _quantum_joined = self.patch('quantum_joined')
+        hooks.neutron_api_relation_changed()
+        self.assertTrue(configs.write.called_with('/etc/nova/nova.conf'))
+        self.assertTrue(_compute_joined.called)
+        self.assertTrue(_quantum_joined.called)
+
+    @patch.object(os, 'remove')
+    @patch.object(os.path, 'isfile')
+    @patch.object(hooks, 'CONFIGS')
+    def test_neutron_api_relation_broken(self, configs, isfile, remove):
+        isfile.return_value = True
+        self.relation_ids.return_value = ['relid']
+        _compute_joined = self.patch('compute_joined')
+        _quantum_joined = self.patch('quantum_joined')
+        hooks.neutron_api_relation_broken()
+        remove.assert_called_with('/etc/init/neutron-server.override')
+        self.assertTrue(configs.write_all.called)
+        self.assertTrue(_compute_joined.called)
+        self.assertTrue(_quantum_joined.called)

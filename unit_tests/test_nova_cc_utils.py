@@ -22,6 +22,7 @@ TO_PATCH = [
     'eligible_leader',
     'enable_policy_rcd',
     'get_os_codename_install_source',
+    'is_relation_made',
     'log',
     'ml2_migration',
     'network_manager',
@@ -151,6 +152,7 @@ class NovaCCUtilsTests(CharmTestCase):
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_resource_map_quantum(self, subcontext):
+        self.is_relation_made.return_value = False
         self._resource_map(network_manager='quantum')
         _map = utils.resource_map()
         confs = [
@@ -162,12 +164,24 @@ class NovaCCUtilsTests(CharmTestCase):
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_resource_map_neutron(self, subcontext):
+        self.is_relation_made.return_value = False
         self._resource_map(network_manager='neutron')
         _map = utils.resource_map()
         confs = [
             '/etc/neutron/neutron.conf',
         ]
         [self.assertIn(q_conf, _map.keys()) for q_conf in confs]
+
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_neutron_api_rel(self, subcontext):
+        self.is_relation_made.return_value = True
+        self._resource_map(network_manager='neutron')
+        _map = utils.resource_map()
+        confs = [
+            '/etc/neutron/neutron.conf',
+        ]
+        for q_conf in confs:
+            self.assertFalse(q_conf in _map.keys())
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_resource_map_vmware(self, subcontext):
@@ -201,6 +215,7 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('os.path.exists')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_restart_map_api_before_frontends(self, subcontext, _exists):
+        self.is_relation_made.return_value = False
         _exists.return_value = False
         self._resource_map(network_manager='neutron')
         _map = utils.restart_map()
@@ -226,6 +241,7 @@ class NovaCCUtilsTests(CharmTestCase):
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_determine_packages_neutron(self, subcontext):
+        self.is_relation_made.return_value = False
         self._resource_map(network_manager='neutron')
         pkgs = utils.determine_packages()
         self.assertIn('neutron-server', pkgs)
@@ -421,11 +437,13 @@ class NovaCCUtilsTests(CharmTestCase):
         self.os_release.return_value = 'folsom'
 
     def test_determine_endpoints_base(self):
+        self.is_relation_made.return_value = False
         self.relation_ids.return_value = []
         self.assertEquals(
             BASE_ENDPOINTS, utils.determine_endpoints('http://foohost.com'))
 
     def test_determine_endpoints_nova_volume(self):
+        self.is_relation_made.return_value = False
         self.relation_ids.return_value = ['nova-volume-service/0']
         endpoints = deepcopy(BASE_ENDPOINTS)
         endpoints.update({
@@ -441,6 +459,7 @@ class NovaCCUtilsTests(CharmTestCase):
             endpoints, utils.determine_endpoints('http://foohost.com'))
 
     def test_determine_endpoints_quantum_neutron(self):
+        self.is_relation_made.return_value = False
         self.relation_ids.return_value = []
         self.network_manager.return_value = 'quantum'
         endpoints = deepcopy(BASE_ENDPOINTS)
@@ -450,6 +469,20 @@ class NovaCCUtilsTests(CharmTestCase):
             'quantum_public_url': 'http://foohost.com:9696',
             'quantum_region': 'RegionOne',
             'quantum_service': 'quantum'})
+        self.assertEquals(
+            endpoints, utils.determine_endpoints('http://foohost.com'))
+
+    def test_determine_endpoints_neutron_api_rel(self):
+        self.is_relation_made.return_value = True
+        self.relation_ids.return_value = []
+        self.network_manager.return_value = 'quantum'
+        endpoints = deepcopy(BASE_ENDPOINTS)
+        endpoints.update({
+            'quantum_admin_url': None,
+            'quantum_internal_url': None,
+            'quantum_public_url': None,
+            'quantum_region': None,
+            'quantum_service': None})
         self.assertEquals(
             endpoints, utils.determine_endpoints('http://foohost.com'))
 
@@ -498,7 +531,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.eligible_leader.return_value = True
         utils.do_openstack_upgrade()
         expected = [call(['stamp', 'grizzly']), call(['upgrade', 'head']),
-                    call(['upgrade', 'head'])]
+                    call(['stamp', 'havana']), call(['upgrade', 'head'])]
         self.assertEquals(self.neutron_db_manage.call_args_list, expected)
         self.apt_update.assert_called_with(fatal=True)
         self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
