@@ -39,7 +39,7 @@ from charmhelpers.core.hookenv import (
 )
 
 from charmhelpers.core.host import (
-    service_start
+    service_start,
 )
 
 
@@ -97,23 +97,21 @@ BASE_RESOURCE_MAP = OrderedDict([
         'contexts': [context.AMQPContext(ssl_dir=NOVA_CONF_DIR),
                      context.SharedDBContext(
                          relation_prefix='nova', ssl_dir=NOVA_CONF_DIR),
+                     nova_cc_context.NovaPostgresqlDBContext(),
                      context.ImageServiceContext(),
                      context.OSConfigFlagContext(),
                      context.SubordinateConfigContext(
                          interface='nova-vmware',
                          service='nova',
-                         config_file=NOVA_CONF,
-                     ),
+                         config_file=NOVA_CONF),
                      context.SubordinateConfigContext(
                          interface='cell',
                          service='nova',
-                         config_file=NOVA_CONF,
-                     ),
+                         config_file=NOVA_CONF),
                      context.SyslogContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
-                     nova_cc_context.VolumeServiceContext(),
-                     nova_cc_context.NovaCellContext()],
+                     nova_cc_context.VolumeServiceContext()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in BASE_SERVICES if 'api' in s],
@@ -200,17 +198,13 @@ def resource_map():
         resource_map.pop(APACHE_24_CONF)
 
     if is_relation_made('neutron-api'):
-        resource_map.pop(QUANTUM_CONF)
-        resource_map.pop(QUANTUM_DEFAULT)
-        resource_map.pop(NEUTRON_CONF)
-        resource_map.pop(NEUTRON_DEFAULT)
+        [resource_map.pop(k) for k in list(resource_map.iterkeys())
+         if 'quantum' in k or 'neutron' in k]
         resource_map[NOVA_CONF]['contexts'].append(
             nova_cc_context.NeutronAPIContext())
     else:
         resource_map[NOVA_CONF]['contexts'].append(
             nova_cc_context.NeutronCCContext())
-        resource_map[NOVA_CONF]['contexts'].append(
-            nova_cc_context.NeutronPostgresqlDBContext())
         # pop out irrelevant resources from the OrderedDict (easier than adding
         # them late)
         if net_manager != 'quantum':
@@ -219,15 +213,14 @@ def resource_map():
         if net_manager != 'neutron':
             [resource_map.pop(k) for k in list(resource_map.iterkeys())
              if 'neutron' in k]
-    
-    
-        # add neutron plugin requirements. nova-c-c only needs the neutron-server
-        # associated with configs, not the plugin agent.
+        # add neutron plugin requirements. nova-c-c only needs the
+        # neutron-server associated with configs, not the plugin agent.
         if net_manager in ['quantum', 'neutron']:
             plugin = neutron_plugin()
             if plugin:
                 conf = neutron_plugin_attribute(plugin, 'config', net_manager)
-                ctxts = (neutron_plugin_attribute(plugin, 'contexts', net_manager)
+                ctxts = (neutron_plugin_attribute(plugin, 'contexts',
+                                                  net_manager)
                          or [])
                 services = neutron_plugin_attribute(plugin, 'server_services',
                                                     net_manager)
@@ -236,11 +229,11 @@ def resource_map():
                 resource_map[conf]['contexts'] = ctxts
                 resource_map[conf]['contexts'].append(
                     nova_cc_context.NeutronCCContext())
-    
+
                 # update for postgres
                 resource_map[conf]['contexts'].append(
                     nova_cc_context.NeutronPostgresqlDBContext())
-       
+
     # nova-conductor for releases >= G.
     if os_release('nova-common') not in ['essex', 'folsom']:
         resource_map['/etc/nova/nova.conf']['services'] += ['nova-conductor']
@@ -254,6 +247,7 @@ def resource_map():
         for s in vmware_ctxt['services']:
             if s not in resource_map[NOVA_CONF]['services']:
                 resource_map[NOVA_CONF]['services'].append(s)
+
     novacell_ctxt = context.SubordinateConfigContext(interface='cell',
                                                      service='nova',
                                                      config_file=NOVA_CONF)
@@ -464,6 +458,7 @@ def _do_openstack_upgrade(new_src):
         # NOTE(jamespage) upgrade with existing config files as the
         # havana->icehouse migration enables new service_plugins which
         # create issues with db upgrades
+        neutron_db_manage(['stamp', cur_os_rel])
         neutron_db_manage(['upgrade', 'head'])
         reset_os_release()
         configs = register_configs(release=new_os_rel)
@@ -606,6 +601,8 @@ def ssh_compute_add(public_key, user=None):
     # known hosts entry for its IP, hostname and FQDN.
     private_address = relation_get('private-address')
     hosts = [private_address]
+    if relation_get('hostname'):
+        hosts.append(relation_get('hostname'))
 
     if not is_ip(private_address):
         hosts.append(get_host_ip(private_address))
@@ -649,7 +646,10 @@ def ssh_compute_remove(public_key, user=None):
     [keys.remove(key) for key in keys if key == public_key]
 
     with open(authorized_keys(user), 'w') as _keys:
-        _keys.write('\n'.join(keys) + '\n')
+        keys = '\n'.join(keys)
+        if not keys.endswith('\n'):
+            keys += '\n'
+        _keys.write(keys)
 
 
 def determine_endpoints(url):
@@ -699,7 +699,15 @@ def determine_endpoints(url):
         })
 
     # XXX: Keep these relations named quantum_*??
-    if network_manager() in ['quantum', 'neutron']:
+    if is_relation_made('neutron-api'):
+        endpoints.update({
+            'quantum_service': None,
+            'quantum_region': None,
+            'quantum_public_url': None,
+            'quantum_admin_url': None,
+            'quantum_internal_url': None,
+        })
+    elif network_manager() in ['quantum', 'neutron']:
         endpoints.update({
             'quantum_service': 'quantum',
             'quantum_region': region,
