@@ -45,7 +45,8 @@ from charmhelpers.contrib.openstack.neutron import (
 )
 
 from nova_cc_context import (
-    NeutronAPIContext
+    NeutronAPIContext,
+    NovaCellContext,
     )
 
 from nova_cc_utils import (
@@ -553,6 +554,12 @@ def nova_cell_relation_changed():
     CONFIGS.write(NOVA_CONF)
 
 
+def get_cell_type():
+    cell_info = NovaCellContext()()                                                                                                                                                               
+    if 'cell_type' in cell_info:
+        return cell_info['cell_type']
+    return None
+
 @hooks.hook('neutron-api-relation-joined')
 def neutron_api_relation_joined(rid=None):
     with open('/etc/init/neutron-server.override', 'wb') as out:
@@ -564,7 +571,13 @@ def neutron_api_relation_joined(rid=None):
     for id_rid in relation_ids('identity-service'):
         identity_joined(rid=id_rid)
     nova_url = canonical_url(CONFIGS) + ":8774/v2"
-    relation_set(relation_id=rid, nova_url=nova_url)
+    rel_settings = {
+        'nova_url': nova_url,
+    }
+    if get_cell_type():
+         rel_settings['cell_type'] = get_cell_type()
+    print rel_settings
+    relation_set(relation_id=rid, **rel_settings)
 
 
 @hooks.hook('neutron-api-relation-changed')
