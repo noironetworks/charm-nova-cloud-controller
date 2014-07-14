@@ -30,6 +30,8 @@ requires:
     interface: nova-volume
   quantum-network-service:
     interface: quantum
+  neutron-api:
+    interface: neutron-api
   ha:
     interface: hacluster
     scope: container

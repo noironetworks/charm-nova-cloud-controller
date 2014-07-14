@@ -1,6 +1,6 @@
 from charmhelpers.core.hookenv import (
     config, relation_ids, relation_set, log, ERROR,
-    unit_get)
+    unit_get, related_units, relation_get)
 
 from charmhelpers.fetch import apt_install, filter_installed_packages
 from charmhelpers.contrib.openstack import context, neutron, utils
@@ -11,6 +11,17 @@ from charmhelpers.contrib.hahelpers.cluster import (
     https,
     is_clustered
 )
+
+
+def context_complete(ctxt):
+    _missing = []
+    for k, v in ctxt.iteritems():
+        if v is None or v == '':
+            _missing.append(k)
+    if _missing:
+        log('Missing required data: %s' % ' '.join(_missing), level='INFO')
+        return False
+    return True
 
 
 class ApacheSSLContext(context.ApacheSSLContext):
@@ -24,6 +35,25 @@ class ApacheSSLContext(context.ApacheSSLContext):
         from nova_cc_utils import determine_ports
         self.external_ports = determine_ports()
         return super(ApacheSSLContext, self).__call__()
+
+
+class NeutronAPIContext(context.OSContextGenerator):
+    def __call__(self):
+        log('Generating template context from neutron api relation')
+        ctxt = {}
+        for rid in relation_ids('neutron-api'):
+            for unit in related_units(rid):
+                rdata = relation_get(rid=rid, unit=unit)
+                ctxt = {
+                    'neutron_url': rdata.get('neutron-url'),
+                    'neutron_plugin': rdata.get('neutron-plugin'),
+                    'neutron_security_groups':
+                    rdata.get('neutron-security-groups'),
+                    'network_manager': 'neutron',
+                }
+                if context_complete(ctxt):
+                    return ctxt
+        return {}
 
 
 class VolumeServiceContext(context.OSContextGenerator):
@@ -160,7 +190,7 @@ class NeutronCCContext(context.NeutronContext):
     def __call__(self):
         ctxt = super(NeutronCCContext, self).__call__()
         ctxt['external_network'] = config('neutron-external-network')
-        if 'nvp' in [config('quantum-plugin'), config('neutron-plugin')]:
+        if config('quantum-plugin') in ['nvp', 'nsx']:
             _config = config()
             for k, v in _config.iteritems():
                 if k.startswith('nvp'):

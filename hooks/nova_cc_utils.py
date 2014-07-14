@@ -33,12 +33,13 @@ from charmhelpers.core.hookenv import (
     relation_get,
     relation_ids,
     remote_unit,
+    is_relation_made,
     INFO,
     ERROR,
 )
 
 from charmhelpers.core.host import (
-    service_start
+    service_start,
 )
 
 
@@ -191,39 +192,47 @@ def resource_map():
 
     net_manager = network_manager()
 
-    # pop out irrelevant resources from the OrderedDict (easier than adding
-    # them late)
-    if net_manager != 'quantum':
-        [resource_map.pop(k) for k in list(resource_map.iterkeys())
-         if 'quantum' in k]
-    if net_manager != 'neutron':
-        [resource_map.pop(k) for k in list(resource_map.iterkeys())
-         if 'neutron' in k]
-
     if os.path.exists('/etc/apache2/conf-available'):
         resource_map.pop(APACHE_CONF)
     else:
         resource_map.pop(APACHE_24_CONF)
 
-    # add neutron plugin requirements. nova-c-c only needs the neutron-server
-    # associated with configs, not the plugin agent.
-    if net_manager in ['quantum', 'neutron']:
-        plugin = neutron_plugin()
-        if plugin:
-            conf = neutron_plugin_attribute(plugin, 'config', net_manager)
-            ctxts = (neutron_plugin_attribute(plugin, 'contexts', net_manager)
-                     or [])
-            services = neutron_plugin_attribute(plugin, 'server_services',
-                                                net_manager)
-            resource_map[conf] = {}
-            resource_map[conf]['services'] = services
-            resource_map[conf]['contexts'] = ctxts
-            resource_map[conf]['contexts'].append(
-                nova_cc_context.NeutronCCContext())
+    if is_relation_made('neutron-api'):
+        [resource_map.pop(k) for k in list(resource_map.iterkeys())
+         if 'quantum' in k or 'neutron' in k]
+        resource_map[NOVA_CONF]['contexts'].append(
+            nova_cc_context.NeutronAPIContext())
+    else:
+        resource_map[NOVA_CONF]['contexts'].append(
+            nova_cc_context.NeutronCCContext())
+        # pop out irrelevant resources from the OrderedDict (easier than adding
+        # them late)
+        if net_manager != 'quantum':
+            [resource_map.pop(k) for k in list(resource_map.iterkeys())
+             if 'quantum' in k]
+        if net_manager != 'neutron':
+            [resource_map.pop(k) for k in list(resource_map.iterkeys())
+             if 'neutron' in k]
+        # add neutron plugin requirements. nova-c-c only needs the
+        # neutron-server associated with configs, not the plugin agent.
+        if net_manager in ['quantum', 'neutron']:
+            plugin = neutron_plugin()
+            if plugin:
+                conf = neutron_plugin_attribute(plugin, 'config', net_manager)
+                ctxts = (neutron_plugin_attribute(plugin, 'contexts',
+                                                  net_manager)
+                         or [])
+                services = neutron_plugin_attribute(plugin, 'server_services',
+                                                    net_manager)
+                resource_map[conf] = {}
+                resource_map[conf]['services'] = services
+                resource_map[conf]['contexts'] = ctxts
+                resource_map[conf]['contexts'].append(
+                    nova_cc_context.NeutronCCContext())
 
-            # update for postgres
-            resource_map[conf]['contexts'].append(
-                nova_cc_context.NeutronPostgresqlDBContext())
+                # update for postgres
+                resource_map[conf]['contexts'].append(
+                    nova_cc_context.NeutronPostgresqlDBContext())
 
     # nova-conductor for releases >= G.
     if os_release('nova-common') not in ['essex', 'folsom']:
@@ -238,6 +247,7 @@ def resource_map():
         for s in vmware_ctxt['services']:
             if s not in resource_map[NOVA_CONF]['services']:
                 resource_map[NOVA_CONF]['services'].append(s)
+
     return resource_map
 
 
@@ -586,6 +596,8 @@ def ssh_compute_add(public_key, user=None):
     # known hosts entry for its IP, hostname and FQDN.
     private_address = relation_get('private-address')
     hosts = [private_address]
+    if relation_get('hostname'):
+        hosts.append(relation_get('hostname'))
 
     if not is_ip(private_address):
         hosts.append(get_host_ip(private_address))
@@ -682,7 +694,15 @@ def determine_endpoints(url):
         })
 
     # XXX: Keep these relations named quantum_*??
-    if network_manager() in ['quantum', 'neutron']:
+    if is_relation_made('neutron-api'):
+        endpoints.update({
+            'quantum_service': None,
+            'quantum_region': None,
+            'quantum_public_url': None,
+            'quantum_admin_url': None,
+            'quantum_internal_url': None,
+        })
+    elif network_manager() in ['quantum', 'neutron']:
         endpoints.update({
             'quantum_service': 'quantum',
             'quantum_region': region,
