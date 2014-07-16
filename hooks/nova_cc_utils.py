@@ -46,7 +46,7 @@ import nova_cc_context
 
 TEMPLATES = 'templates/'
 
-CLUSTER_RES = 'res_nova_vip'
+CLUSTER_RES = 'grp_nova_vips'
 
 # removed from original: charm-helper-sh
 BASE_PACKAGES = [
