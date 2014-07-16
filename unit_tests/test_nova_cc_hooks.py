@@ -103,7 +103,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.ssh_authorized_keys_lines.return_value = [
             'auth_0', 'auth_1', 'auth_2']
         hooks.compute_changed()
-        self.ssh_compute_add.assert_called_with('fookey', rid=None, uid=None)
+        self.ssh_compute_add.assert_called_with('fookey', rid=None, unit=None)
         expected_relations = [
             call(relation_settings={'authorized_keys_0': 'auth_0'},
                  relation_id=None),
@@ -132,7 +132,7 @@ class NovaCCHooksTests(CharmTestCase):
             'auth_0', 'auth_1', 'auth_2']
         hooks.compute_changed()
         self.ssh_compute_add.assert_called_with('fookey', user='nova',
-                                                rid=None, uid=None)
+                                                rid=None, unit=None)
         expected_relations = [
             call(relation_settings={'nova_authorized_keys_0': 'auth_0'},
                  relation_id=None),
