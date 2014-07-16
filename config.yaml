@@ -129,8 +129,8 @@ options:
     type: string
     description: SSL key to use with certificate specified as ssl_cert.
   neutron-alchemy-flags:
-    default: None
     type: string
+    description: |
       Comma separated list of key=value sqlalchemy related config flags to be
       set in plugin ini file.
   ssl_ca:
