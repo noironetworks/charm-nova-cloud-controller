@@ -19,6 +19,7 @@ from charmhelpers.core.hookenv import (
     relation_get,
     relation_ids,
     relation_set,
+    related_units,
     open_port,
     unit_get,
 )
@@ -45,7 +46,7 @@ from charmhelpers.contrib.openstack.neutron import (
 
 from nova_cc_context import (
     NeutronAPIContext
-    )
+)
 
 from nova_cc_utils import (
     api_port,
@@ -60,8 +61,8 @@ from nova_cc_utils import (
     save_script_rc,
     ssh_compute_add,
     ssh_compute_remove,
-    ssh_known_hosts_b64,
-    ssh_authorized_keys_b64,
+    ssh_known_hosts_lines,
+    ssh_authorized_keys_lines,
     register_configs,
     restart_map,
     volume_service,
@@ -364,21 +365,63 @@ def compute_joined(rid=None, remote_restart=False):
 
 
 @hooks.hook('cloud-compute-relation-changed')
-def compute_changed():
-    migration_auth = relation_get('migration_auth_type')
-    if migration_auth == 'ssh':
-        key = relation_get('ssh_public_key')
+def compute_changed(rid=None, unit=None):
+    rel_settings = relation_get(rid=rid, unit=unit)
+    if 'migration_auth_type' not in rel_settings:
+        return
+    if rel_settings['migration_auth_type'] == 'ssh':
+        key = rel_settings.get('ssh_public_key')
         if not key:
             log('SSH migration set but peer did not publish key.')
             return
-        ssh_compute_add(key)
-        relation_set(known_hosts=ssh_known_hosts_b64(),
-                     authorized_keys=ssh_authorized_keys_b64())
-    if relation_get('nova_ssh_public_key'):
-        key = relation_get('nova_ssh_public_key')
-        ssh_compute_add(key, user='nova')
-        relation_set(nova_known_hosts=ssh_known_hosts_b64(user='nova'),
-                     nova_authorized_keys=ssh_authorized_keys_b64(user='nova'))
+        ssh_compute_add(key, rid=rid, unit=unit)
+        index = 0
+        for line in ssh_known_hosts_lines(unit=unit):
+            relation_set(
+                relation_id=rid,
+                relation_settings={
+                    'known_hosts_{}'.format(index): line})
+            index += 1
+        relation_set(relation_id=rid, known_hosts_max_index=index)
+        index = 0
+        for line in ssh_authorized_keys_lines(unit=unit):
+            relation_set(
+                relation_id=rid,
+                relation_settings={
+                    'authorized_keys_{}'.format(index): line})
+            index += 1
+        relation_set(relation_id=rid, authorized_keys_max_index=index)
+    if 'nova_ssh_public_key' not in rel_settings:
+        return
+    if rel_settings['nova_ssh_public_key']:
+        ssh_compute_add(rel_settings['nova_ssh_public_key'],
+                        rid=rid, unit=unit, user='nova')
+        index = 0
+        for line in ssh_known_hosts_lines(unit=unit, user='nova'):
+            relation_set(
+                relation_id=rid,
+                relation_settings={
+                    '{}_known_hosts_{}'.format(
+                        'nova',
+                        index): line})
+            index += 1
+        relation_set(
+            relation_id=rid,
+            relation_settings={
+                '{}_known_hosts_max_index'.format('nova'): index})
+        index = 0
+        for line in ssh_authorized_keys_lines(unit=unit, user='nova'):
+            relation_set(
+                relation_id=rid,
+                relation_settings={
+                    '{}_authorized_keys_{}'.format(
+                        'nova',
+                        index): line})
+            index += 1
+        relation_set(
+            relation_id=rid,
+            relation_settings={
+                '{}_authorized_keys_max_index'.format('nova'): index})
 
 
 @hooks.hook('cloud-compute-relation-departed')
@@ -514,6 +557,9 @@ def upgrade_charm():
         amqp_joined(relation_id=r_id)
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
+    for r_id in relation_ids('cloud-compute'):
+        for unit in related_units(r_id):
+            compute_changed(r_id, unit)
 
 
 @hooks.hook('neutron-api-relation-joined')
