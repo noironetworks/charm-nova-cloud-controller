@@ -45,7 +45,7 @@ from charmhelpers.contrib.openstack.neutron import (
 
 from nova_cc_context import (
     NeutronAPIContext
-    )
+)
 
 from nova_cc_utils import (
     api_port,
@@ -120,7 +120,7 @@ def config_changed():
     configure_https()
     CONFIGS.write_all()
     for r_id in relation_ids('identity-service'):
-        identity_joined(rid=r_id)    
+        identity_joined(rid=r_id)
 
 
 @hooks.hook('amqp-relation-joined')
@@ -451,7 +451,7 @@ def ha_joined():
 
     if len(vip_group) > 1:
         relation_set(groups={'grp_nova_vips': ' '.join(vip_group)})
-    
+
     init_services = {
         'res_nova_haproxy': 'haproxy'
     }

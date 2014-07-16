@@ -654,30 +654,34 @@ def determine_endpoints(public_url, internal_url, admin_url):
         nova_internal_url = ('%s:%s/v2/$(tenant_id)s' %
                              (internal_url, api_port('nova-api-os-compute')))
         nova_admin_url = ('%s:%s/v2/$(tenant_id)s' %
-                         (admin_url, api_port('nova-api-os-compute')))
+                          (admin_url, api_port('nova-api-os-compute')))
     else:
         nova_public_url = ('%s:%s/v1.1/$(tenant_id)s' %
                            (public_url, api_port('nova-api-os-compute')))
         nova_internal_url = ('%s:%s/v1.1/$(tenant_id)s' %
                              (internal_url, api_port('nova-api-os-compute')))
         nova_admin_url = ('%s:%s/v1.1/$(tenant_id)s' %
-                         (admin_url, api_port('nova-api-os-compute')))
-        
-    ec2_public_url = '%s:%s/services/Cloud' % (public_url, api_port('nova-api-ec2'))
-    ec2_internal_url = '%s:%s/services/Cloud' % (internal_url, api_port('nova-api-ec2'))
-    ec2_admin_url = '%s:%s/services/Cloud' % (admin_url, api_port('nova-api-ec2'))
-    
+                          (admin_url, api_port('nova-api-os-compute')))
+
+    ec2_public_url = '%s:%s/services/Cloud' % (
+        public_url, api_port('nova-api-ec2'))
+    ec2_internal_url = '%s:%s/services/Cloud' % (
+        internal_url, api_port('nova-api-ec2'))
+    ec2_admin_url = '%s:%s/services/Cloud' % (admin_url,
+                                              api_port('nova-api-ec2'))
+
     nova_volume_public_url = ('%s:%s/v1/$(tenant_id)s' %
                               (public_url, api_port('nova-api-os-compute')))
     nova_volume_internal_url = ('%s:%s/v1/$(tenant_id)s' %
-                                (internal_url, api_port('nova-api-os-compute')))
+                                (internal_url,
+                                 api_port('nova-api-os-compute')))
     nova_volume_admin_url = ('%s:%s/v1/$(tenant_id)s' %
-                            (admin_url, api_port('nova-api-os-compute')))
+                             (admin_url, api_port('nova-api-os-compute')))
 
     neutron_public_url = '%s:%s' % (public_url, api_port('neutron-server'))
     neutron_internal_url = '%s:%s' % (internal_url, api_port('neutron-server'))
     neutron_admin_url = '%s:%s' % (admin_url, api_port('neutron-server'))
-    
+
     s3_public_url = '%s:%s' % (public_url, api_port('nova-objectstore'))
     s3_internal_url = '%s:%s' % (internal_url, api_port('nova-objectstore'))
     s3_admin_url = '%s:%s' % (admin_url, api_port('nova-objectstore'))
