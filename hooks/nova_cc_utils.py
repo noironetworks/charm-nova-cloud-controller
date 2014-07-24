@@ -106,6 +106,7 @@ BASE_RESOURCE_MAP = OrderedDict([
                          config_file=NOVA_CONF),
                      nova_cc_context.NovaCellContext(),
                      context.SyslogContext(),
+                     context.LogLevelContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.VolumeServiceContext()],

@@ -165,3 +165,11 @@ options:
     description: |
       This is uuid of the default NVP/NSX L3 Gateway Service.
   # end of NVP/NSX configuration
+  debug:
+    default: False
+    type: boolean
+    description: Enable debug logging
+  verbose:
+    default: False
+    type: boolean
+    description: Enable verbose logging
