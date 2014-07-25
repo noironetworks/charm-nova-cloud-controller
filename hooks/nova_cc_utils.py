@@ -742,7 +742,7 @@ def guard_map():
     else:
         rinterfaces.append('shared-db')
 
-    for svc in BASE_SERVICES + ['neutron-server', 'quantum-server']:
+    for svc in BASE_SERVICES + ['neutron-server', 'quantum-server', 'nova-conductor']:
         gmap[svc] = rinterfaces
 
     return gmap
