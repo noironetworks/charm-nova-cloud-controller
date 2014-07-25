@@ -728,3 +728,37 @@ def neutron_plugin():
     # quantum-plugin config setting can be safely overriden
     # as we only supported OVS in G/neutron
     return config('neutron-plugin') or config('quantum-plugin')
+
+
+def guard_map():
+    gmap = {}
+    rinterfaces = ['identity-service', 'amqp']
+    if relation_ids('pgsql-nova-db'):
+        rinterfaces.append('pgsql-nova-db')
+    elif relation_ids('pgsql-neutron-db'):
+        rinterfaces.append('pgsql-nova-db')
+        rinterfaces.append('pgsql-neutron-db')
+    else:
+        rinterfaces.append('shared-db')
+
+    for svc in BASE_SERVICES + ['neutron-server', 'quantum-server']:
+        gmap[svc] = rinterfaces
+
+    return gmap
+
+
+def service_guard(guard_map, contexts):
+    ''' Inhibit services in guard_map from running unless
+    required interfaces are found complete on contexts '''
+    def wrap(f):
+        def wrapped_f(*args):
+            incomplete_services = {}
+            for service in guard_map:
+                for interface in guard_map[service]:
+                    if interface not in contexts.complete_contexts():
+                        incomplete_services.append(service)
+            f(*args)
+            for service in incomplete_services:
+                service('stop', service)
+        return wrapped_f
+    return wrap
