@@ -337,8 +337,8 @@ class NovaCCUtilsTests(CharmTestCase):
         check_output.return_value = 'fookey'
         host_key.return_value = 'fookey_old'
         with patch_open() as (_open, _file):
-            utils.add_known_host('foohost')
-            rm.assert_called_with('foohost', None)
+            utils.add_known_host('foohost', None, None)
+            rm.assert_called_with('foohost', None, None)
 
     @patch.object(utils, 'known_hosts')
     @patch.object(utils, 'remove_known_host')
@@ -371,19 +371,19 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_known_hosts(self, ssh_dir):
         ssh_dir.return_value = '/tmp/foo'
         self.assertEquals(utils.known_hosts(), '/tmp/foo/known_hosts')
-        ssh_dir.assert_called_with(None)
+        ssh_dir.assert_called_with(None, None)
         self.assertEquals(utils.known_hosts('bar'), '/tmp/foo/known_hosts')
-        ssh_dir.assert_called_with('bar')
+        ssh_dir.assert_called_with('bar', None)
 
     @patch.object(utils, 'ssh_directory_for_unit')
     def test_authorized_keys(self, ssh_dir):
         ssh_dir.return_value = '/tmp/foo'
         self.assertEquals(utils.authorized_keys(), '/tmp/foo/authorized_keys')
-        ssh_dir.assert_called_with(None)
+        ssh_dir.assert_called_with(None, None)
         self.assertEquals(
             utils.authorized_keys('bar'),
             '/tmp/foo/authorized_keys')
-        ssh_dir.assert_called_with('bar')
+        ssh_dir.assert_called_with('bar', None)
 
     @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_call')
@@ -502,9 +502,9 @@ class NovaCCUtilsTests(CharmTestCase):
         _check_output.assert_called_with(
             ['ssh-keygen', '-f', '/foo/known_hosts',
              '-H', '-F', 'test'])
-        _known_hosts.assert_called_with(None)
+        _known_hosts.assert_called_with(None, None)
         utils.ssh_known_host_key('test', 'bar')
-        _known_hosts.assert_called_with('bar')
+        _known_hosts.assert_called_with('bar', None)
 
     @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_call')
@@ -514,9 +514,9 @@ class NovaCCUtilsTests(CharmTestCase):
         _check_call.assert_called_with(
             ['ssh-keygen', '-f', '/foo/known_hosts',
              '-R', 'test'])
-        _known_hosts.assert_called_with(None)
+        _known_hosts.assert_called_with(None, None)
         utils.remove_known_host('test', 'bar')
-        _known_hosts.assert_called_with('bar')
+        _known_hosts.assert_called_with('bar', None)
 
     @patch('subprocess.check_output')
     def test_migrate_database(self, check_output):
