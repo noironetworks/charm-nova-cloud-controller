@@ -40,6 +40,7 @@ from charmhelpers.core.hookenv import (
 
 from charmhelpers.core.host import (
     service_start,
+    service
 )
 
 
@@ -753,12 +754,12 @@ def service_guard(guard_map, contexts):
     def wrap(f):
         def wrapped_f(*args):
             incomplete_services = []
-            for service in guard_map:
-                for interface in guard_map[service]:
+            for svc in guard_map:
+                for interface in guard_map[svc]:
                     if interface not in contexts.complete_contexts():
-                        incomplete_services.append(service)
+                        incomplete_services.append(svc)
             f(*args)
-            for service in incomplete_services:
-                service('stop', service)
+            for svc in incomplete_services:
+                service('stop', svc)
         return wrapped_f
     return wrap
