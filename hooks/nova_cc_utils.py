@@ -752,7 +752,7 @@ def service_guard(guard_map, contexts):
     required interfaces are found complete on contexts '''
     def wrap(f):
         def wrapped_f(*args):
-            incomplete_services = {}
+            incomplete_services = []
             for service in guard_map:
                 for interface in guard_map[service]:
                     if interface not in contexts.complete_contexts():
