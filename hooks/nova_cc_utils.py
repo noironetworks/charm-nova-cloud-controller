@@ -40,7 +40,8 @@ from charmhelpers.core.hookenv import (
 
 from charmhelpers.core.host import (
     service_start,
-    service
+    service_stop,
+    service_running
 )
 
 
@@ -760,7 +761,8 @@ def service_guard(guard_map, contexts):
                         incomplete_services.append(svc)
             f(*args)
             for svc in incomplete_services:
-                log('Service {} has unfulfilled interface requirements, stopping.'.format(svc))
-                service('stop', svc)
+                if service_running(svc):
+                    log('Service {} has unfulfilled interface requirements, stopping.'.format(svc))
+                    service_stop(svc)
         return wrapped_f
     return wrap
