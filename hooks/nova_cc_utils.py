@@ -760,6 +760,7 @@ def service_guard(guard_map, contexts):
                         incomplete_services.append(svc)
             f(*args)
             for svc in incomplete_services:
+                log('Service {} has unfulfilled interface requirements, stopping.'.format(svc))
                 service('stop', svc)
         return wrapped_f
     return wrap
