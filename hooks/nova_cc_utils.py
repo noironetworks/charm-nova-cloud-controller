@@ -311,20 +311,13 @@ def api_port(service):
     return API_PORTS[service]
 
 
-def console_attributes_protocol():
-    if config('console-access-protocol').lower() == "none":
-        return None
-    else:
-        return config('console-access-protocol')
-
-
 def console_attributes(attr, proto=None):
     '''Leave proto unset to query attributes of the protocal specified at
     runtime'''
     if proto:
         console_proto = proto
     else:
-        console_proto = console_attributes_protocol()
+        console_proto = config('console-access-protocol')
     if attr == 'protocol':
         return console_proto
     # 'vnc' is a virtual type made up of novnc and xvpvnc

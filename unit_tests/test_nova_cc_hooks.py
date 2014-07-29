@@ -110,7 +110,7 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(utils, 'config')
     @patch.object(hooks, '_auth_config')
     def test_compute_joined_neutron(self, auth_config, _util_config):
-        _util_config.return_value = 'none'
+        _util_config.return_value = None
         self.is_relation_made.return_value = False
         self.network_manager.return_value = 'neutron'
         self.eligible_leader = True
@@ -147,7 +147,7 @@ class NovaCCHooksTests(CharmTestCase):
                 'neutron_security_groups': 'yes',
                 'neutron_url': 'http://nova-cc-host1:9696',
             }
-        _util_config.return_value = 'none'
+        _util_config.return_value = None
         napi.return_value = mock_NeutronAPIContext
         self.is_relation_made.return_value = True
         self.network_manager.return_value = 'neutron'
