@@ -775,7 +775,8 @@ def guard_map():
         gmap[svc] = nova_interfaces
 
     net_manager = network_manager()
-    if net_manager in ['neutron', 'quantum']:
+    if net_manager in ['neutron', 'quantum'] and \
+            not is_relation_made('neutron-api'):
         neutron_interfaces = ['identity-service', 'amqp']
         if relation_ids('pgsql-neutron-db'):
             neutron_interfaces.append('pgsql-neutron-db')
