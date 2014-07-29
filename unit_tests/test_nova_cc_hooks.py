@@ -1,4 +1,4 @@
-from mock import MagicMock, patch
+from mock import MagicMock, patch, call
 from test_utils import CharmTestCase, patch_open
 import os
 with patch('charmhelpers.core.hookenv.config') as config:
@@ -11,7 +11,11 @@ _map = utils.restart_map
 utils.register_configs = MagicMock()
 utils.restart_map = MagicMock()
 
-import nova_cc_hooks as hooks
+with patch('nova_cc_utils.guard_map') as gmap:
+    with patch('charmhelpers.core.hookenv.config') as config:
+        config.return_value = False
+        gmap.return_value = {}
+        import nova_cc_hooks as hooks
 
 utils.register_configs = _reg
 utils.restart_map = _map
@@ -35,8 +39,8 @@ TO_PATCH = [
     'relation_set',
     'relation_ids',
     'ssh_compute_add',
-    'ssh_known_hosts_b64',
-    'ssh_authorized_keys_b64',
+    'ssh_known_hosts_lines',
+    'ssh_authorized_keys_lines',
     'save_script_rc',
     'service_running',
     'service_stop',
@@ -100,12 +104,60 @@ class NovaCCHooksTests(CharmTestCase):
         self.test_relation.set({
             'migration_auth_type': 'ssh', 'ssh_public_key': 'fookey',
             'private-address': '10.0.0.1'})
-        self.ssh_known_hosts_b64.return_value = 'hosts'
-        self.ssh_authorized_keys_b64.return_value = 'keys'
+        self.ssh_known_hosts_lines.return_value = [
+            'k_h_0', 'k_h_1', 'k_h_2']
+        self.ssh_authorized_keys_lines.return_value = [
+            'auth_0', 'auth_1', 'auth_2']
         hooks.compute_changed()
-        self.ssh_compute_add.assert_called_with('fookey')
-        self.relation_set.assert_called_with(known_hosts='hosts',
-                                             authorized_keys='keys')
+        self.ssh_compute_add.assert_called_with('fookey', rid=None, unit=None)
+        expected_relations = [
+            call(relation_settings={'authorized_keys_0': 'auth_0'},
+                 relation_id=None),
+            call(relation_settings={'authorized_keys_1': 'auth_1'},
+                 relation_id=None),
+            call(relation_settings={'authorized_keys_2': 'auth_2'},
+                 relation_id=None),
+            call(relation_settings={'known_hosts_0': 'k_h_0'},
+                 relation_id=None),
+            call(relation_settings={'known_hosts_1': 'k_h_1'},
+                 relation_id=None),
+            call(relation_settings={'known_hosts_2': 'k_h_2'},
+                 relation_id=None),
+            call(authorized_keys_max_index=3, relation_id=None),
+            call(known_hosts_max_index=3, relation_id=None)]
+        self.assertEquals(sorted(self.relation_set.call_args_list),
+                          sorted(expected_relations))
+
+    def test_compute_changed_nova_public_key(self):
+        self.test_relation.set({
+            'migration_auth_type': 'sasl', 'nova_ssh_public_key': 'fookey',
+            'private-address': '10.0.0.1'})
+        self.ssh_known_hosts_lines.return_value = [
+            'k_h_0', 'k_h_1', 'k_h_2']
+        self.ssh_authorized_keys_lines.return_value = [
+            'auth_0', 'auth_1', 'auth_2']
+        hooks.compute_changed()
+        self.ssh_compute_add.assert_called_with('fookey', user='nova',
+                                                rid=None, unit=None)
+        expected_relations = [
+            call(relation_settings={'nova_authorized_keys_0': 'auth_0'},
+                 relation_id=None),
+            call(relation_settings={'nova_authorized_keys_1': 'auth_1'},
+                 relation_id=None),
+            call(relation_settings={'nova_authorized_keys_2': 'auth_2'},
+                 relation_id=None),
+            call(relation_settings={'nova_known_hosts_0': 'k_h_0'},
+                 relation_id=None),
+            call(relation_settings={'nova_known_hosts_1': 'k_h_1'},
+                 relation_id=None),
+            call(relation_settings={'nova_known_hosts_2': 'k_h_2'},
+                 relation_id=None),
+            call(relation_settings={'nova_known_hosts_max_index': 3},
+                 relation_id=None),
+            call(relation_settings={'nova_authorized_keys_max_index': 3},
+                 relation_id=None)]
+        self.assertEquals(sorted(self.relation_set.call_args_list),
+                          sorted(expected_relations))
 
     @patch.object(utils, 'config')
     @patch.object(hooks, '_auth_config')
