@@ -240,6 +240,11 @@ class NovaCCUtilsTests(CharmTestCase):
         for service in console_services:
             self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
 
+    def test_console_attributes_none(self):
+        self.test_config.set('console-access-protocol', None)
+        _proto = utils.console_attributes('protocol')
+        self.assertEquals(_proto, None)
+
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_resource_map_console_spice(self, subcontext):
         self.test_config.set('console-access-protocol', 'spice')
@@ -269,11 +274,6 @@ class NovaCCUtilsTests(CharmTestCase):
                         'openstack_https_frontend.conf' in _map)
         self.assertTrue('/etc/apache2/sites-available/'
                         'openstack_https_frontend' not in _map)
-
-    def test_console_attributes_none(self):
-        self.test_config.set('console-access-protocol', 'none')
-        _proto = utils.console_attributes('protocol')
-        self.assertEquals(_proto, None)
 
     def test_console_attributes_spice(self):
         _proto = utils.console_attributes('protocol', proto='spice')

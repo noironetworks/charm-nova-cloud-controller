@@ -167,10 +167,9 @@ options:
   # end of NVP/NSX configuration
   console-access-protocol:
     type: string
-    default: None
     description: |
        Protocol to use when accessing virtual machine console. Supported types
-       are None, spice xvpvnc, novnc and vnc (for both xvpvnc and novnc)
+       are None, spice, xvpvnc, novnc and vnc (for both xvpvnc and novnc)
   console-proxy-ip:
     type: string
     default: ''
