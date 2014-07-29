@@ -9,6 +9,10 @@ then this charm will shutdown its neutron-api service and the external charm wil
 neutron-api endpoint in keystone. It will also use the quantum-security-groups setting which is passed to
 it by the api service rather than its own quantum-security-groups setting.
 
+If console access is required then console-proxy-ip should be set to a client accessible IP that resolves
+to the nova-cloud-controller. If running in HA mode this could be the vip that the nova-cloud-controller
+is behind
+
 ******************************************************
 Special considerations to be deployed using Postgresql
 ******************************************************
