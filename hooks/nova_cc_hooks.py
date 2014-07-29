@@ -70,7 +70,9 @@ from nova_cc_utils import (
     NOVA_CONF,
     QUANTUM_CONF,
     NEUTRON_CONF,
-    QUANTUM_API_PASTE
+    QUANTUM_API_PASTE,
+    service_guard,
+    guard_map,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -112,6 +114,8 @@ def install():
 
 
 @hooks.hook('config-changed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map(), stopstart=True)
 def config_changed():
     global CONFIGS
@@ -132,6 +136,8 @@ def amqp_joined(relation_id=None):
 
 @hooks.hook('amqp-relation-changed')
 @hooks.hook('amqp-relation-departed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def amqp_changed():
     if 'amqp' not in CONFIGS.complete_contexts():
@@ -190,6 +196,8 @@ def pgsql_neutron_db_joined():
 
 
 @hooks.hook('shared-db-relation-changed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def db_changed():
     if 'shared-db' not in CONFIGS.complete_contexts():
@@ -205,6 +213,8 @@ def db_changed():
 
 
 @hooks.hook('pgsql-nova-db-relation-changed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def postgresql_nova_db_changed():
     if 'pgsql-nova-db' not in CONFIGS.complete_contexts():
@@ -220,6 +230,8 @@ def postgresql_nova_db_changed():
 
 
 @hooks.hook('pgsql-neutron-db-relation-changed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def postgresql_neutron_db_changed():
     if network_manager() in ['neutron', 'quantum']:
@@ -229,6 +241,8 @@ def postgresql_neutron_db_changed():
 
 
 @hooks.hook('image-service-relation-changed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def image_service_changed():
     if 'image-service' not in CONFIGS.complete_contexts():
@@ -251,6 +265,8 @@ def identity_joined(rid=None):
 
 
 @hooks.hook('identity-service-relation-changed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def identity_changed():
     if 'identity-service' not in CONFIGS.complete_contexts():
@@ -274,6 +290,8 @@ def identity_changed():
 
 @hooks.hook('nova-volume-service-relation-joined',
             'cinder-volume-service-relation-joined')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def volume_joined():
     CONFIGS.write(NOVA_CONF)
@@ -465,6 +483,8 @@ def quantum_joined(rid=None):
 
 @hooks.hook('cluster-relation-changed',
             'cluster-relation-departed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map(), stopstart=True)
 def cluster_changed():
     CONFIGS.write_all()
@@ -534,6 +554,8 @@ def ha_changed():
             'pgsql-nova-db-relation-broken',
             'pgsql-neutron-db-relation-broken',
             'quantum-network-service-relation-broken')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 def relation_broken():
     CONFIGS.write_all()
 
@@ -574,6 +596,8 @@ def nova_vmware_relation_joined(rid=None):
 
 
 @hooks.hook('nova-vmware-relation-changed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def nova_vmware_relation_changed():
     CONFIGS.write('/etc/nova/nova.conf')
@@ -605,6 +629,8 @@ def neutron_api_relation_joined(rid=None):
 
 
 @hooks.hook('neutron-api-relation-changed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def neutron_api_relation_changed():
     CONFIGS.write(NOVA_CONF)
@@ -615,6 +641,8 @@ def neutron_api_relation_changed():
 
 
 @hooks.hook('neutron-api-relation-broken')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def neutron_api_relation_broken():
     if os.path.isfile('/etc/init/neutron-server.override'):
