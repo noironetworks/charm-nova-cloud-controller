@@ -554,6 +554,8 @@ def ha_changed():
             'pgsql-nova-db-relation-broken',
             'pgsql-neutron-db-relation-broken',
             'quantum-network-service-relation-broken')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 def relation_broken():
     CONFIGS.write_all()
 
