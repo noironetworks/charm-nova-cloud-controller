@@ -11,7 +11,11 @@ _map = utils.restart_map
 utils.register_configs = MagicMock()
 utils.restart_map = MagicMock()
 
-import nova_cc_hooks as hooks
+with patch('nova_cc_utils.guard_map') as gmap:
+    with patch('charmhelpers.core.hookenv.config') as config:
+        config.return_value = False
+        gmap.return_value = {}
+        import nova_cc_hooks as hooks
 
 utils.register_configs = _reg
 utils.restart_map = _map

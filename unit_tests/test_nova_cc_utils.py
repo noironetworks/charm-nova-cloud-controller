@@ -35,7 +35,9 @@ TO_PATCH = [
     'remote_unit',
     '_save_script_rc',
     'service_start',
-    'services'
+    'services',
+    'service_running',
+    'service_stop'
 ]
 
 SCRIPTRC_ENV_VARS = {
@@ -596,3 +598,113 @@ class NovaCCUtilsTests(CharmTestCase):
             utils.do_openstack_upgrade()
             expected = [call('cloud:precise-icehouse')]
             self.assertEquals(_do_openstack_upgrade.call_args_list, expected)
+
+    def test_guard_map_nova(self):
+        self.relation_ids.return_value = []
+        self.os_release.return_value = 'havana'
+        self.assertEqual(
+            {'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
+             'nova-cert': ['identity-service', 'amqp', 'shared-db'],
+             'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
+             'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
+             'nova-scheduler': ['identity-service', 'amqp', 'shared-db']},
+            utils.guard_map()
+        )
+        self.os_release.return_value = 'essex'
+        self.assertEqual(
+            {'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
+             'nova-cert': ['identity-service', 'amqp', 'shared-db'],
+             'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
+             'nova-scheduler': ['identity-service', 'amqp', 'shared-db']},
+            utils.guard_map()
+        )
+
+    def test_guard_map_neutron(self):
+        self.relation_ids.return_value = []
+        self.network_manager.return_value = 'neutron'
+        self.os_release.return_value = 'icehouse'
+        self.assertEqual(
+            {'neutron-server': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
+             'nova-cert': ['identity-service', 'amqp', 'shared-db'],
+             'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
+             'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
+             'nova-scheduler': ['identity-service', 'amqp', 'shared-db'], },
+            utils.guard_map()
+        )
+        self.network_manager.return_value = 'quantum'
+        self.os_release.return_value = 'grizzly'
+        self.assertEqual(
+            {'quantum-server': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
+             'nova-cert': ['identity-service', 'amqp', 'shared-db'],
+             'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
+             'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
+             'nova-scheduler': ['identity-service', 'amqp', 'shared-db'], },
+            utils.guard_map()
+        )
+
+    def test_guard_map_pgsql(self):
+        self.relation_ids.return_value = ['pgsql:1']
+        self.network_manager.return_value = 'neutron'
+        self.os_release.return_value = 'icehouse'
+        self.assertEqual(
+            {'neutron-server': ['identity-service', 'amqp',
+                                'pgsql-neutron-db'],
+             'nova-api-ec2': ['identity-service', 'amqp', 'pgsql-nova-db'],
+             'nova-api-os-compute': ['identity-service', 'amqp',
+                                     'pgsql-nova-db'],
+             'nova-cert': ['identity-service', 'amqp', 'pgsql-nova-db'],
+             'nova-conductor': ['identity-service', 'amqp', 'pgsql-nova-db'],
+             'nova-objectstore': ['identity-service', 'amqp',
+                                  'pgsql-nova-db'],
+             'nova-scheduler': ['identity-service', 'amqp',
+                                'pgsql-nova-db'], },
+            utils.guard_map()
+        )
+
+    def test_service_guard_inactive(self):
+        '''Ensure that if disabled, service guards nothing'''
+        contexts = MagicMock()
+
+        @utils.service_guard({'test': ['interfacea', 'interfaceb']},
+                             contexts, False)
+        def dummy_func():
+            pass
+        dummy_func()
+        self.assertFalse(self.service_running.called)
+        self.assertFalse(contexts.complete_contexts.called)
+
+    def test_service_guard_active_guard(self):
+        '''Ensure services with incomplete interfaces are stopped'''
+        contexts = MagicMock()
+        contexts.complete_contexts.return_value = ['interfacea']
+        self.service_running.return_value = True
+
+        @utils.service_guard({'test': ['interfacea', 'interfaceb']},
+                             contexts, True)
+        def dummy_func():
+            pass
+        dummy_func()
+        self.service_running.assert_called_with('test')
+        self.service_stop.assert_called_with('test')
+        self.assertTrue(contexts.complete_contexts.called)
+
+    def test_service_guard_active_release(self):
+        '''Ensure services with complete interfaces are not stopped'''
+        contexts = MagicMock()
+        contexts.complete_contexts.return_value = ['interfacea',
+                                                   'interfaceb']
+
+        @utils.service_guard({'test': ['interfacea', 'interfaceb']},
+                             contexts, True)
+        def dummy_func():
+            pass
+        dummy_func()
+        self.assertFalse(self.service_running.called)
+        self.assertFalse(self.service_stop.called)
+        self.assertTrue(contexts.complete_contexts.called)
