@@ -1,0 +1,12 @@
+#!/usr/bin/python
+
+"""Amulet tests on a basic nova cloud controller deployment on
+   precise-havana."""
+
+from basic_deployment import NovaCCBasicDeployment
+
+if __name__ == '__main__':
+    deployment = NovaCCBasicDeployment(series='precise',
+                                       openstack='cloud:precise-havana',
+                                       source='cloud:precise-updates/havana')
+    deployment.run_tests()

@@ -35,7 +35,9 @@ TO_PATCH = [
     'remote_unit',
     '_save_script_rc',
     'service_start',
-    'services'
+    'services',
+    'service_running',
+    'service_stop'
 ]
 
 SCRIPTRC_ENV_VARS = {
@@ -405,8 +407,8 @@ class NovaCCUtilsTests(CharmTestCase):
         check_output.return_value = 'fookey'
         host_key.return_value = 'fookey_old'
         with patch_open() as (_open, _file):
-            utils.add_known_host('foohost')
-            rm.assert_called_with('foohost', None)
+            utils.add_known_host('foohost', None, None)
+            rm.assert_called_with('foohost', None, None)
 
     @patch.object(utils, 'known_hosts')
     @patch.object(utils, 'remove_known_host')
@@ -439,19 +441,19 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_known_hosts(self, ssh_dir):
         ssh_dir.return_value = '/tmp/foo'
         self.assertEquals(utils.known_hosts(), '/tmp/foo/known_hosts')
-        ssh_dir.assert_called_with(None)
+        ssh_dir.assert_called_with(None, None)
         self.assertEquals(utils.known_hosts('bar'), '/tmp/foo/known_hosts')
-        ssh_dir.assert_called_with('bar')
+        ssh_dir.assert_called_with('bar', None)
 
     @patch.object(utils, 'ssh_directory_for_unit')
     def test_authorized_keys(self, ssh_dir):
         ssh_dir.return_value = '/tmp/foo'
         self.assertEquals(utils.authorized_keys(), '/tmp/foo/authorized_keys')
-        ssh_dir.assert_called_with(None)
+        ssh_dir.assert_called_with(None, None)
         self.assertEquals(
             utils.authorized_keys('bar'),
             '/tmp/foo/authorized_keys')
-        ssh_dir.assert_called_with('bar')
+        ssh_dir.assert_called_with('bar', None)
 
     @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_call')
@@ -508,7 +510,9 @@ class NovaCCUtilsTests(CharmTestCase):
         self.is_relation_made.return_value = False
         self.relation_ids.return_value = []
         self.assertEquals(
-            BASE_ENDPOINTS, utils.determine_endpoints('http://foohost.com'))
+            BASE_ENDPOINTS, utils.determine_endpoints('http://foohost.com',
+                                                      'http://foohost.com',
+                                                      'http://foohost.com'))
 
     def test_determine_endpoints_nova_volume(self):
         self.is_relation_made.return_value = False
@@ -524,7 +528,9 @@ class NovaCCUtilsTests(CharmTestCase):
             'nova-volume_region': 'RegionOne',
             'nova-volume_service': 'nova-volume'})
         self.assertEquals(
-            endpoints, utils.determine_endpoints('http://foohost.com'))
+            endpoints, utils.determine_endpoints('http://foohost.com',
+                                                 'http://foohost.com',
+                                                 'http://foohost.com'))
 
     def test_determine_endpoints_quantum_neutron(self):
         self.is_relation_made.return_value = False
@@ -538,7 +544,9 @@ class NovaCCUtilsTests(CharmTestCase):
             'quantum_region': 'RegionOne',
             'quantum_service': 'quantum'})
         self.assertEquals(
-            endpoints, utils.determine_endpoints('http://foohost.com'))
+            endpoints, utils.determine_endpoints('http://foohost.com',
+                                                 'http://foohost.com',
+                                                 'http://foohost.com'))
 
     def test_determine_endpoints_neutron_api_rel(self):
         self.is_relation_made.return_value = True
@@ -552,7 +560,9 @@ class NovaCCUtilsTests(CharmTestCase):
             'quantum_region': None,
             'quantum_service': None})
         self.assertEquals(
-            endpoints, utils.determine_endpoints('http://foohost.com'))
+            endpoints, utils.determine_endpoints('http://foohost.com',
+                                                 'http://foohost.com',
+                                                 'http://foohost.com'))
 
     @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_output')
@@ -562,9 +572,9 @@ class NovaCCUtilsTests(CharmTestCase):
         _check_output.assert_called_with(
             ['ssh-keygen', '-f', '/foo/known_hosts',
              '-H', '-F', 'test'])
-        _known_hosts.assert_called_with(None)
+        _known_hosts.assert_called_with(None, None)
         utils.ssh_known_host_key('test', 'bar')
-        _known_hosts.assert_called_with('bar')
+        _known_hosts.assert_called_with('bar', None)
 
     @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_call')
@@ -574,9 +584,9 @@ class NovaCCUtilsTests(CharmTestCase):
         _check_call.assert_called_with(
             ['ssh-keygen', '-f', '/foo/known_hosts',
              '-R', 'test'])
-        _known_hosts.assert_called_with(None)
+        _known_hosts.assert_called_with(None, None)
         utils.remove_known_host('test', 'bar')
-        _known_hosts.assert_called_with('bar')
+        _known_hosts.assert_called_with('bar', None)
 
     @patch('subprocess.check_output')
     def test_migrate_database(self, check_output):
@@ -656,3 +666,115 @@ class NovaCCUtilsTests(CharmTestCase):
             utils.do_openstack_upgrade()
             expected = [call('cloud:precise-icehouse')]
             self.assertEquals(_do_openstack_upgrade.call_args_list, expected)
+
+    def test_guard_map_nova(self):
+        self.relation_ids.return_value = []
+        self.os_release.return_value = 'havana'
+        self.assertEqual(
+            {'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
+             'nova-cert': ['identity-service', 'amqp', 'shared-db'],
+             'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
+             'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
+             'nova-scheduler': ['identity-service', 'amqp', 'shared-db']},
+            utils.guard_map()
+        )
+        self.os_release.return_value = 'essex'
+        self.assertEqual(
+            {'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
+             'nova-cert': ['identity-service', 'amqp', 'shared-db'],
+             'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
+             'nova-scheduler': ['identity-service', 'amqp', 'shared-db']},
+            utils.guard_map()
+        )
+
+    def test_guard_map_neutron(self):
+        self.relation_ids.return_value = []
+        self.network_manager.return_value = 'neutron'
+        self.os_release.return_value = 'icehouse'
+        self.is_relation_made.return_value = False
+        self.assertEqual(
+            {'neutron-server': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
+             'nova-cert': ['identity-service', 'amqp', 'shared-db'],
+             'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
+             'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
+             'nova-scheduler': ['identity-service', 'amqp', 'shared-db'], },
+            utils.guard_map()
+        )
+        self.network_manager.return_value = 'quantum'
+        self.os_release.return_value = 'grizzly'
+        self.assertEqual(
+            {'quantum-server': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
+             'nova-cert': ['identity-service', 'amqp', 'shared-db'],
+             'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
+             'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
+             'nova-scheduler': ['identity-service', 'amqp', 'shared-db'], },
+            utils.guard_map()
+        )
+
+    def test_guard_map_pgsql(self):
+        self.relation_ids.return_value = ['pgsql:1']
+        self.network_manager.return_value = 'neutron'
+        self.is_relation_made.return_value = False
+        self.os_release.return_value = 'icehouse'
+        self.assertEqual(
+            {'neutron-server': ['identity-service', 'amqp',
+                                'pgsql-neutron-db'],
+             'nova-api-ec2': ['identity-service', 'amqp', 'pgsql-nova-db'],
+             'nova-api-os-compute': ['identity-service', 'amqp',
+                                     'pgsql-nova-db'],
+             'nova-cert': ['identity-service', 'amqp', 'pgsql-nova-db'],
+             'nova-conductor': ['identity-service', 'amqp', 'pgsql-nova-db'],
+             'nova-objectstore': ['identity-service', 'amqp',
+                                  'pgsql-nova-db'],
+             'nova-scheduler': ['identity-service', 'amqp',
+                                'pgsql-nova-db'], },
+            utils.guard_map()
+        )
+
+    def test_service_guard_inactive(self):
+        '''Ensure that if disabled, service guards nothing'''
+        contexts = MagicMock()
+
+        @utils.service_guard({'test': ['interfacea', 'interfaceb']},
+                             contexts, False)
+        def dummy_func():
+            pass
+        dummy_func()
+        self.assertFalse(self.service_running.called)
+        self.assertFalse(contexts.complete_contexts.called)
+
+    def test_service_guard_active_guard(self):
+        '''Ensure services with incomplete interfaces are stopped'''
+        contexts = MagicMock()
+        contexts.complete_contexts.return_value = ['interfacea']
+        self.service_running.return_value = True
+
+        @utils.service_guard({'test': ['interfacea', 'interfaceb']},
+                             contexts, True)
+        def dummy_func():
+            pass
+        dummy_func()
+        self.service_running.assert_called_with('test')
+        self.service_stop.assert_called_with('test')
+        self.assertTrue(contexts.complete_contexts.called)
+
+    def test_service_guard_active_release(self):
+        '''Ensure services with complete interfaces are not stopped'''
+        contexts = MagicMock()
+        contexts.complete_contexts.return_value = ['interfacea',
+                                                   'interfaceb']
+
+        @utils.service_guard({'test': ['interfacea', 'interfaceb']},
+                             contexts, True)
+        def dummy_func():
+            pass
+        dummy_func()
+        self.assertFalse(self.service_running.called)
+        self.assertFalse(self.service_stop.called)
+        self.assertTrue(contexts.complete_contexts.called)
