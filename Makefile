@@ -7,8 +7,12 @@ lint:
 
 unit_test:
 	@echo Starting unit tests...
-	@$(PYTHON) /usr/bin/nosetests --nologcapture --with-coverage  unit_tests
+	@$(PYTHON) /usr/bin/nosetests --nologcapture --with-coverage unit_tests
 
+bin/charm_helpers_sync.py:
+	@mkdir -p bin
+	@bzr cat lp:charm-helpers/tools/charm_helpers_sync/charm_helpers_sync.py \
+        > bin/charm_helpers_sync.py
 test:
 	@echo Starting Amulet tests...
 	# coreycb note: The -v should only be temporary until Amulet sends
@@ -17,9 +21,9 @@ test:
 	@juju test -v -p AMULET_HTTP_PROXY
 
 sync:
-	@charm-helper-sync -c charm-helpers-hooks.yaml
-	@charm-helper-sync -c charm-helpers-tests.yaml
+	@$(PYTHON) bin/charm_helpers_sync.py -c charm-helpers-hooks.yaml
+	@$(PYTHON) bin/charm_helpers_sync.py -c charm-helpers-tests.yaml
 
-publish: lint test
+publish: lint unit_test
 	bzr push lp:charms/nova-cloud-controller
 	bzr push lp:charms/trusty/nova-cloud-controller

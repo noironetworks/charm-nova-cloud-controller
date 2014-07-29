@@ -440,7 +440,9 @@ class NovaCCUtilsTests(CharmTestCase):
         self.is_relation_made.return_value = False
         self.relation_ids.return_value = []
         self.assertEquals(
-            BASE_ENDPOINTS, utils.determine_endpoints('http://foohost.com'))
+            BASE_ENDPOINTS, utils.determine_endpoints('http://foohost.com',
+                                                      'http://foohost.com',
+                                                      'http://foohost.com'))
 
     def test_determine_endpoints_nova_volume(self):
         self.is_relation_made.return_value = False
@@ -456,7 +458,9 @@ class NovaCCUtilsTests(CharmTestCase):
             'nova-volume_region': 'RegionOne',
             'nova-volume_service': 'nova-volume'})
         self.assertEquals(
-            endpoints, utils.determine_endpoints('http://foohost.com'))
+            endpoints, utils.determine_endpoints('http://foohost.com',
+                                                 'http://foohost.com',
+                                                 'http://foohost.com'))
 
     def test_determine_endpoints_quantum_neutron(self):
         self.is_relation_made.return_value = False
@@ -470,7 +474,9 @@ class NovaCCUtilsTests(CharmTestCase):
             'quantum_region': 'RegionOne',
             'quantum_service': 'quantum'})
         self.assertEquals(
-            endpoints, utils.determine_endpoints('http://foohost.com'))
+            endpoints, utils.determine_endpoints('http://foohost.com',
+                                                 'http://foohost.com',
+                                                 'http://foohost.com'))
 
     def test_determine_endpoints_neutron_api_rel(self):
         self.is_relation_made.return_value = True
@@ -484,7 +490,9 @@ class NovaCCUtilsTests(CharmTestCase):
             'quantum_region': None,
             'quantum_service': None})
         self.assertEquals(
-            endpoints, utils.determine_endpoints('http://foohost.com'))
+            endpoints, utils.determine_endpoints('http://foohost.com',
+                                                 'http://foohost.com',
+                                                 'http://foohost.com'))
 
     @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_output')
