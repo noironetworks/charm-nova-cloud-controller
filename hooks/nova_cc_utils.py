@@ -780,11 +780,11 @@ def guard_map():
         if relation_ids('pgsql-neutron-db'):
             neutron_interfaces.append('pgsql-neutron-db')
         else:
-            neutron_interfaces.append('shared-db')        
+            neutron_interfaces.append('shared-db')
         if network_manager() == 'quantum':
-            gmap['quantum-server'] =  neutron_interfaces
+            gmap['quantum-server'] = neutron_interfaces
         else:
-            gmap['neutron-server'] =  neutron_interfaces
+            gmap['neutron-server'] = neutron_interfaces
 
     return gmap
 
@@ -802,9 +802,10 @@ def service_guard(guard_map, contexts, active=False):
                             incomplete_services.append(svc)
                 f(*args)
                 for svc in incomplete_services:
-                        if service_running(svc):
-                            log('Service {} has unfulfilled interface requirements, stopping.'.format(svc))
-                            service_stop(svc)
+                    if service_running(svc):
+                        log('Service {} has unfulfilled '
+                            'interface requirements, stopping.'.format(svc))
+                        service_stop(svc)
             else:
                 f(*args)
         return wrapped_f
