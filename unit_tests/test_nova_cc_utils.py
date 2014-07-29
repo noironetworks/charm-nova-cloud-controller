@@ -652,7 +652,7 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_guard_map_pgsql(self):
         self.relation_ids.return_value = ['pgsql:1']
         self.network_manager.return_value = 'neutron'
-        self.is_relation_made.return_value = False        
+        self.is_relation_made.return_value = False      
         self.os_release.return_value = 'icehouse'
         self.assertEqual(
             {'neutron-server': ['identity-service', 'amqp',
