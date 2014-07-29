@@ -40,6 +40,8 @@ from charmhelpers.core.hookenv import (
 
 from charmhelpers.core.host import (
     service_start,
+    service_stop,
+    service_running
 )
 
 import nova_cc_context
@@ -753,3 +755,59 @@ def neutron_plugin():
     # quantum-plugin config setting can be safely overriden
     # as we only supported OVS in G/neutron
     return config('neutron-plugin') or config('quantum-plugin')
+
+
+def guard_map():
+    '''Map of services and required interfaces that must be present before
+    the service should be allowed to start'''
+    gmap = {}
+    nova_services = deepcopy(BASE_SERVICES)
+    if os_release('nova-common') not in ['essex', 'folsom']:
+        nova_services.append('nova-conductor')
+
+    nova_interfaces = ['identity-service', 'amqp']
+    if relation_ids('pgsql-nova-db'):
+        nova_interfaces.append('pgsql-nova-db')
+    else:
+        nova_interfaces.append('shared-db')
+
+    for svc in nova_services:
+        gmap[svc] = nova_interfaces
+
+    net_manager = network_manager()
+    if net_manager in ['neutron', 'quantum'] and \
+            not is_relation_made('neutron-api'):
+        neutron_interfaces = ['identity-service', 'amqp']
+        if relation_ids('pgsql-neutron-db'):
+            neutron_interfaces.append('pgsql-neutron-db')
+        else:
+            neutron_interfaces.append('shared-db')
+        if network_manager() == 'quantum':
+            gmap['quantum-server'] = neutron_interfaces
+        else:
+            gmap['neutron-server'] = neutron_interfaces
+
+    return gmap
+
+
+def service_guard(guard_map, contexts, active=False):
+    '''Inhibit services in guard_map from running unless
+    required interfaces are found complete in contexts.'''
+    def wrap(f):
+        def wrapped_f(*args):
+            if active is True:
+                incomplete_services = []
+                for svc in guard_map:
+                    for interface in guard_map[svc]:
+                        if interface not in contexts.complete_contexts():
+                            incomplete_services.append(svc)
+                f(*args)
+                for svc in incomplete_services:
+                    if service_running(svc):
+                        log('Service {} has unfulfilled '
+                            'interface requirements, stopping.'.format(svc))
+                        service_stop(svc)
+            else:
+                f(*args)
+        return wrapped_f
+    return wrap
