@@ -76,13 +76,22 @@ from nova_cc_utils import (
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
-    canonical_url,
     eligible_leader,
     get_hacluster_config,
     is_leader,
 )
 
 from charmhelpers.payload.execd import execd_preinstall
+
+from charmhelpers.contrib.openstack.ip import (
+    canonical_url,
+    PUBLIC, INTERNAL, ADMIN
+)
+
+from charmhelpers.contrib.network.ip import (
+    get_iface_for_address,
+    get_netmask_for_address
+)
 
 hooks = Hooks()
 CONFIGS = register_configs()
@@ -114,6 +123,8 @@ def config_changed():
     save_script_rc()
     configure_https()
     CONFIGS.write_all()
+    for r_id in relation_ids('identity-service'):
+        identity_joined(rid=r_id)
 
 
 @hooks.hook('amqp-relation-joined')
@@ -239,8 +250,12 @@ def image_service_changed():
 def identity_joined(rid=None):
     if not eligible_leader(CLUSTER_RES):
         return
-    base_url = canonical_url(CONFIGS)
-    relation_set(relation_id=rid, **determine_endpoints(base_url))
+    public_url = canonical_url(CONFIGS, PUBLIC)
+    internal_url = canonical_url(CONFIGS, INTERNAL)
+    admin_url = canonical_url(CONFIGS, ADMIN)
+    relation_set(relation_id=rid, **determine_endpoints(public_url,
+                                                        internal_url,
+                                                        admin_url))
 
 
 @hooks.hook('identity-service-relation-changed')
@@ -331,8 +346,8 @@ def neutron_settings():
             'quantum_plugin': neutron_plugin(),
             'region': config('region'),
             'quantum_security_groups': config('quantum-security-groups'),
-            'quantum_url': (canonical_url(CONFIGS) + ':' +
-                            str(api_port('neutron-server'))),
+            'quantum_url': "{}:{}".format(canonical_url(CONFIGS, INTERNAL),
+                                          str(api_port('neutron-server'))),
         })
     neutron_url = urlparse(neutron_settings['quantum_url'])
     neutron_settings['quantum_host'] = neutron_url.hostname
@@ -470,15 +485,28 @@ def cluster_changed():
 def ha_joined():
     config = get_hacluster_config()
     resources = {
-        'res_nova_vip': 'ocf:heartbeat:IPaddr2',
         'res_nova_haproxy': 'lsb:haproxy',
     }
-    vip_params = 'params ip="%s" cidr_netmask="%s" nic="%s"' % \
-                 (config['vip'], config['vip_cidr'], config['vip_iface'])
     resource_params = {
-        'res_nova_vip': vip_params,
         'res_nova_haproxy': 'op monitor interval="5s"'
     }
+    vip_group = []
+    for vip in config['vip'].split():
+        iface = get_iface_for_address(vip)
+        if iface is not None:
+            vip_key = 'res_nova_{}_vip'.format(iface)
+            resources[vip_key] = 'ocf:heartbeat:IPaddr2'
+            resource_params[vip_key] = (
+                'params ip="{vip}" cidr_netmask="{netmask}"'
+                ' nic="{iface}"'.format(vip=vip,
+                                        iface=iface,
+                                        netmask=get_netmask_for_address(vip))
+            )
+            vip_group.append(vip_key)
+
+    if len(vip_group) > 1:
+        relation_set(groups={'grp_nova_vips': ' '.join(vip_group)})
+
     init_services = {
         'res_nova_haproxy': 'haproxy'
     }
@@ -550,8 +578,8 @@ def nova_vmware_relation_joined(rid=None):
         rel_settings.update({
             'quantum_plugin': neutron_plugin(),
             'quantum_security_groups': config('quantum-security-groups'),
-            'quantum_url': (canonical_url(CONFIGS) + ':' +
-                            str(api_port('neutron-server')))})
+            'quantum_url': "{}:{}".format(canonical_url(CONFIGS, INTERNAL),
+                                          str(api_port('neutron-server')))})
 
     relation_set(relation_id=rid, **rel_settings)
 
@@ -584,7 +612,7 @@ def neutron_api_relation_joined(rid=None):
         service_stop('neutron-server')
     for id_rid in relation_ids('identity-service'):
         identity_joined(rid=id_rid)
-    nova_url = canonical_url(CONFIGS) + ":8774/v2"
+    nova_url = canonical_url(CONFIGS, INTERNAL) + ":8774/v2"
     relation_set(relation_id=rid, nova_url=nova_url)
 
 
