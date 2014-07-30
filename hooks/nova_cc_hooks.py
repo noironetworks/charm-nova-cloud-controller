@@ -390,10 +390,10 @@ def console_settings():
         return {}
     rel_settings['console_keymap'] = config('console-keymap')
     rel_settings['console_access_protocol'] = proto
-    if len(config('console-proxy-ip')) > 0:
-        proxy_base_addr = "http://" + config('console-proxy-ip')
+    if config('console-proxy-ip') == 'local':
+        proxy_base_addr = canonical_url(CONFIGS, PUBLIC)
     else:
-        proxy_base_addr = canonical_url(CONFIGS)
+        proxy_base_addr = "http://" + config('console-proxy-ip')
     if proto == 'vnc':
         protocols = ['novnc', 'xvpvnc']
     else:
