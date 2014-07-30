@@ -210,10 +210,11 @@ options:
        are None, spice, xvpvnc, novnc and vnc (for both xvpvnc and novnc)
   console-proxy-ip:
     type: string
-    default: ''
+    default: local
     description: |
        If console-access-protocol != None then this is the ip published to
-       clients for access to console proxy
+       clients for access to console proxy. Set to local for the ip address of
+       the nova-cloud-controller serving the request to be used
   console-keymap:
     type: string
     default: 'en-us'
