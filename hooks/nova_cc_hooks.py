@@ -413,6 +413,8 @@ def console_settings():
 
 @hooks.hook('cloud-compute-relation-joined')
 def compute_joined(rid=None, remote_restart=False):
+    cons_settings = console_settings()
+    relation_set(relation_id=rid, **cons_settings)
     if not eligible_leader(CLUSTER_RES):
         return
     rel_settings = {
@@ -428,7 +430,6 @@ def compute_joined(rid=None, remote_restart=False):
         rel_settings['restart_trigger'] = str(uuid.uuid4())
 
     rel_settings.update(keystone_compute_settings())
-    rel_settings.update(console_settings())
     relation_set(relation_id=rid, **rel_settings)
 
 
