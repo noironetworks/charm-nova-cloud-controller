@@ -71,6 +71,7 @@ from nova_cc_utils import (
     QUANTUM_CONF,
     NEUTRON_CONF,
     QUANTUM_API_PASTE,
+    console_attributes,
     service_guard,
     guard_map,
 )
@@ -124,6 +125,11 @@ def config_changed():
     save_script_rc()
     configure_https()
     CONFIGS.write_all()
+    if console_attributes('protocol'):
+        apt_update()
+        apt_install(console_attributes('packages'), fatal=True)
+        [compute_joined(rid=rid)
+            for rid in relation_ids('cloud-compute')]
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
 
@@ -377,8 +383,38 @@ def keystone_compute_settings():
     return rel_settings
 
 
+def console_settings():
+    rel_settings = {}
+    proto = console_attributes('protocol')
+    if not proto:
+        return {}
+    rel_settings['console_keymap'] = config('console-keymap')
+    rel_settings['console_access_protocol'] = proto
+    if config('console-proxy-ip') == 'local':
+        proxy_base_addr = canonical_url(CONFIGS, PUBLIC)
+    else:
+        proxy_base_addr = "http://" + config('console-proxy-ip')
+    if proto == 'vnc':
+        protocols = ['novnc', 'xvpvnc']
+    else:
+        protocols = [proto]
+    for _proto in protocols:
+        rel_settings['console_proxy_%s_address' % (_proto)] = \
+            "%s:%s%s" % (proxy_base_addr,
+                         console_attributes('proxy-port', proto=_proto),
+                         console_attributes('proxy-page', proto=_proto))
+        rel_settings['console_proxy_%s_host' % (_proto)] = \
+            urlparse(proxy_base_addr).hostname
+        rel_settings['console_proxy_%s_port' % (_proto)] = \
+            console_attributes('proxy-port', proto=_proto)
+
+    return rel_settings
+
+
 @hooks.hook('cloud-compute-relation-joined')
 def compute_joined(rid=None, remote_restart=False):
+    cons_settings = console_settings()
+    relation_set(relation_id=rid, **cons_settings)
     if not eligible_leader(CLUSTER_RES):
         return
     rel_settings = {
