@@ -536,6 +536,13 @@ def ha_changed():
     if not clustered or clustered in [None, 'None', '']:
         log('ha_changed: hacluster subordinate not fully clustered.')
         return
+
+    CONFIGS.write(NOVA_CONF)
+    if network_manager() == 'quantum':
+        CONFIGS.write(QUANTUM_CONF)
+    if network_manager() == 'neutron':
+        CONFIGS.write(NEUTRON_CONF)
+
     if not is_leader(CLUSTER_RES):
         log('ha_changed: hacluster complete but we are not leader.')
         return
