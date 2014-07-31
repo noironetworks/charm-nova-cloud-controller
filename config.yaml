@@ -203,3 +203,20 @@ options:
         * shared-db or (pgsql-nova-db, pgsql-neutron-db)
         * amqp
         * identity-service
+  console-access-protocol:
+    type: string
+    description: |
+       Protocol to use when accessing virtual machine console. Supported types
+       are None, spice, xvpvnc, novnc and vnc (for both xvpvnc and novnc)
+  console-proxy-ip:
+    type: string
+    default: local
+    description: |
+       If console-access-protocol != None then this is the ip published to
+       clients for access to console proxy. Set to local for the ip address of
+       the nova-cloud-controller serving the request to be used
+  console-keymap:
+    type: string
+    default: 'en-us'
+    description: |
+       Console keymap

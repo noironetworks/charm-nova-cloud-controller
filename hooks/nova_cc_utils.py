@@ -173,6 +173,27 @@ CA_CERT_PATH = '/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt'
 
 NOVA_SSH_DIR = '/etc/nova/compute_ssh/'
 
+CONSOLE_CONFIG = {
+    'spice': {
+        'packages': ['nova-spiceproxy', 'nova-consoleauth'],
+        'services': ['nova-spiceproxy', 'nova-consoleauth'],
+        'proxy-page': '/spice_auto.html',
+        'proxy-port': 6082,
+    },
+    'novnc': {
+        'packages': ['nova-novncproxy', 'nova-consoleauth'],
+        'services': ['nova-novncproxy', 'nova-consoleauth'],
+        'proxy-page': '/vnc_auto.html',
+        'proxy-port': 6080,
+    },
+    'xvpvnc': {
+        'packages': ['nova-xvpvncproxy', 'nova-consoleauth'],
+        'services': ['nova-xvpvncproxy', 'nova-consoleauth'],
+        'proxy-page': '/console',
+        'proxy-port': 6081,
+    },
+}
+
 
 def resource_map():
     '''
@@ -235,6 +256,10 @@ def resource_map():
     if os_release('nova-common') not in ['essex', 'folsom']:
         resource_map['/etc/nova/nova.conf']['services'] += ['nova-conductor']
 
+    if console_attributes('services'):
+        resource_map['/etc/nova/nova.conf']['services'] += \
+            console_attributes('services')
+
     # also manage any configs that are being updated by subordinates.
     vmware_ctxt = context.SubordinateConfigContext(interface='nova-vmware',
                                                    service='nova',
@@ -287,6 +312,27 @@ def api_port(service):
     return API_PORTS[service]
 
 
+def console_attributes(attr, proto=None):
+    '''Leave proto unset to query attributes of the protocal specified at
+    runtime'''
+    if proto:
+        console_proto = proto
+    else:
+        console_proto = config('console-access-protocol')
+    if attr == 'protocol':
+        return console_proto
+    # 'vnc' is a virtual type made up of novnc and xvpvnc
+    if console_proto == 'vnc':
+        if attr in ['packages', 'services']:
+            return list(set(CONSOLE_CONFIG['novnc'][attr] +
+                        CONSOLE_CONFIG['xvpvnc'][attr]))
+        else:
+            return None
+    if console_proto in CONSOLE_CONFIG:
+        return CONSOLE_CONFIG[console_proto][attr]
+    return None
+
+
 def determine_packages():
     # currently all packages match service names
     packages = [] + BASE_PACKAGES
@@ -296,6 +342,8 @@ def determine_packages():
         pkgs = neutron_plugin_attribute(neutron_plugin(), 'server_packages',
                                         network_manager())
         packages.extend(pkgs)
+    if console_attributes('packages'):
+        packages.extend(console_attributes('packages'))
     return list(set(packages))
 
 
