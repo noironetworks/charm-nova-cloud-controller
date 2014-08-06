@@ -13,6 +13,9 @@ from charmhelpers.contrib.hahelpers.cluster import (
     is_clustered
 )
 
+from charmhelpers.contrib.network.ip import (
+    get_ipv6_addr,
+)
 
 def context_complete(ctxt):
     _missing = []
@@ -203,6 +206,8 @@ class NeutronCCContext(context.NeutronContext):
                 ctxt['nvp_controllers_list'] = \
                     _config['nvp-controllers'].split()
         ctxt['nova_url'] = "{}:8774/v2".format(canonical_url())
+        if config('prefer-ipv6'):
+            ctxt['bind_host'] = '%s' % get_ipv6_addr()
         return ctxt
 
 
@@ -235,3 +240,16 @@ class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
     def __init__(self):
         super(NeutronPostgresqlDBContext,
               self).__init__(config('neutron-database'))
+
+
+class NovaIPv6Context(context.OSContextGenerator):
+    
+    def __call__(self):
+        ctxt = {}
+        if config('prefer-ipv6'):
+            ctxt['use_ipv6'] = True
+            ctxt['host_ip'] = '%s' % get_ipv6_addr()
+        else:
+            ctxt['use_ipv6'] = False
+            ctxt['host_ip'] = '%s' % unit_get('private-address')
+        return ctxt 
