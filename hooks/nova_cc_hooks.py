@@ -91,7 +91,8 @@ from charmhelpers.contrib.openstack.ip import (
 
 from charmhelpers.contrib.network.ip import (
     get_iface_for_address,
-    get_netmask_for_address
+    get_netmask_for_address,
+    get_ipv6_addr,
 )
 
 hooks = Hooks()
@@ -167,14 +168,20 @@ def db_joined():
         log(e, level=ERROR)
         raise Exception(e)
 
+    if config('prefer-ipv6'):
+        host = get_ipv6_addr()
+    else:
+        host = unit_get('private-address')
+
+
     relation_set(nova_database=config('database'),
                  nova_username=config('database-user'),
-                 nova_hostname=unit_get('private-address'))
+                 nova_hostname=host)
     if network_manager() in ['quantum', 'neutron']:
         # XXX: Renaming relations from quantum_* to neutron_* here.
         relation_set(neutron_database=config('neutron-database'),
                      neutron_username=config('neutron-database-user'),
-                     neutron_hostname=unit_get('private-address'))
+                     neutron_hostname=host)
 
 
 @hooks.hook('pgsql-nova-db-relation-joined')
@@ -528,29 +535,37 @@ def cluster_changed():
 
 @hooks.hook('ha-relation-joined')
 def ha_joined():
-    config = get_hacluster_config()
+    cluster_config = get_hacluster_config()
     resources = {
         'res_nova_haproxy': 'lsb:haproxy',
     }
     resource_params = {
         'res_nova_haproxy': 'op monitor interval="5s"'
     }
+
+    if config('prefer-ipv6'):
+        res_nova_vip = 'ocf:heartbeat:IPv6addr'
+        vip_params = 'ipv6addr'
+    else:
+        res_nova_vip = 'ocf:heartbeat:IPaddr2'
+        vip_params = 'ip'
     vip_group = []
-    for vip in config['vip'].split():
+    for vip in cluster_config['vip'].split():
         iface = get_iface_for_address(vip)
         if iface is not None:
             vip_key = 'res_nova_{}_vip'.format(iface)
-            resources[vip_key] = 'ocf:heartbeat:IPaddr2'
+            resources[vip_key] = res_nova_vip
             resource_params[vip_key] = (
-                'params ip="{vip}" cidr_netmask="{netmask}"'
-                ' nic="{iface}"'.format(vip=vip,
+                'params {ip}="{vip}" cidr_netmask="{netmask}"'
+                ' nic="{iface}"'.format(ip=vip_params,
+                                        vip=vip,
                                         iface=iface,
                                         netmask=get_netmask_for_address(vip))
             )
             vip_group.append(vip_key)
 
-    if len(vip_group) > 1:
-        relation_set(groups={'grp_nova_vips': ' '.join(vip_group)})
+    
+    relation_set(groups={'grp_nova_vips': ' '.join(vip_group)})
 
     init_services = {
         'res_nova_haproxy': 'haproxy'
@@ -559,8 +574,8 @@ def ha_joined():
         'cl_nova_haproxy': 'res_nova_haproxy'
     }
     relation_set(init_services=init_services,
-                 corosync_bindiface=config['ha-bindiface'],
-                 corosync_mcastport=config['ha-mcastport'],
+                 corosync_bindiface=cluster_config['ha-bindiface'],
+                 corosync_mcastport=cluster_config['ha-mcastport'],
                  resources=resources,
                  resource_params=resource_params,
                  clones=clones)

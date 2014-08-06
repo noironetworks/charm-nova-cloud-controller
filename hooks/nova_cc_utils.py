@@ -108,7 +108,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      context.SyslogContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
-                     nova_cc_context.VolumeServiceContext()],
+                     nova_cc_context.VolumeServiceContext(),
+                     nova_cc_context.NovaIPv6Context()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in BASE_SERVICES if 'api' in s],

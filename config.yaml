@@ -220,3 +220,7 @@ options:
     default: 'en-us'
     description: |
        Console keymap
+  prefer-ipv6:
+    default: false
+    type: boolean
+    description: "Enable IPv6"
