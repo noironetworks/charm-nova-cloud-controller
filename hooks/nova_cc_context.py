@@ -38,6 +38,7 @@ class ApacheSSLContext(context.ApacheSSLContext):
 
 
 class NeutronAPIContext(context.OSContextGenerator):
+
     def __call__(self):
         log('Generating template context from neutron api relation')
         ctxt = {}

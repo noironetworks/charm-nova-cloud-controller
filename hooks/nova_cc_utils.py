@@ -40,14 +40,15 @@ from charmhelpers.core.hookenv import (
 
 from charmhelpers.core.host import (
     service_start,
+    service_stop,
+    service_running
 )
-
 
 import nova_cc_context
 
 TEMPLATES = 'templates/'
 
-CLUSTER_RES = 'res_nova_vip'
+CLUSTER_RES = 'grp_nova_vips'
 
 # removed from original: charm-helper-sh
 BASE_PACKAGES = [
@@ -176,6 +177,27 @@ CA_CERT_PATH = '/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt'
 
 NOVA_SSH_DIR = '/etc/nova/compute_ssh/'
 
+CONSOLE_CONFIG = {
+    'spice': {
+        'packages': ['nova-spiceproxy', 'nova-consoleauth'],
+        'services': ['nova-spiceproxy', 'nova-consoleauth'],
+        'proxy-page': '/spice_auto.html',
+        'proxy-port': 6082,
+    },
+    'novnc': {
+        'packages': ['nova-novncproxy', 'nova-consoleauth'],
+        'services': ['nova-novncproxy', 'nova-consoleauth'],
+        'proxy-page': '/vnc_auto.html',
+        'proxy-port': 6080,
+    },
+    'xvpvnc': {
+        'packages': ['nova-xvpvncproxy', 'nova-consoleauth'],
+        'services': ['nova-xvpvncproxy', 'nova-consoleauth'],
+        'proxy-page': '/console',
+        'proxy-port': 6081,
+    },
+}
+
 
 def resource_map():
     '''
@@ -238,6 +260,10 @@ def resource_map():
     if os_release('nova-common') not in ['essex', 'folsom']:
         resource_map['/etc/nova/nova.conf']['services'] += ['nova-conductor']
 
+    if console_attributes('services'):
+        resource_map['/etc/nova/nova.conf']['services'] += \
+            console_attributes('services')
+
     # also manage any configs that are being updated by subordinates.
     vmware_ctxt = context.SubordinateConfigContext(interface='nova-vmware',
                                                    service='nova',
@@ -290,6 +316,27 @@ def api_port(service):
     return API_PORTS[service]
 
 
+def console_attributes(attr, proto=None):
+    '''Leave proto unset to query attributes of the protocal specified at
+    runtime'''
+    if proto:
+        console_proto = proto
+    else:
+        console_proto = config('console-access-protocol')
+    if attr == 'protocol':
+        return console_proto
+    # 'vnc' is a virtual type made up of novnc and xvpvnc
+    if console_proto == 'vnc':
+        if attr in ['packages', 'services']:
+            return list(set(CONSOLE_CONFIG['novnc'][attr] +
+                        CONSOLE_CONFIG['xvpvnc'][attr]))
+        else:
+            return None
+    if console_proto in CONSOLE_CONFIG:
+        return CONSOLE_CONFIG[console_proto][attr]
+    return None
+
+
 def determine_packages():
     # currently all packages match service names
     packages = [] + BASE_PACKAGES
@@ -299,6 +346,8 @@ def determine_packages():
         pkgs = neutron_plugin_attribute(neutron_plugin(), 'server_packages',
                                         network_manager())
         packages.extend(pkgs)
+    if console_attributes('packages'):
+        packages.extend(console_attributes('packages'))
     return list(set(packages))
 
 
@@ -522,8 +571,11 @@ def keystone_ca_cert_b64():
         return b64encode(_in.read())
 
 
-def ssh_directory_for_unit(user=None):
-    remote_service = remote_unit().split('/')[0]
+def ssh_directory_for_unit(unit=None, user=None):
+    if unit:
+        remote_service = unit.split('/')[0]
+    else:
+        remote_service = remote_unit().split('/')[0]
     if user:
         remote_service = "{}_{}".format(remote_service, user)
     _dir = os.path.join(NOVA_SSH_DIR, remote_service)
@@ -537,29 +589,29 @@ def ssh_directory_for_unit(user=None):
     return _dir
 
 
-def known_hosts(user=None):
-    return os.path.join(ssh_directory_for_unit(user), 'known_hosts')
+def known_hosts(unit=None, user=None):
+    return os.path.join(ssh_directory_for_unit(unit, user), 'known_hosts')
 
 
-def authorized_keys(user=None):
-    return os.path.join(ssh_directory_for_unit(user), 'authorized_keys')
+def authorized_keys(unit=None, user=None):
+    return os.path.join(ssh_directory_for_unit(unit, user), 'authorized_keys')
 
 
-def ssh_known_host_key(host, user=None):
-    cmd = ['ssh-keygen', '-f', known_hosts(user), '-H', '-F', host]
+def ssh_known_host_key(host, unit=None, user=None):
+    cmd = ['ssh-keygen', '-f', known_hosts(unit, user), '-H', '-F', host]
     try:
         return subprocess.check_output(cmd).strip()
     except subprocess.CalledProcessError:
         return None
 
 
-def remove_known_host(host, user=None):
+def remove_known_host(host, unit=None, user=None):
     log('Removing SSH known host entry for compute host at %s' % host)
-    cmd = ['ssh-keygen', '-f', known_hosts(user), '-R', host]
+    cmd = ['ssh-keygen', '-f', known_hosts(unit, user), '-R', host]
     subprocess.check_call(cmd)
 
 
-def add_known_host(host, user=None):
+def add_known_host(host, unit=None, user=None):
     '''Add variations of host to a known hosts file.'''
     cmd = ['ssh-keyscan', '-H', '-t', 'rsa', host]
     try:
@@ -568,33 +620,34 @@ def add_known_host(host, user=None):
         log('Could not obtain SSH host key from %s' % host, level=ERROR)
         raise e
 
-    current_key = ssh_known_host_key(host, user)
+    current_key = ssh_known_host_key(host, unit, user)
     if current_key:
         if remote_key == current_key:
             log('Known host key for compute host %s up to date.' % host)
             return
         else:
-            remove_known_host(host, user)
+            remove_known_host(host, unit, user)
 
     log('Adding SSH host key to known hosts for compute node at %s.' % host)
-    with open(known_hosts(user), 'a') as out:
+    with open(known_hosts(unit, user), 'a') as out:
         out.write(remote_key + '\n')
 
 
-def ssh_authorized_key_exists(public_key, user=None):
-    with open(authorized_keys(user)) as keys:
+def ssh_authorized_key_exists(public_key, unit=None, user=None):
+    with open(authorized_keys(unit, user)) as keys:
         return (' %s ' % public_key) in keys.read()
 
 
-def add_authorized_key(public_key, user=None):
-    with open(authorized_keys(user), 'a') as keys:
+def add_authorized_key(public_key, unit=None, user=None):
+    with open(authorized_keys(unit, user), 'a') as keys:
         keys.write(public_key + '\n')
 
 
-def ssh_compute_add(public_key, user=None):
+def ssh_compute_add(public_key, rid=None, unit=None, user=None):
     # If remote compute node hands us a hostname, ensure we have a
     # known hosts entry for its IP, hostname and FQDN.
-    private_address = relation_get('private-address')
+    private_address = relation_get(rid=rid, unit=unit,
+                                   attribute='private-address')
     hosts = [private_address]
     if relation_get('hostname'):
         hosts.append(relation_get('hostname'))
@@ -608,31 +661,41 @@ def ssh_compute_add(public_key, user=None):
         hosts.append(hn.split('.')[0])
 
     for host in list(set(hosts)):
-        if not ssh_known_host_key(host, user):
-            add_known_host(host, user)
+        if not ssh_known_host_key(host, unit, user):
+            add_known_host(host, unit, user)
 
-    if not ssh_authorized_key_exists(public_key, user):
+    if not ssh_authorized_key_exists(public_key, unit, user):
         log('Saving SSH authorized key for compute host at %s.' %
             private_address)
-        add_authorized_key(public_key, user)
+        add_authorized_key(public_key, unit, user)
 
 
-def ssh_known_hosts_b64(user=None):
-    with open(known_hosts(user)) as hosts:
-        return b64encode(hosts.read())
+def ssh_known_hosts_lines(unit=None, user=None):
+    known_hosts_list = []
+
+    with open(known_hosts(unit, user)) as hosts:
+        for hosts_line in hosts:
+            if hosts_line.rstrip():
+                known_hosts_list.append(hosts_line.rstrip())
+    return(known_hosts_list)
 
 
-def ssh_authorized_keys_b64(user=None):
-    with open(authorized_keys(user)) as keys:
-        return b64encode(keys.read())
+def ssh_authorized_keys_lines(unit=None, user=None):
+    authorized_keys_list = []
+
+    with open(authorized_keys(unit, user)) as keys:
+        for authkey_line in keys:
+            if authkey_line.rstrip():
+                authorized_keys_list.append(authkey_line.rstrip())
+    return(authorized_keys_list)
 
 
-def ssh_compute_remove(public_key, user=None):
-    if not (os.path.isfile(authorized_keys(user)) or
-            os.path.isfile(known_hosts(user))):
+def ssh_compute_remove(public_key, unit=None, user=None):
+    if not (os.path.isfile(authorized_keys(unit, user)) or
+            os.path.isfile(known_hosts(unit, user))):
         return
 
-    with open(authorized_keys(user)) as _keys:
+    with open(authorized_keys(unit, user)) as _keys:
         keys = [k.strip() for k in _keys.readlines()]
 
     if public_key not in keys:
@@ -640,57 +703,83 @@ def ssh_compute_remove(public_key, user=None):
 
     [keys.remove(key) for key in keys if key == public_key]
 
-    with open(authorized_keys(user), 'w') as _keys:
+    with open(authorized_keys(unit, user), 'w') as _keys:
         keys = '\n'.join(keys)
         if not keys.endswith('\n'):
             keys += '\n'
         _keys.write(keys)
 
 
-def determine_endpoints(url):
+def determine_endpoints(public_url, internal_url, admin_url):
     '''Generates a dictionary containing all relevant endpoints to be
     passed to keystone as relation settings.'''
     region = config('region')
     os_rel = os_release('nova-common')
 
     if os_rel >= 'grizzly':
-        nova_url = ('%s:%s/v2/$(tenant_id)s' %
-                    (url, api_port('nova-api-os-compute')))
+        nova_public_url = ('%s:%s/v2/$(tenant_id)s' %
+                           (public_url, api_port('nova-api-os-compute')))
+        nova_internal_url = ('%s:%s/v2/$(tenant_id)s' %
+                             (internal_url, api_port('nova-api-os-compute')))
+        nova_admin_url = ('%s:%s/v2/$(tenant_id)s' %
+                          (admin_url, api_port('nova-api-os-compute')))
     else:
-        nova_url = ('%s:%s/v1.1/$(tenant_id)s' %
-                    (url, api_port('nova-api-os-compute')))
-    ec2_url = '%s:%s/services/Cloud' % (url, api_port('nova-api-ec2'))
-    nova_volume_url = ('%s:%s/v1/$(tenant_id)s' %
-                       (url, api_port('nova-api-os-compute')))
-    neutron_url = '%s:%s' % (url, api_port('neutron-server'))
-    s3_url = '%s:%s' % (url, api_port('nova-objectstore'))
+        nova_public_url = ('%s:%s/v1.1/$(tenant_id)s' %
+                           (public_url, api_port('nova-api-os-compute')))
+        nova_internal_url = ('%s:%s/v1.1/$(tenant_id)s' %
+                             (internal_url, api_port('nova-api-os-compute')))
+        nova_admin_url = ('%s:%s/v1.1/$(tenant_id)s' %
+                          (admin_url, api_port('nova-api-os-compute')))
+
+    ec2_public_url = '%s:%s/services/Cloud' % (
+        public_url, api_port('nova-api-ec2'))
+    ec2_internal_url = '%s:%s/services/Cloud' % (
+        internal_url, api_port('nova-api-ec2'))
+    ec2_admin_url = '%s:%s/services/Cloud' % (admin_url,
+                                              api_port('nova-api-ec2'))
+
+    nova_volume_public_url = ('%s:%s/v1/$(tenant_id)s' %
+                              (public_url, api_port('nova-api-os-compute')))
+    nova_volume_internal_url = ('%s:%s/v1/$(tenant_id)s' %
+                                (internal_url,
+                                 api_port('nova-api-os-compute')))
+    nova_volume_admin_url = ('%s:%s/v1/$(tenant_id)s' %
+                             (admin_url, api_port('nova-api-os-compute')))
+
+    neutron_public_url = '%s:%s' % (public_url, api_port('neutron-server'))
+    neutron_internal_url = '%s:%s' % (internal_url, api_port('neutron-server'))
+    neutron_admin_url = '%s:%s' % (admin_url, api_port('neutron-server'))
+
+    s3_public_url = '%s:%s' % (public_url, api_port('nova-objectstore'))
+    s3_internal_url = '%s:%s' % (internal_url, api_port('nova-objectstore'))
+    s3_admin_url = '%s:%s' % (admin_url, api_port('nova-objectstore'))
 
     # the base endpoints
     endpoints = {
         'nova_service': 'nova',
         'nova_region': region,
-        'nova_public_url': nova_url,
-        'nova_admin_url': nova_url,
-        'nova_internal_url': nova_url,
+        'nova_public_url': nova_public_url,
+        'nova_admin_url': nova_admin_url,
+        'nova_internal_url': nova_internal_url,
         'ec2_service': 'ec2',
         'ec2_region': region,
-        'ec2_public_url': ec2_url,
-        'ec2_admin_url': ec2_url,
-        'ec2_internal_url': ec2_url,
+        'ec2_public_url': ec2_public_url,
+        'ec2_admin_url': ec2_admin_url,
+        'ec2_internal_url': ec2_internal_url,
         's3_service': 's3',
         's3_region': region,
-        's3_public_url': s3_url,
-        's3_admin_url': s3_url,
-        's3_internal_url': s3_url,
+        's3_public_url': s3_public_url,
+        's3_admin_url': s3_admin_url,
+        's3_internal_url': s3_internal_url,
     }
 
     if relation_ids('nova-volume-service'):
         endpoints.update({
             'nova-volume_service': 'nova-volume',
             'nova-volume_region': region,
-            'nova-volume_public_url': nova_volume_url,
-            'nova-volume_admin_url': nova_volume_url,
-            'nova-volume_internal_url': nova_volume_url,
+            'nova-volume_public_url': nova_volume_public_url,
+            'nova-volume_admin_url': nova_volume_admin_url,
+            'nova-volume_internal_url': nova_volume_internal_url,
         })
 
     # XXX: Keep these relations named quantum_*??
@@ -706,9 +795,9 @@ def determine_endpoints(url):
         endpoints.update({
             'quantum_service': 'quantum',
             'quantum_region': region,
-            'quantum_public_url': neutron_url,
-            'quantum_admin_url': neutron_url,
-            'quantum_internal_url': neutron_url,
+            'quantum_public_url': neutron_public_url,
+            'quantum_admin_url': neutron_admin_url,
+            'quantum_internal_url': neutron_internal_url,
         })
 
     return endpoints
@@ -718,3 +807,59 @@ def neutron_plugin():
     # quantum-plugin config setting can be safely overriden
     # as we only supported OVS in G/neutron
     return config('neutron-plugin') or config('quantum-plugin')
+
+
+def guard_map():
+    '''Map of services and required interfaces that must be present before
+    the service should be allowed to start'''
+    gmap = {}
+    nova_services = deepcopy(BASE_SERVICES)
+    if os_release('nova-common') not in ['essex', 'folsom']:
+        nova_services.append('nova-conductor')
+
+    nova_interfaces = ['identity-service', 'amqp']
+    if relation_ids('pgsql-nova-db'):
+        nova_interfaces.append('pgsql-nova-db')
+    else:
+        nova_interfaces.append('shared-db')
+
+    for svc in nova_services:
+        gmap[svc] = nova_interfaces
+
+    net_manager = network_manager()
+    if net_manager in ['neutron', 'quantum'] and \
+            not is_relation_made('neutron-api'):
+        neutron_interfaces = ['identity-service', 'amqp']
+        if relation_ids('pgsql-neutron-db'):
+            neutron_interfaces.append('pgsql-neutron-db')
+        else:
+            neutron_interfaces.append('shared-db')
+        if network_manager() == 'quantum':
+            gmap['quantum-server'] = neutron_interfaces
+        else:
+            gmap['neutron-server'] = neutron_interfaces
+
+    return gmap
+
+
+def service_guard(guard_map, contexts, active=False):
+    '''Inhibit services in guard_map from running unless
+    required interfaces are found complete in contexts.'''
+    def wrap(f):
+        def wrapped_f(*args):
+            if active is True:
+                incomplete_services = []
+                for svc in guard_map:
+                    for interface in guard_map[svc]:
+                        if interface not in contexts.complete_contexts():
+                            incomplete_services.append(svc)
+                f(*args)
+                for svc in incomplete_services:
+                    if service_running(svc):
+                        log('Service {} has unfulfilled '
+                            'interface requirements, stopping.'.format(svc))
+                        service_stop(svc)
+            else:
+                f(*args)
+        return wrapped_f
+    return wrap

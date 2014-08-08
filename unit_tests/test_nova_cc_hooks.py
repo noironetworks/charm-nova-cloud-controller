@@ -1,4 +1,4 @@
-from mock import MagicMock, patch
+from mock import MagicMock, patch, call
 from test_utils import CharmTestCase, patch_open
 import os
 with patch('charmhelpers.core.hookenv.config') as config:
@@ -11,7 +11,11 @@ _map = utils.restart_map
 utils.register_configs = MagicMock()
 utils.restart_map = MagicMock()
 
-import nova_cc_hooks as hooks
+with patch('nova_cc_utils.guard_map') as gmap:
+    with patch('charmhelpers.core.hookenv.config') as config:
+        config.return_value = False
+        gmap.return_value = {}
+        import nova_cc_hooks as hooks
 
 utils.register_configs = _reg
 utils.restart_map = _map
@@ -35,8 +39,8 @@ TO_PATCH = [
     'relation_set',
     'relation_ids',
     'ssh_compute_add',
-    'ssh_known_hosts_b64',
-    'ssh_authorized_keys_b64',
+    'ssh_known_hosts_lines',
+    'ssh_authorized_keys_lines',
     'save_script_rc',
     'service_running',
     'service_stop',
@@ -100,15 +104,65 @@ class NovaCCHooksTests(CharmTestCase):
         self.test_relation.set({
             'migration_auth_type': 'ssh', 'ssh_public_key': 'fookey',
             'private-address': '10.0.0.1'})
-        self.ssh_known_hosts_b64.return_value = 'hosts'
-        self.ssh_authorized_keys_b64.return_value = 'keys'
+        self.ssh_known_hosts_lines.return_value = [
+            'k_h_0', 'k_h_1', 'k_h_2']
+        self.ssh_authorized_keys_lines.return_value = [
+            'auth_0', 'auth_1', 'auth_2']
         hooks.compute_changed()
-        self.ssh_compute_add.assert_called_with('fookey')
-        self.relation_set.assert_called_with(known_hosts='hosts',
-                                             authorized_keys='keys')
+        self.ssh_compute_add.assert_called_with('fookey', rid=None, unit=None)
+        expected_relations = [
+            call(relation_settings={'authorized_keys_0': 'auth_0'},
+                 relation_id=None),
+            call(relation_settings={'authorized_keys_1': 'auth_1'},
+                 relation_id=None),
+            call(relation_settings={'authorized_keys_2': 'auth_2'},
+                 relation_id=None),
+            call(relation_settings={'known_hosts_0': 'k_h_0'},
+                 relation_id=None),
+            call(relation_settings={'known_hosts_1': 'k_h_1'},
+                 relation_id=None),
+            call(relation_settings={'known_hosts_2': 'k_h_2'},
+                 relation_id=None),
+            call(authorized_keys_max_index=3, relation_id=None),
+            call(known_hosts_max_index=3, relation_id=None)]
+        self.assertEquals(sorted(self.relation_set.call_args_list),
+                          sorted(expected_relations))
 
+    def test_compute_changed_nova_public_key(self):
+        self.test_relation.set({
+            'migration_auth_type': 'sasl', 'nova_ssh_public_key': 'fookey',
+            'private-address': '10.0.0.1'})
+        self.ssh_known_hosts_lines.return_value = [
+            'k_h_0', 'k_h_1', 'k_h_2']
+        self.ssh_authorized_keys_lines.return_value = [
+            'auth_0', 'auth_1', 'auth_2']
+        hooks.compute_changed()
+        self.ssh_compute_add.assert_called_with('fookey', user='nova',
+                                                rid=None, unit=None)
+        expected_relations = [
+            call(relation_settings={'nova_authorized_keys_0': 'auth_0'},
+                 relation_id=None),
+            call(relation_settings={'nova_authorized_keys_1': 'auth_1'},
+                 relation_id=None),
+            call(relation_settings={'nova_authorized_keys_2': 'auth_2'},
+                 relation_id=None),
+            call(relation_settings={'nova_known_hosts_0': 'k_h_0'},
+                 relation_id=None),
+            call(relation_settings={'nova_known_hosts_1': 'k_h_1'},
+                 relation_id=None),
+            call(relation_settings={'nova_known_hosts_2': 'k_h_2'},
+                 relation_id=None),
+            call(relation_settings={'nova_known_hosts_max_index': 3},
+                 relation_id=None),
+            call(relation_settings={'nova_authorized_keys_max_index': 3},
+                 relation_id=None)]
+        self.assertEquals(sorted(self.relation_set.call_args_list),
+                          sorted(expected_relations))
+
+    @patch.object(utils, 'config')
     @patch.object(hooks, '_auth_config')
-    def test_compute_joined_neutron(self, auth_config):
+    def test_compute_joined_neutron(self, auth_config, _util_config):
+        _util_config.return_value = None
         self.is_relation_made.return_value = False
         self.network_manager.return_value = 'neutron'
         self.eligible_leader = True
@@ -134,15 +188,18 @@ class NovaCCHooksTests(CharmTestCase):
             quantum_plugin='nvp',
             network_manager='neutron', **FAKE_KS_AUTH_CFG)
 
+    @patch.object(utils, 'config')
     @patch.object(hooks, 'NeutronAPIContext')
     @patch.object(hooks, '_auth_config')
-    def test_compute_joined_neutron_api_rel(self, auth_config, napi):
+    def test_compute_joined_neutron_api_rel(self, auth_config, napi,
+                                            _util_config):
         def mock_NeutronAPIContext():
             return {
                 'neutron_plugin': 'bob',
                 'neutron_security_groups': 'yes',
                 'neutron_url': 'http://nova-cc-host1:9696',
             }
+        _util_config.return_value = None
         napi.return_value = mock_NeutronAPIContext
         self.is_relation_made.return_value = True
         self.network_manager.return_value = 'neutron'
@@ -313,3 +370,89 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(configs.write_all.called)
         self.assertTrue(_compute_joined.called)
         self.assertTrue(_quantum_joined.called)
+
+    @patch.object(utils, 'config')
+    def test_console_settings_vnc(self, _utils_config):
+        _utils_config.return_value = 'vnc'
+        _cc_host = "nova-cc-host1"
+        self.canonical_url.return_value = 'http://' + _cc_host
+        _con_sets = hooks.console_settings()
+        console_settings = {
+            'console_proxy_novnc_address': 'http://%s:6080/vnc_auto.html' %
+                                           (_cc_host),
+            'console_proxy_novnc_port': 6080,
+            'console_access_protocol': 'vnc',
+            'console_proxy_novnc_host': _cc_host,
+            'console_proxy_xvpvnc_port': 6081,
+            'console_proxy_xvpvnc_host': _cc_host,
+            'console_proxy_xvpvnc_address': 'http://%s:6081/console' %
+                                            (_cc_host),
+            'console_keymap': 'en-us'
+        }
+        self.assertEqual(_con_sets, console_settings)
+
+    @patch.object(utils, 'config')
+    def test_console_settings_xvpvnc(self, _utils_config):
+        _utils_config.return_value = 'xvpvnc'
+        _cc_host = "nova-cc-host1"
+        self.canonical_url.return_value = 'http://' + _cc_host
+        _con_sets = hooks.console_settings()
+        console_settings = {
+            'console_access_protocol': 'xvpvnc',
+            'console_keymap': 'en-us',
+            'console_proxy_xvpvnc_port': 6081,
+            'console_proxy_xvpvnc_host': _cc_host,
+            'console_proxy_xvpvnc_address': 'http://%s:6081/console' %
+                                            (_cc_host),
+        }
+        self.assertEqual(_con_sets, console_settings)
+
+    @patch.object(utils, 'config')
+    def test_console_settings_novnc(self, _utils_config):
+        _utils_config.return_value = 'novnc'
+        _cc_host = "nova-cc-host1"
+        self.canonical_url.return_value = 'http://' + _cc_host
+        _con_sets = hooks.console_settings()
+        console_settings = {
+            'console_proxy_novnc_address': 'http://%s:6080/vnc_auto.html' %
+                                           (_cc_host),
+            'console_proxy_novnc_port': 6080,
+            'console_access_protocol': 'novnc',
+            'console_proxy_novnc_host': _cc_host,
+            'console_keymap': 'en-us'
+        }
+        self.assertEqual(_con_sets, console_settings)
+
+    @patch.object(utils, 'config')
+    def test_console_settings_spice(self, _utils_config):
+        _utils_config.return_value = 'spice'
+        _cc_host = "nova-cc-host1"
+        self.canonical_url.return_value = 'http://' + _cc_host
+        _con_sets = hooks.console_settings()
+        console_settings = {
+            'console_proxy_spice_address': 'http://%s:6082/spice_auto.html' %
+                                           (_cc_host),
+            'console_proxy_spice_host': _cc_host,
+            'console_proxy_spice_port': 6082,
+            'console_access_protocol': 'spice',
+            'console_keymap': 'en-us'
+        }
+        self.assertEqual(_con_sets, console_settings)
+
+    @patch.object(utils, 'config')
+    def test_console_settings_explicit_ip(self, _utils_config):
+        _utils_config.return_value = 'spice'
+        _cc_public_host = "public-host"
+        _cc_private_host = "private-host"
+        self.test_config.set('console-proxy-ip', _cc_public_host)
+        _con_sets = hooks.console_settings()
+        self.canonical_url.return_value = 'http://' + _cc_private_host
+        console_settings = {
+            'console_proxy_spice_address': 'http://%s:6082/spice_auto.html' %
+                                           (_cc_public_host),
+            'console_proxy_spice_host': _cc_public_host,
+            'console_proxy_spice_port': 6082,
+            'console_access_protocol': 'spice',
+            'console_keymap': 'en-us'
+        }
+        self.assertEqual(_con_sets, console_settings)
