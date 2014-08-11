@@ -48,13 +48,18 @@ from nova_cc_context import (
     NeutronAPIContext
 )
 
+from charmhelpers.contrib.peerstorage import peer_retrieve
+
 from nova_cc_utils import (
     api_port,
     auth_token_config,
+    cmd_all_services,
     determine_endpoints,
     determine_packages,
     determine_ports,
+    disable_services,
     do_openstack_upgrade,
+    enable_services,
     keystone_ca_cert_b64,
     migrate_database,
     neutron_plugin,
@@ -112,6 +117,8 @@ def install():
             log('Installing %s to /usr/bin' % f)
             shutil.copy2(f, '/usr/bin')
     [open_port(port) for port in determine_ports()]
+    disable_services()
+    cmd_all_services('stop')
 
 
 @hooks.hook('config-changed')
@@ -524,6 +531,14 @@ def quantum_joined(rid=None):
 @restart_on_change(restart_map(), stopstart=True)
 def cluster_changed():
     CONFIGS.write_all()
+    dbsync_state = peer_retrieve('dbsync_state')
+    if dbsync_state == 'complete':
+        enable_services()
+        cmd_all_services('start')
+    else:
+        log('Database sync not ready. Shutting down services')
+        disable_services()
+        cmd_all_services('stop')
 
 
 @hooks.hook('ha-relation-joined')
