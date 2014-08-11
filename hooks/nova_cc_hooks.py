@@ -48,7 +48,10 @@ from nova_cc_context import (
     NeutronAPIContext
 )
 
-from charmhelpers.contrib.peerstorage import peer_retrieve
+from charmhelpers.contrib.peerstorage import (
+    peer_retrieve,
+    peer_echo,
+)
 
 from nova_cc_utils import (
     api_port,
@@ -539,7 +542,7 @@ def cluster_changed():
         log('Database sync not ready. Shutting down services')
         disable_services()
         cmd_all_services('stop')
-
+    peer_echo(includes='dbsync_state')
 
 @hooks.hook('ha-relation-joined')
 def ha_joined():
