@@ -33,6 +33,7 @@ from charmhelpers.core.hookenv import (
     config,
     log,
     relation_get,
+    relation_set,
     relation_ids,
     remote_unit,
     is_relation_made,
@@ -544,7 +545,8 @@ def migrate_database():
     log('Migrating the nova database.', level=INFO)
     cmd = ['nova-manage', 'db', 'sync']
     subprocess.check_output(cmd)
-    peer_store('dbsync_state', 'complete')
+    for r_id in relation_ids('cluster'):
+        relation_set(relation_id=r_id, dbsync_state='complete')
     enable_services()
     cmd_all_services('start')
 
