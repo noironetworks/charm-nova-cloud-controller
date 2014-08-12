@@ -594,21 +594,21 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('subprocess.check_output')
     def test_migrate_database(self, check_output):
         "Migrate database with nova-manage"
-	self.is_relation_made.return_value = False
+        self.is_relation_made.return_value = False
         utils.migrate_database()
         check_output.assert_called_with(['nova-manage', 'db', 'sync'])
         self.enable_services.assert_called()
-	self.cmd_all_services.assert_called_with('start')
+        self.cmd_all_services.assert_called_with('start')
 
     @patch('subprocess.check_output')
     def test_migrate_database_cluster(self, check_output):
         "Migrate database with nova-manage in a clustered env"
-	self.is_relation_made.return_value = True
+        self.is_relation_made.return_value = True
         utils.migrate_database()
         check_output.assert_called_with(['nova-manage', 'db', 'sync'])
-	self.peer_store.assert_called_with('dbsync_state', 'complete')
+        self.peer_store.assert_called_with('dbsync_state', 'complete')
         self.enable_services.assert_called()
-	self.cmd_all_services.assert_called_with('start')
+        self.cmd_all_services.assert_called_with('start')
 
     @patch.object(utils, 'get_step_upgrade_source')
     @patch.object(utils, 'migrate_database')
