@@ -533,6 +533,8 @@ def quantum_joined(rid=None):
                active=config('service-guard'))
 @restart_on_change(restart_map(), stopstart=True)
 def cluster_changed():
+    print "peer_echo(includes='dbsync_state')"
+    peer_echo(includes='dbsync_state')
     CONFIGS.write_all()
     dbsync_state = peer_retrieve('dbsync_state')
     print "cluster_changed() dbsync_state: " + str(dbsync_state)
@@ -545,8 +547,6 @@ def cluster_changed():
         print 'Database sync not ready. Shutting down services'
         disable_services()
         cmd_all_services('stop')
-    print "peer_echo(includes='dbsync_state')"
-    peer_echo(includes='dbsync_state')
 
 @hooks.hook('ha-relation-joined')
 def ha_joined():
