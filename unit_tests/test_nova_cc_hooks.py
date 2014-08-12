@@ -52,6 +52,7 @@ TO_PATCH = [
     'keystone_ca_cert_b64',
     'neutron_plugin',
     'migrate_database',
+    'get_ipv6_addr',
 ]
 
 
