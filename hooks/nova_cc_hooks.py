@@ -535,13 +535,17 @@ def quantum_joined(rid=None):
 def cluster_changed():
     CONFIGS.write_all()
     dbsync_state = peer_retrieve('dbsync_state')
+    print "cluster_changed() dbsync_state: " + str(dbsync_state)
     if dbsync_state == 'complete':
+        print "Enabling Services"
         enable_services()
         cmd_all_services('start')
     else:
         log('Database sync not ready. Shutting down services')
+        print 'Database sync not ready. Shutting down services'
         disable_services()
         cmd_all_services('stop')
+    print "peer_echo(includes='dbsync_state')"
     peer_echo(includes='dbsync_state')
 
 @hooks.hook('ha-relation-joined')
@@ -604,6 +608,16 @@ def ha_changed():
         'keystone endpoint configuration')
     for rid in relation_ids('identity-service'):
         identity_joined(rid=rid)
+
+
+@hooks.hook('shared-db-relation-broken',
+            'pgsql-nova-db-relation-broken')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
+def db_departed():
+    CONFIGS.write_all()
+    for r_id in relation_ids('cluster'):
+        relation_set(relation_id=r_id, dbsync_state='incomplete')
 
 
 @hooks.hook('amqp-relation-broken',
