@@ -618,7 +618,8 @@ def db_departed():
     CONFIGS.write_all()
     for r_id in relation_ids('cluster'):
         relation_set(relation_id=r_id, dbsync_state='incomplete')
-
+    disable_services()                                                                                                                                                                                         
+    cmd_all_services('stop')   
 
 @hooks.hook('amqp-relation-broken',
             'cinder-volume-service-relation-broken',
