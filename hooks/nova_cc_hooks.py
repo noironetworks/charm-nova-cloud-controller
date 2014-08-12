@@ -626,8 +626,6 @@ def db_departed():
             'identity-service-relation-broken',
             'image-service-relation-broken',
             'nova-volume-service-relation-broken',
-            'shared-db-relation-broken',
-            'pgsql-nova-db-relation-broken',
             'pgsql-neutron-db-relation-broken',
             'quantum-network-service-relation-broken')
 @service_guard(guard_map(), CONFIGS,
