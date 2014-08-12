@@ -90,7 +90,7 @@ class NovaCCHooksTests(CharmTestCase):
             ['nova-scheduler', 'nova-api-ec2'], fatal=True)
         self.execd_preinstall.assert_called()
         self.disable_services.assert_called()
-	self.cmd_all_services.assert_called_with('stop')
+        self.cmd_all_services.assert_called_with('stop')
 
     @patch.object(hooks, 'configure_https')
     def test_config_changed_no_upgrade(self, conf_https):
