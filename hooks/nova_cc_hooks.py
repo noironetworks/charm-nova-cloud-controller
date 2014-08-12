@@ -120,6 +120,7 @@ def install():
             log('Installing %s to /usr/bin' % f)
             shutil.copy2(f, '/usr/bin')
     [open_port(port) for port in determine_ports()]
+    log('Disabling services into db relation joined')
     disable_services()
     cmd_all_services('stop')
 
@@ -533,16 +534,17 @@ def quantum_joined(rid=None):
                active=config('service-guard'))
 @restart_on_change(restart_map(), stopstart=True)
 def cluster_changed():
-    peer_echo(includes='dbsync_state')
     CONFIGS.write_all()
-    dbsync_state = peer_retrieve('dbsync_state')
-    if dbsync_state == 'complete':
-        enable_services()
-        cmd_all_services('start')
-    else:
-        log('Database sync not ready. Shutting down services')
-        disable_services()
-        cmd_all_services('stop')
+    if is_relation_made('cluster'):
+        peer_echo(includes='dbsync_state')
+        dbsync_state = peer_retrieve('dbsync_state')
+        if dbsync_state == 'complete':
+            enable_services()
+            cmd_all_services('start')
+        else:
+            log('Database sync not ready. Shutting down services')
+            disable_services()
+            cmd_all_services('stop')
 
 
 @hooks.hook('ha-relation-joined')
