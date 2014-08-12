@@ -57,8 +57,8 @@ BASE_PACKAGES = [
     'python-keystoneclient',
     'python-mysqldb',
     'python-psycopg2',
+    'python-psutil',
     'uuid',
-    'python-psutil'
 ]
 
 BASE_SERVICES = [
