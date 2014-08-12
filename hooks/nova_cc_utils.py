@@ -543,10 +543,13 @@ def volume_service():
 def migrate_database():
     '''Runs nova-manage to initialize a new database or migrate existing'''
     log('Migrating the nova database.', level=INFO)
+    print 'Migrating the nova database.'
     cmd = ['nova-manage', 'db', 'sync']
     subprocess.check_output(cmd)
     for r_id in relation_ids('cluster'):
+        print "Settinh dbsync_state='complete' for rid: " + str(r_id)
         relation_set(relation_id=r_id, dbsync_state='complete')
+    print 'Enabling services'
     enable_services()
     cmd_all_services('start')
 
