@@ -173,7 +173,6 @@ def db_joined():
     else:
         host = unit_get('private-address')
 
-
     relation_set(nova_database=config('database'),
                  nova_username=config('database-user'),
                  nova_hostname=host)
@@ -564,7 +563,6 @@ def ha_joined():
             )
             vip_group.append(vip_key)
 
-    
     relation_set(groups={'grp_nova_vips': ' '.join(vip_group)})
 
     init_services = {

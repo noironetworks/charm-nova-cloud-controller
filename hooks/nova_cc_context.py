@@ -17,6 +17,7 @@ from charmhelpers.contrib.network.ip import (
     get_ipv6_addr,
 )
 
+
 def context_complete(ctxt):
     _missing = []
     for k, v in ctxt.iteritems():
@@ -243,7 +244,6 @@ class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
 
 
 class NovaIPv6Context(context.OSContextGenerator):
-    
     def __call__(self):
         ctxt = {}
         if config('prefer-ipv6'):
@@ -252,4 +252,4 @@ class NovaIPv6Context(context.OSContextGenerator):
         else:
             ctxt['use_ipv6'] = False
             ctxt['host_ip'] = '%s' % unit_get('private-address')
-        return ctxt 
+        return ctxt
