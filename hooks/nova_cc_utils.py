@@ -883,7 +883,7 @@ def cmd_all_services(cmd):
 def disable_services():
     for svc in services():
         with open('/etc/init/{}.override'.format(svc), 'wb') as out:
-            out.write('manual\n')
+            out.write('exec true\n')
 
 
 def enable_services():
