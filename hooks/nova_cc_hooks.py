@@ -28,10 +28,13 @@ from charmhelpers.core.host import (
     restart_on_change,
     service_running,
     service_stop,
+    lsb_release,
 )
 
 from charmhelpers.fetch import (
-    apt_install, apt_update
+    apt_install,
+    apt_update,
+    add_source
 )
 
 from charmhelpers.contrib.openstack.utils import (
@@ -95,6 +98,8 @@ from charmhelpers.contrib.network.ip import (
     get_ipv6_addr,
 )
 
+from charmhelpers.contrib.peerstorage import peer_store
+
 hooks = Hooks()
 CONFIGS = register_configs()
 
@@ -103,8 +108,18 @@ CONFIGS = register_configs()
 def install():
     execd_preinstall()
     configure_installation_source(config('openstack-origin'))
+
+    trusty = lsb_release()['DISTRIB_CODENAME'] == 'trusty'
+    if config('prefer-ipv6') and trusty:
+        add_source('deb http://archive.ubuntu.com/ubuntu trusty-backports'
+                   ' main')
+        add_source('deb-src http://archive.ubuntu.com/ubuntu trusty-backports'
+                   ' main')
+
     apt_update()
     apt_install(determine_packages(), fatal=True)
+    if config('prefer-ipv6') and trusty:
+        apt_install('haproxy/trusty-backports', fatal=True)
 
     _files = os.path.join(charm_dir(), 'files')
     if os.path.isdir(_files):
@@ -524,11 +539,14 @@ def quantum_joined(rid=None):
 
 
 @hooks.hook('cluster-relation-changed',
-            'cluster-relation-departed')
+            'cluster-relation-departed',
+            'cluster-relation-joined')
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 @restart_on_change(restart_map(), stopstart=True)
 def cluster_changed():
+    if config('prefer-ipv6'):
+        peer_store('private-address', get_ipv6_addr())
     CONFIGS.write_all()
 
 

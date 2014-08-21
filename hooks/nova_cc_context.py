@@ -163,10 +163,16 @@ def canonical_url(vip_setting='vip'):
     scheme = 'http'
     if https():
         scheme = 'https'
-    if is_clustered():
-        addr = config(vip_setting)
+    if config('prefer-ipv6'):
+        if is_clustered():
+            addr = '[%s]' % config(vip_setting)
+        else:
+            addr = '[%s]' % get_ipv6_addr()
     else:
-        addr = unit_get('private-address')
+        if is_clustered():
+            addr = config(vip_setting)
+        else:
+            addr = unit_get('private-address')
     return '%s://%s' % (scheme, addr)
 
 
@@ -208,7 +214,8 @@ class NeutronCCContext(context.NeutronContext):
                     _config['nvp-controllers'].split()
         ctxt['nova_url'] = "{}:8774/v2".format(canonical_url())
         if config('prefer-ipv6'):
-            ctxt['bind_host'] = '%s' % get_ipv6_addr()
+            ctxt['bind_host'] = '::'
+            ctxt['neutron_url'] = "{}:9696".format(canonical_url())
         return ctxt
 
 
@@ -248,8 +255,9 @@ class NovaIPv6Context(context.OSContextGenerator):
         ctxt = {}
         if config('prefer-ipv6'):
             ctxt['use_ipv6'] = True
-            ctxt['host_ip'] = '%s' % get_ipv6_addr()
+            ctxt['host_ip'] = '::'
+            ctxt['neutron_url'] = "{}:9696".format(canonical_url())
         else:
             ctxt['use_ipv6'] = False
-            ctxt['host_ip'] = '%s' % unit_get('private-address')
+            ctxt['host_ip'] = ctxt['neutron_url'] = unit_get('private-address')
         return ctxt
