@@ -45,7 +45,8 @@ from charmhelpers.contrib.openstack.neutron import (
 )
 
 from nova_cc_context import (
-    NeutronAPIContext
+    NeutronAPIContext,
+    NovaCellContext,
 )
 
 from nova_cc_utils import (
@@ -155,6 +156,8 @@ def amqp_changed():
             CONFIGS.write(QUANTUM_CONF)
         if network_manager() == 'neutron':
             CONFIGS.write(NEUTRON_CONF)
+    [nova_cell_relation_joined(rid=rid)
+        for rid in relation_ids('cell')]
 
 
 @hooks.hook('shared-db-relation-joined')
@@ -216,6 +219,9 @@ def db_changed():
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
          for rid in relation_ids('cloud-compute')]
+        log('Triggering remote cell restarts.')
+        [nova_cell_relation_joined(rid=rid, remote_restart=True)
+         for rid in relation_ids('cell')]
 
 
 @hooks.hook('pgsql-nova-db-relation-changed')
@@ -601,6 +607,8 @@ def ha_changed():
                active=config('service-guard'))
 def relation_broken():
     CONFIGS.write_all()
+    [nova_cell_relation_joined(rid=rid)
+        for rid in relation_ids('cell')]
 
 
 def configure_https():
@@ -657,6 +665,41 @@ def upgrade_charm():
             compute_changed(r_id, unit)
 
 
+@hooks.hook('cell-relation-joined')
+def nova_cell_relation_joined(rid=None, remote_restart=False):
+    if remote_restart:
+        relation_set(relation_id=rid, restart_trigger = str(uuid.uuid4()))
+    if is_relation_made('amqp', ['password']):
+        amqp_rids = relation_ids('amqp')
+        amqp_units = related_units(amqp_rids[0])
+        if len(amqp_rids) > 1 or len(amqp_units) > 1:
+            print "Too many rabbits!"
+        rel_settings = relation_get(unit=amqp_units[0], rid=amqp_rids[0])
+        rel_settings['vhost'] = config('rabbit-vhost')
+        rel_settings['username'] = config('rabbit-user')
+        if 'password' in rel_settings:
+            relation_set(relation_id=rid, **rel_settings)
+    else:
+        relation_set(relation_id=rid, password='')
+
+
+@hooks.hook('cell-relation-changed')
+def nova_cell_relation_changed():
+    CONFIGS.complete_contexts()
+    # XXX Can we trust this ? Does the presence of a password always imply db is setup? (probably not)
+    if is_relation_made('shared-db', ['nova_password']):
+        relation_set(dbready=True)
+    else:
+        relation_set(dbready=False)
+    CONFIGS.write(NOVA_CONF)
+
+
+def get_cell_type():
+    cell_info = NovaCellContext()()                                                                                                                                                               
+    if 'cell_type' in cell_info:
+        return cell_info['cell_type']
+    return None
+
 @hooks.hook('neutron-api-relation-joined')
 def neutron_api_relation_joined(rid=None):
     with open('/etc/init/neutron-server.override', 'wb') as out:
@@ -668,8 +711,12 @@ def neutron_api_relation_joined(rid=None):
     for id_rid in relation_ids('identity-service'):
         identity_joined(rid=id_rid)
     nova_url = canonical_url(CONFIGS, INTERNAL) + ":8774/v2"
-    relation_set(relation_id=rid, nova_url=nova_url)
-
+    rel_settings = {
+        'nova_url': nova_url,
+    }
+    if get_cell_type():
+         rel_settings['cell_type'] = get_cell_type()
+    relation_set(relation_id=rid, **rel_settings)
 
 @hooks.hook('neutron-api-relation-changed')
 @service_guard(guard_map(), CONFIGS,

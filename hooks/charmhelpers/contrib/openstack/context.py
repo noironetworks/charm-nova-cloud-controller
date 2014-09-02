@@ -780,6 +780,16 @@ class LogLevelContext(OSContextGenerator):
         return ctxt
 
 
+class LogLevelContext(OSContextGenerator):
+
+    def __call__(self):
+        ctxt = {
+            'debug': config('debug'),
+            'verbose': config('verbose'),
+        }
+        return ctxt
+
+
 class SyslogContext(OSContextGenerator):
 
     def __call__(self):
