@@ -108,7 +108,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      context.SyslogContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
-                     nova_cc_context.VolumeServiceContext()],
+                     nova_cc_context.VolumeServiceContext(),
+                     context.ZeroMQContext()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in BASE_SERVICES if 'api' in s],
@@ -859,3 +860,10 @@ def service_guard(guard_map, contexts, active=False):
                 f(*args)
         return wrapped_f
     return wrap
+
+
+def get_topics():
+    topics = ['scheduler']
+    if 'nova-consoleauth' in services():
+        topics.append('consoleauth')
+    return topics
