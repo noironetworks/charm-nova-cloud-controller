@@ -59,6 +59,7 @@ from nova_cc_utils import (
     migrate_database,
     neutron_plugin,
     save_script_rc,
+    services,
     ssh_compute_add,
     ssh_compute_remove,
     ssh_known_hosts_lines,
@@ -74,6 +75,7 @@ from nova_cc_utils import (
     console_attributes,
     service_guard,
     guard_map,
+    get_topics,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -132,7 +134,8 @@ def config_changed():
             for rid in relation_ids('cloud-compute')]
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
-
+    for rid in relation_ids('zeromq-configuration'):
+        zeromq_configuration_relation_joined(rid)
 
 @hooks.hook('amqp-relation-joined')
 def amqp_joined(relation_id=None):
@@ -696,6 +699,19 @@ def neutron_api_relation_broken():
         compute_joined(rid=rid)
     for rid in relation_ids('quantum-network-service'):
         quantum_joined(rid=rid)
+
+
+@hooks.hook('zeromq-configuration-relation-joined')
+def zeromq_configuration_relation_joined(relid=None):
+    relation_set(relation_id=relid,
+                 topics=" ".join(get_topics()),
+                 users="nova")
+
+
+@hooks.hook('zeromq-configuration-relation-changed')
+@restart_on_change(restart_map(), stopstart=True)
+def zeromq_configuration_relation_changed():
+    CONFIGS.write(NOVA_CONF)
 
 
 def main():
