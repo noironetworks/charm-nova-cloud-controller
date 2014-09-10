@@ -863,7 +863,7 @@ def service_guard(guard_map, contexts, active=False):
 
 
 def get_topics():
-    topics = ['scheduler']
+    topics = ['scheduler', 'conductor']
     if 'nova-consoleauth' in services():
         topics.append('consoleauth')
     return topics
