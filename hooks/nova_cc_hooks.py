@@ -15,6 +15,7 @@ from charmhelpers.core.hookenv import (
     charm_dir,
     is_relation_made,
     log,
+    local_unit,
     ERROR,
     relation_get,
     relation_ids,
@@ -31,7 +32,8 @@ from charmhelpers.core.host import (
 )
 
 from charmhelpers.fetch import (
-    apt_install, apt_update
+    apt_install, apt_update,
+    filter_installed_packages
 )
 
 from charmhelpers.contrib.openstack.utils import (
@@ -48,13 +50,21 @@ from nova_cc_context import (
     NeutronAPIContext
 )
 
+from charmhelpers.contrib.peerstorage import (
+    peer_retrieve,
+    peer_echo,
+)
+
 from nova_cc_utils import (
     api_port,
     auth_token_config,
+    cmd_all_services,
     determine_endpoints,
     determine_packages,
     determine_ports,
+    disable_services,
     do_openstack_upgrade,
+    enable_services,
     keystone_ca_cert_b64,
     migrate_database,
     neutron_plugin,
@@ -70,17 +80,29 @@ from nova_cc_utils import (
     NOVA_CONF,
     QUANTUM_CONF,
     NEUTRON_CONF,
-    QUANTUM_API_PASTE
+    QUANTUM_API_PASTE,
+    console_attributes,
+    service_guard,
+    guard_map,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
-    canonical_url,
     eligible_leader,
     get_hacluster_config,
     is_leader,
 )
 
 from charmhelpers.payload.execd import execd_preinstall
+
+from charmhelpers.contrib.openstack.ip import (
+    canonical_url,
+    PUBLIC, INTERNAL, ADMIN
+)
+
+from charmhelpers.contrib.network.ip import (
+    get_iface_for_address,
+    get_netmask_for_address
+)
 
 hooks = Hooks()
 CONFIGS = register_configs()
@@ -100,9 +122,14 @@ def install():
             log('Installing %s to /usr/bin' % f)
             shutil.copy2(f, '/usr/bin')
     [open_port(port) for port in determine_ports()]
+    log('Disabling services into db relation joined')
+    disable_services()
+    cmd_all_services('stop')
 
 
 @hooks.hook('config-changed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map(), stopstart=True)
 def config_changed():
     global CONFIGS
@@ -111,6 +138,13 @@ def config_changed():
     save_script_rc()
     configure_https()
     CONFIGS.write_all()
+    if console_attributes('protocol'):
+        apt_update()
+        apt_install(console_attributes('packages'), fatal=True)
+        [compute_joined(rid=rid)
+            for rid in relation_ids('cloud-compute')]
+    for r_id in relation_ids('identity-service'):
+        identity_joined(rid=r_id)
 
 
 @hooks.hook('amqp-relation-joined')
@@ -121,6 +155,8 @@ def amqp_joined(relation_id=None):
 
 @hooks.hook('amqp-relation-changed')
 @hooks.hook('amqp-relation-departed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def amqp_changed():
     if 'amqp' not in CONFIGS.complete_contexts():
@@ -179,6 +215,8 @@ def pgsql_neutron_db_joined():
 
 
 @hooks.hook('shared-db-relation-changed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def db_changed():
     if 'shared-db' not in CONFIGS.complete_contexts():
@@ -187,6 +225,13 @@ def db_changed():
     CONFIGS.write_all()
 
     if eligible_leader(CLUSTER_RES):
+        # Bugs 1353135 & 1187508. Dbs can appear to be ready before the units
+        # acl entry has been added. So, if the db supports passing a list of
+        # permitted units then check if we're in the list.
+        allowed_units = relation_get('nova_allowed_units')
+        if allowed_units and local_unit() not in allowed_units.split():
+            log('Allowed_units list provided and this unit not present')
+            return
         migrate_database()
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
@@ -194,6 +239,8 @@ def db_changed():
 
 
 @hooks.hook('pgsql-nova-db-relation-changed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def postgresql_nova_db_changed():
     if 'pgsql-nova-db' not in CONFIGS.complete_contexts():
@@ -209,6 +256,8 @@ def postgresql_nova_db_changed():
 
 
 @hooks.hook('pgsql-neutron-db-relation-changed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def postgresql_neutron_db_changed():
     if network_manager() in ['neutron', 'quantum']:
@@ -218,6 +267,8 @@ def postgresql_neutron_db_changed():
 
 
 @hooks.hook('image-service-relation-changed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def image_service_changed():
     if 'image-service' not in CONFIGS.complete_contexts():
@@ -231,11 +282,17 @@ def image_service_changed():
 def identity_joined(rid=None):
     if not eligible_leader(CLUSTER_RES):
         return
-    base_url = canonical_url(CONFIGS)
-    relation_set(relation_id=rid, **determine_endpoints(base_url))
+    public_url = canonical_url(CONFIGS, PUBLIC)
+    internal_url = canonical_url(CONFIGS, INTERNAL)
+    admin_url = canonical_url(CONFIGS, ADMIN)
+    relation_set(relation_id=rid, **determine_endpoints(public_url,
+                                                        internal_url,
+                                                        admin_url))
 
 
 @hooks.hook('identity-service-relation-changed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def identity_changed():
     if 'identity-service' not in CONFIGS.complete_contexts():
@@ -259,6 +316,8 @@ def identity_changed():
 
 @hooks.hook('nova-volume-service-relation-joined',
             'cinder-volume-service-relation-joined')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def volume_joined():
     CONFIGS.write(NOVA_CONF)
@@ -321,8 +380,8 @@ def neutron_settings():
             'quantum_plugin': neutron_plugin(),
             'region': config('region'),
             'quantum_security_groups': config('quantum-security-groups'),
-            'quantum_url': (canonical_url(CONFIGS) + ':' +
-                            str(api_port('neutron-server'))),
+            'quantum_url': "{}:{}".format(canonical_url(CONFIGS, INTERNAL),
+                                          str(api_port('neutron-server'))),
         })
     neutron_url = urlparse(neutron_settings['quantum_url'])
     neutron_settings['quantum_host'] = neutron_url.hostname
@@ -344,8 +403,38 @@ def keystone_compute_settings():
     return rel_settings
 
 
+def console_settings():
+    rel_settings = {}
+    proto = console_attributes('protocol')
+    if not proto:
+        return {}
+    rel_settings['console_keymap'] = config('console-keymap')
+    rel_settings['console_access_protocol'] = proto
+    if config('console-proxy-ip') == 'local':
+        proxy_base_addr = canonical_url(CONFIGS, PUBLIC)
+    else:
+        proxy_base_addr = "http://" + config('console-proxy-ip')
+    if proto == 'vnc':
+        protocols = ['novnc', 'xvpvnc']
+    else:
+        protocols = [proto]
+    for _proto in protocols:
+        rel_settings['console_proxy_%s_address' % (_proto)] = \
+            "%s:%s%s" % (proxy_base_addr,
+                         console_attributes('proxy-port', proto=_proto),
+                         console_attributes('proxy-page', proto=_proto))
+        rel_settings['console_proxy_%s_host' % (_proto)] = \
+            urlparse(proxy_base_addr).hostname
+        rel_settings['console_proxy_%s_port' % (_proto)] = \
+            console_attributes('proxy-port', proto=_proto)
+
+    return rel_settings
+
+
 @hooks.hook('cloud-compute-relation-joined')
 def compute_joined(rid=None, remote_restart=False):
+    cons_settings = console_settings()
+    relation_set(relation_id=rid, **cons_settings)
     if not eligible_leader(CLUSTER_RES):
         return
     rel_settings = {
@@ -450,24 +539,49 @@ def quantum_joined(rid=None):
 
 @hooks.hook('cluster-relation-changed',
             'cluster-relation-departed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map(), stopstart=True)
 def cluster_changed():
     CONFIGS.write_all()
+    if is_relation_made('cluster'):
+        peer_echo(includes='dbsync_state')
+        dbsync_state = peer_retrieve('dbsync_state')
+        if dbsync_state == 'complete':
+            enable_services()
+            cmd_all_services('start')
+        else:
+            log('Database sync not ready. Shutting down services')
+            disable_services()
+            cmd_all_services('stop')
 
 
 @hooks.hook('ha-relation-joined')
 def ha_joined():
     config = get_hacluster_config()
     resources = {
-        'res_nova_vip': 'ocf:heartbeat:IPaddr2',
         'res_nova_haproxy': 'lsb:haproxy',
     }
-    vip_params = 'params ip="%s" cidr_netmask="%s" nic="%s"' % \
-                 (config['vip'], config['vip_cidr'], config['vip_iface'])
     resource_params = {
-        'res_nova_vip': vip_params,
         'res_nova_haproxy': 'op monitor interval="5s"'
     }
+    vip_group = []
+    for vip in config['vip'].split():
+        iface = get_iface_for_address(vip)
+        if iface is not None:
+            vip_key = 'res_nova_{}_vip'.format(iface)
+            resources[vip_key] = 'ocf:heartbeat:IPaddr2'
+            resource_params[vip_key] = (
+                'params ip="{vip}" cidr_netmask="{netmask}"'
+                ' nic="{iface}"'.format(vip=vip,
+                                        iface=iface,
+                                        netmask=get_netmask_for_address(vip))
+            )
+            vip_group.append(vip_key)
+
+    if len(vip_group) >= 1:
+        relation_set(groups={'grp_nova_vips': ' '.join(vip_group)})
+
     init_services = {
         'res_nova_haproxy': 'haproxy'
     }
@@ -488,6 +602,14 @@ def ha_changed():
     if not clustered or clustered in [None, 'None', '']:
         log('ha_changed: hacluster subordinate not fully clustered.')
         return
+
+    CONFIGS.write(NOVA_CONF)
+    if not is_relation_made('neutron-api'):
+        if network_manager() == 'quantum':
+            CONFIGS.write(QUANTUM_CONF)
+        if network_manager() == 'neutron':
+            CONFIGS.write(NEUTRON_CONF)
+
     if not is_leader(CLUSTER_RES):
         log('ha_changed: hacluster complete but we are not leader.')
         return
@@ -497,15 +619,27 @@ def ha_changed():
         identity_joined(rid=rid)
 
 
+@hooks.hook('shared-db-relation-broken',
+            'pgsql-nova-db-relation-broken')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
+def db_departed():
+    CONFIGS.write_all()
+    for r_id in relation_ids('cluster'):
+        relation_set(relation_id=r_id, dbsync_state='incomplete')
+    disable_services()
+    cmd_all_services('stop')
+
+
 @hooks.hook('amqp-relation-broken',
             'cinder-volume-service-relation-broken',
             'identity-service-relation-broken',
             'image-service-relation-broken',
             'nova-volume-service-relation-broken',
-            'shared-db-relation-broken',
-            'pgsql-nova-db-relation-broken',
             'pgsql-neutron-db-relation-broken',
             'quantum-network-service-relation-broken')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 def relation_broken():
     CONFIGS.write_all()
 
@@ -539,13 +673,15 @@ def nova_vmware_relation_joined(rid=None):
         rel_settings.update({
             'quantum_plugin': neutron_plugin(),
             'quantum_security_groups': config('quantum-security-groups'),
-            'quantum_url': (canonical_url(CONFIGS) + ':' +
-                            str(api_port('neutron-server')))})
+            'quantum_url': "{}:{}".format(canonical_url(CONFIGS, INTERNAL),
+                                          str(api_port('neutron-server')))})
 
     relation_set(relation_id=rid, **rel_settings)
 
 
 @hooks.hook('nova-vmware-relation-changed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def nova_vmware_relation_changed():
     CONFIGS.write('/etc/nova/nova.conf')
@@ -553,6 +689,8 @@ def nova_vmware_relation_changed():
 
 @hooks.hook('upgrade-charm')
 def upgrade_charm():
+    apt_install(filter_installed_packages(determine_packages()),
+                fatal=True)
     for r_id in relation_ids('amqp'):
         amqp_joined(relation_id=r_id)
     for r_id in relation_ids('identity-service'):
@@ -572,11 +710,13 @@ def neutron_api_relation_joined(rid=None):
         service_stop('neutron-server')
     for id_rid in relation_ids('identity-service'):
         identity_joined(rid=id_rid)
-    nova_url = canonical_url(CONFIGS) + ":8774/v2"
+    nova_url = canonical_url(CONFIGS, INTERNAL) + ":8774/v2"
     relation_set(relation_id=rid, nova_url=nova_url)
 
 
 @hooks.hook('neutron-api-relation-changed')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def neutron_api_relation_changed():
     CONFIGS.write(NOVA_CONF)
@@ -587,6 +727,8 @@ def neutron_api_relation_changed():
 
 
 @hooks.hook('neutron-api-relation-broken')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
 @restart_on_change(restart_map())
 def neutron_api_relation_broken():
     if os.path.isfile('/etc/init/neutron-server.override'):

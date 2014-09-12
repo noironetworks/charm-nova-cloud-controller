@@ -12,6 +12,8 @@ from charmhelpers.contrib.openstack.neutron import (
 
 from charmhelpers.contrib.hahelpers.cluster import eligible_leader
 
+from charmhelpers.contrib.peerstorage import peer_store
+
 from charmhelpers.contrib.openstack.utils import (
     configure_installation_source,
     get_host_ip,
@@ -39,15 +41,17 @@ from charmhelpers.core.hookenv import (
 )
 
 from charmhelpers.core.host import (
+    service,
     service_start,
+    service_stop,
+    service_running
 )
-
 
 import nova_cc_context
 
 TEMPLATES = 'templates/'
 
-CLUSTER_RES = 'res_nova_vip'
+CLUSTER_RES = 'grp_nova_vips'
 
 # removed from original: charm-helper-sh
 BASE_PACKAGES = [
@@ -56,6 +60,7 @@ BASE_PACKAGES = [
     'python-keystoneclient',
     'python-mysqldb',
     'python-psycopg2',
+    'python-psutil',
     'uuid',
 ]
 
@@ -107,7 +112,9 @@ BASE_RESOURCE_MAP = OrderedDict([
                      context.SyslogContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
-                     nova_cc_context.VolumeServiceContext()],
+                     nova_cc_context.VolumeServiceContext(),
+                     nova_cc_context.NeutronCCContext(),
+                     nova_cc_context.NovaConfigContext()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in BASE_SERVICES if 'api' in s],
@@ -147,7 +154,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext(),
-                     context.SyslogContext()],
+                     context.SyslogContext(),
+                     nova_cc_context.NovaConfigContext()],
     }),
     (NEUTRON_DEFAULT, {
         'services': ['neutron-server'],
@@ -171,6 +179,27 @@ BASE_RESOURCE_MAP = OrderedDict([
 CA_CERT_PATH = '/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt'
 
 NOVA_SSH_DIR = '/etc/nova/compute_ssh/'
+
+CONSOLE_CONFIG = {
+    'spice': {
+        'packages': ['nova-spiceproxy', 'nova-consoleauth'],
+        'services': ['nova-spiceproxy', 'nova-consoleauth'],
+        'proxy-page': '/spice_auto.html',
+        'proxy-port': 6082,
+    },
+    'novnc': {
+        'packages': ['nova-novncproxy', 'nova-consoleauth'],
+        'services': ['nova-novncproxy', 'nova-consoleauth'],
+        'proxy-page': '/vnc_auto.html',
+        'proxy-port': 6080,
+    },
+    'xvpvnc': {
+        'packages': ['nova-xvpvncproxy', 'nova-consoleauth'],
+        'services': ['nova-xvpvncproxy', 'nova-consoleauth'],
+        'proxy-page': '/console',
+        'proxy-port': 6081,
+    },
+}
 
 
 def resource_map():
@@ -234,6 +263,10 @@ def resource_map():
     if os_release('nova-common') not in ['essex', 'folsom']:
         resource_map['/etc/nova/nova.conf']['services'] += ['nova-conductor']
 
+    if console_attributes('services'):
+        resource_map['/etc/nova/nova.conf']['services'] += \
+            console_attributes('services')
+
     # also manage any configs that are being updated by subordinates.
     vmware_ctxt = context.SubordinateConfigContext(interface='nova-vmware',
                                                    service='nova',
@@ -274,9 +307,9 @@ def determine_ports():
     '''Assemble a list of API ports for services we are managing'''
     ports = []
     for services in restart_map().values():
-        for service in services:
+        for svc in services:
             try:
-                ports.append(API_PORTS[service])
+                ports.append(API_PORTS[svc])
             except KeyError:
                 pass
     return list(set(ports))
@@ -284,6 +317,27 @@ def determine_ports():
 
 def api_port(service):
     return API_PORTS[service]
+
+
+def console_attributes(attr, proto=None):
+    '''Leave proto unset to query attributes of the protocal specified at
+    runtime'''
+    if proto:
+        console_proto = proto
+    else:
+        console_proto = config('console-access-protocol')
+    if attr == 'protocol':
+        return console_proto
+    # 'vnc' is a virtual type made up of novnc and xvpvnc
+    if console_proto == 'vnc':
+        if attr in ['packages', 'services']:
+            return list(set(CONSOLE_CONFIG['novnc'][attr] +
+                        CONSOLE_CONFIG['xvpvnc'][attr]))
+        else:
+            return None
+    if console_proto in CONSOLE_CONFIG:
+        return CONSOLE_CONFIG[console_proto][attr]
+    return None
 
 
 def determine_packages():
@@ -295,6 +349,8 @@ def determine_packages():
         pkgs = neutron_plugin_attribute(neutron_plugin(), 'server_packages',
                                         network_manager())
         packages.extend(pkgs)
+    if console_attributes('packages'):
+        packages.extend(console_attributes('packages'))
     return list(set(packages))
 
 
@@ -492,6 +548,12 @@ def migrate_database():
     log('Migrating the nova database.', level=INFO)
     cmd = ['nova-manage', 'db', 'sync']
     subprocess.check_output(cmd)
+    if is_relation_made('cluster'):
+        log('Informing peers that dbsync is complete', level=INFO)
+        peer_store('dbsync_state', 'complete')
+    log('Enabling services', level=INFO)
+    enable_services()
+    cmd_all_services('start')
 
 
 def auth_token_config(setting):
@@ -657,50 +719,76 @@ def ssh_compute_remove(public_key, unit=None, user=None):
         _keys.write(keys)
 
 
-def determine_endpoints(url):
+def determine_endpoints(public_url, internal_url, admin_url):
     '''Generates a dictionary containing all relevant endpoints to be
     passed to keystone as relation settings.'''
     region = config('region')
     os_rel = os_release('nova-common')
 
     if os_rel >= 'grizzly':
-        nova_url = ('%s:%s/v2/$(tenant_id)s' %
-                    (url, api_port('nova-api-os-compute')))
+        nova_public_url = ('%s:%s/v2/$(tenant_id)s' %
+                           (public_url, api_port('nova-api-os-compute')))
+        nova_internal_url = ('%s:%s/v2/$(tenant_id)s' %
+                             (internal_url, api_port('nova-api-os-compute')))
+        nova_admin_url = ('%s:%s/v2/$(tenant_id)s' %
+                          (admin_url, api_port('nova-api-os-compute')))
     else:
-        nova_url = ('%s:%s/v1.1/$(tenant_id)s' %
-                    (url, api_port('nova-api-os-compute')))
-    ec2_url = '%s:%s/services/Cloud' % (url, api_port('nova-api-ec2'))
-    nova_volume_url = ('%s:%s/v1/$(tenant_id)s' %
-                       (url, api_port('nova-api-os-compute')))
-    neutron_url = '%s:%s' % (url, api_port('neutron-server'))
-    s3_url = '%s:%s' % (url, api_port('nova-objectstore'))
+        nova_public_url = ('%s:%s/v1.1/$(tenant_id)s' %
+                           (public_url, api_port('nova-api-os-compute')))
+        nova_internal_url = ('%s:%s/v1.1/$(tenant_id)s' %
+                             (internal_url, api_port('nova-api-os-compute')))
+        nova_admin_url = ('%s:%s/v1.1/$(tenant_id)s' %
+                          (admin_url, api_port('nova-api-os-compute')))
+
+    ec2_public_url = '%s:%s/services/Cloud' % (
+        public_url, api_port('nova-api-ec2'))
+    ec2_internal_url = '%s:%s/services/Cloud' % (
+        internal_url, api_port('nova-api-ec2'))
+    ec2_admin_url = '%s:%s/services/Cloud' % (admin_url,
+                                              api_port('nova-api-ec2'))
+
+    nova_volume_public_url = ('%s:%s/v1/$(tenant_id)s' %
+                              (public_url, api_port('nova-api-os-compute')))
+    nova_volume_internal_url = ('%s:%s/v1/$(tenant_id)s' %
+                                (internal_url,
+                                 api_port('nova-api-os-compute')))
+    nova_volume_admin_url = ('%s:%s/v1/$(tenant_id)s' %
+                             (admin_url, api_port('nova-api-os-compute')))
+
+    neutron_public_url = '%s:%s' % (public_url, api_port('neutron-server'))
+    neutron_internal_url = '%s:%s' % (internal_url, api_port('neutron-server'))
+    neutron_admin_url = '%s:%s' % (admin_url, api_port('neutron-server'))
+
+    s3_public_url = '%s:%s' % (public_url, api_port('nova-objectstore'))
+    s3_internal_url = '%s:%s' % (internal_url, api_port('nova-objectstore'))
+    s3_admin_url = '%s:%s' % (admin_url, api_port('nova-objectstore'))
 
     # the base endpoints
     endpoints = {
         'nova_service': 'nova',
         'nova_region': region,
-        'nova_public_url': nova_url,
-        'nova_admin_url': nova_url,
-        'nova_internal_url': nova_url,
+        'nova_public_url': nova_public_url,
+        'nova_admin_url': nova_admin_url,
+        'nova_internal_url': nova_internal_url,
         'ec2_service': 'ec2',
         'ec2_region': region,
-        'ec2_public_url': ec2_url,
-        'ec2_admin_url': ec2_url,
-        'ec2_internal_url': ec2_url,
+        'ec2_public_url': ec2_public_url,
+        'ec2_admin_url': ec2_admin_url,
+        'ec2_internal_url': ec2_internal_url,
         's3_service': 's3',
         's3_region': region,
-        's3_public_url': s3_url,
-        's3_admin_url': s3_url,
-        's3_internal_url': s3_url,
+        's3_public_url': s3_public_url,
+        's3_admin_url': s3_admin_url,
+        's3_internal_url': s3_internal_url,
     }
 
     if relation_ids('nova-volume-service'):
         endpoints.update({
             'nova-volume_service': 'nova-volume',
             'nova-volume_region': region,
-            'nova-volume_public_url': nova_volume_url,
-            'nova-volume_admin_url': nova_volume_url,
-            'nova-volume_internal_url': nova_volume_url,
+            'nova-volume_public_url': nova_volume_public_url,
+            'nova-volume_admin_url': nova_volume_admin_url,
+            'nova-volume_internal_url': nova_volume_internal_url,
         })
 
     # XXX: Keep these relations named quantum_*??
@@ -716,9 +804,9 @@ def determine_endpoints(url):
         endpoints.update({
             'quantum_service': 'quantum',
             'quantum_region': region,
-            'quantum_public_url': neutron_url,
-            'quantum_admin_url': neutron_url,
-            'quantum_internal_url': neutron_url,
+            'quantum_public_url': neutron_public_url,
+            'quantum_admin_url': neutron_admin_url,
+            'quantum_internal_url': neutron_internal_url,
         })
 
     return endpoints
@@ -728,3 +816,82 @@ def neutron_plugin():
     # quantum-plugin config setting can be safely overriden
     # as we only supported OVS in G/neutron
     return config('neutron-plugin') or config('quantum-plugin')
+
+
+def guard_map():
+    '''Map of services and required interfaces that must be present before
+    the service should be allowed to start'''
+    gmap = {}
+    nova_services = deepcopy(BASE_SERVICES)
+    if os_release('nova-common') not in ['essex', 'folsom']:
+        nova_services.append('nova-conductor')
+
+    nova_interfaces = ['identity-service', 'amqp']
+    if relation_ids('pgsql-nova-db'):
+        nova_interfaces.append('pgsql-nova-db')
+    else:
+        nova_interfaces.append('shared-db')
+
+    for svc in nova_services:
+        gmap[svc] = nova_interfaces
+
+    net_manager = network_manager()
+    if net_manager in ['neutron', 'quantum'] and \
+            not is_relation_made('neutron-api'):
+        neutron_interfaces = ['identity-service', 'amqp']
+        if relation_ids('pgsql-neutron-db'):
+            neutron_interfaces.append('pgsql-neutron-db')
+        else:
+            neutron_interfaces.append('shared-db')
+        if network_manager() == 'quantum':
+            gmap['quantum-server'] = neutron_interfaces
+        else:
+            gmap['neutron-server'] = neutron_interfaces
+
+    return gmap
+
+
+def service_guard(guard_map, contexts, active=False):
+    '''Inhibit services in guard_map from running unless
+    required interfaces are found complete in contexts.'''
+    def wrap(f):
+        def wrapped_f(*args):
+            if active is True:
+                incomplete_services = []
+                for svc in guard_map:
+                    for interface in guard_map[svc]:
+                        if interface not in contexts.complete_contexts():
+                            incomplete_services.append(svc)
+                f(*args)
+                for svc in incomplete_services:
+                    if service_running(svc):
+                        log('Service {} has unfulfilled '
+                            'interface requirements, stopping.'.format(svc))
+                        service_stop(svc)
+            else:
+                f(*args)
+        return wrapped_f
+    return wrap
+
+
+def cmd_all_services(cmd):
+    if cmd == 'start':
+        for svc in services():
+            if not service_running(svc):
+                service_start(svc)
+    else:
+        for svc in services():
+            service(cmd, svc)
+
+
+def disable_services():
+    for svc in services():
+        with open('/etc/init/{}.override'.format(svc), 'wb') as out:
+            out.write('exec true\n')
+
+
+def enable_services():
+    for svc in services():
+        override_file = '/etc/init/{}.override'.format(svc)
+        if os.path.isfile(override_file):
+            os.remove(override_file)

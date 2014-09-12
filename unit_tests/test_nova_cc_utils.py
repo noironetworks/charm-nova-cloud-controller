@@ -16,11 +16,13 @@ TO_PATCH = [
     'apt_update',
     'apt_upgrade',
     'apt_install',
+    'cmd_all_services',
     'config',
     'configure_installation_source',
     'disable_policy_rcd',
     'eligible_leader',
     'enable_policy_rcd',
+    'enable_services',
     'get_os_codename_install_source',
     'is_relation_made',
     'log',
@@ -30,12 +32,15 @@ TO_PATCH = [
     'neutron_plugin',
     'neutron_plugin_attribute',
     'os_release',
+    'peer_store',
     'register_configs',
     'relation_ids',
     'remote_unit',
     '_save_script_rc',
     'service_start',
-    'services'
+    'services',
+    'service_running',
+    'service_stop'
 ]
 
 SCRIPTRC_ENV_VARS = {
@@ -212,6 +217,48 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertIn('nova-api-os-volume',
                       _map['/etc/nova/nova.conf']['services'])
 
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_console_xvpvnc(self, subcontext):
+        self.test_config.set('console-access-protocol', 'xvpvnc')
+        self.relation_ids.return_value = []
+        _map = utils.resource_map()
+        console_services = ['nova-xvpvncproxy', 'nova-consoleauth']
+        for service in console_services:
+            self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
+
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_console_novnc(self, subcontext):
+        self.test_config.set('console-access-protocol', 'novnc')
+        self.relation_ids.return_value = []
+        _map = utils.resource_map()
+        console_services = ['nova-novncproxy', 'nova-consoleauth']
+        for service in console_services:
+            self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
+
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_console_vnc(self, subcontext):
+        self.test_config.set('console-access-protocol', 'vnc')
+        self.relation_ids.return_value = []
+        _map = utils.resource_map()
+        console_services = ['nova-novncproxy', 'nova-xvpvncproxy',
+                            'nova-consoleauth']
+        for service in console_services:
+            self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
+
+    def test_console_attributes_none(self):
+        self.test_config.set('console-access-protocol', None)
+        _proto = utils.console_attributes('protocol')
+        self.assertEquals(_proto, None)
+
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_console_spice(self, subcontext):
+        self.test_config.set('console-access-protocol', 'spice')
+        self.relation_ids.return_value = []
+        _map = utils.resource_map()
+        console_services = ['nova-spiceproxy', 'nova-consoleauth']
+        for service in console_services:
+            self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
+
     @patch('os.path.exists')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_restart_map_api_before_frontends(self, subcontext, _exists):
@@ -233,6 +280,23 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertTrue('/etc/apache2/sites-available/'
                         'openstack_https_frontend' not in _map)
 
+    def test_console_attributes_spice(self):
+        _proto = utils.console_attributes('protocol', proto='spice')
+        self.assertEquals(_proto, 'spice')
+
+    def test_console_attributes_vnc(self):
+        self.test_config.set('console-access-protocol', 'vnc')
+        _proto = utils.console_attributes('protocol')
+        _servs = utils.console_attributes('services')
+        _pkgs = utils.console_attributes('packages')
+        _proxy_page = utils.console_attributes('proxy-page')
+        vnc_pkgs = ['nova-novncproxy', 'nova-xvpvncproxy', 'nova-consoleauth']
+        vnc_servs = ['nova-novncproxy', 'nova-xvpvncproxy', 'nova-consoleauth']
+        self.assertEquals(_proto, 'vnc')
+        self.assertEquals(_servs, vnc_servs)
+        self.assertEquals(_pkgs, vnc_pkgs)
+        self.assertEquals(_proxy_page, None)
+
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_determine_packages_quantum(self, subcontext):
         self._resource_map(network_manager='quantum')
@@ -251,6 +315,15 @@ class NovaCCUtilsTests(CharmTestCase):
         self.relation_ids.return_value = ['nova-volume-service:0']
         pkgs = utils.determine_packages()
         self.assertIn('nova-api-os-volume', pkgs)
+
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_determine_packages_console(self, subcontext):
+        self.test_config.set('console-access-protocol', 'spice')
+        self.relation_ids.return_value = []
+        pkgs = utils.determine_packages()
+        console_pkgs = ['nova-spiceproxy', 'nova-consoleauth']
+        for console_pkg in console_pkgs:
+            self.assertIn(console_pkg, pkgs)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_determine_packages_base(self, subcontext):
@@ -440,7 +513,9 @@ class NovaCCUtilsTests(CharmTestCase):
         self.is_relation_made.return_value = False
         self.relation_ids.return_value = []
         self.assertEquals(
-            BASE_ENDPOINTS, utils.determine_endpoints('http://foohost.com'))
+            BASE_ENDPOINTS, utils.determine_endpoints('http://foohost.com',
+                                                      'http://foohost.com',
+                                                      'http://foohost.com'))
 
     def test_determine_endpoints_nova_volume(self):
         self.is_relation_made.return_value = False
@@ -456,7 +531,9 @@ class NovaCCUtilsTests(CharmTestCase):
             'nova-volume_region': 'RegionOne',
             'nova-volume_service': 'nova-volume'})
         self.assertEquals(
-            endpoints, utils.determine_endpoints('http://foohost.com'))
+            endpoints, utils.determine_endpoints('http://foohost.com',
+                                                 'http://foohost.com',
+                                                 'http://foohost.com'))
 
     def test_determine_endpoints_quantum_neutron(self):
         self.is_relation_made.return_value = False
@@ -470,7 +547,9 @@ class NovaCCUtilsTests(CharmTestCase):
             'quantum_region': 'RegionOne',
             'quantum_service': 'quantum'})
         self.assertEquals(
-            endpoints, utils.determine_endpoints('http://foohost.com'))
+            endpoints, utils.determine_endpoints('http://foohost.com',
+                                                 'http://foohost.com',
+                                                 'http://foohost.com'))
 
     def test_determine_endpoints_neutron_api_rel(self):
         self.is_relation_made.return_value = True
@@ -484,7 +563,9 @@ class NovaCCUtilsTests(CharmTestCase):
             'quantum_region': None,
             'quantum_service': None})
         self.assertEquals(
-            endpoints, utils.determine_endpoints('http://foohost.com'))
+            endpoints, utils.determine_endpoints('http://foohost.com',
+                                                 'http://foohost.com',
+                                                 'http://foohost.com'))
 
     @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_output')
@@ -513,8 +594,21 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('subprocess.check_output')
     def test_migrate_database(self, check_output):
         "Migrate database with nova-manage"
+        self.is_relation_made.return_value = False
         utils.migrate_database()
         check_output.assert_called_with(['nova-manage', 'db', 'sync'])
+        self.enable_services.assert_called()
+        self.cmd_all_services.assert_called_with('start')
+
+    @patch('subprocess.check_output')
+    def test_migrate_database_cluster(self, check_output):
+        "Migrate database with nova-manage in a clustered env"
+        self.is_relation_made.return_value = True
+        utils.migrate_database()
+        check_output.assert_called_with(['nova-manage', 'db', 'sync'])
+        self.peer_store.assert_called_with('dbsync_state', 'complete')
+        self.enable_services.assert_called()
+        self.cmd_all_services.assert_called_with('start')
 
     @patch.object(utils, 'get_step_upgrade_source')
     @patch.object(utils, 'migrate_database')
@@ -588,3 +682,115 @@ class NovaCCUtilsTests(CharmTestCase):
             utils.do_openstack_upgrade()
             expected = [call('cloud:precise-icehouse')]
             self.assertEquals(_do_openstack_upgrade.call_args_list, expected)
+
+    def test_guard_map_nova(self):
+        self.relation_ids.return_value = []
+        self.os_release.return_value = 'havana'
+        self.assertEqual(
+            {'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
+             'nova-cert': ['identity-service', 'amqp', 'shared-db'],
+             'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
+             'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
+             'nova-scheduler': ['identity-service', 'amqp', 'shared-db']},
+            utils.guard_map()
+        )
+        self.os_release.return_value = 'essex'
+        self.assertEqual(
+            {'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
+             'nova-cert': ['identity-service', 'amqp', 'shared-db'],
+             'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
+             'nova-scheduler': ['identity-service', 'amqp', 'shared-db']},
+            utils.guard_map()
+        )
+
+    def test_guard_map_neutron(self):
+        self.relation_ids.return_value = []
+        self.network_manager.return_value = 'neutron'
+        self.os_release.return_value = 'icehouse'
+        self.is_relation_made.return_value = False
+        self.assertEqual(
+            {'neutron-server': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
+             'nova-cert': ['identity-service', 'amqp', 'shared-db'],
+             'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
+             'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
+             'nova-scheduler': ['identity-service', 'amqp', 'shared-db'], },
+            utils.guard_map()
+        )
+        self.network_manager.return_value = 'quantum'
+        self.os_release.return_value = 'grizzly'
+        self.assertEqual(
+            {'quantum-server': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
+             'nova-cert': ['identity-service', 'amqp', 'shared-db'],
+             'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
+             'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
+             'nova-scheduler': ['identity-service', 'amqp', 'shared-db'], },
+            utils.guard_map()
+        )
+
+    def test_guard_map_pgsql(self):
+        self.relation_ids.return_value = ['pgsql:1']
+        self.network_manager.return_value = 'neutron'
+        self.is_relation_made.return_value = False
+        self.os_release.return_value = 'icehouse'
+        self.assertEqual(
+            {'neutron-server': ['identity-service', 'amqp',
+                                'pgsql-neutron-db'],
+             'nova-api-ec2': ['identity-service', 'amqp', 'pgsql-nova-db'],
+             'nova-api-os-compute': ['identity-service', 'amqp',
+                                     'pgsql-nova-db'],
+             'nova-cert': ['identity-service', 'amqp', 'pgsql-nova-db'],
+             'nova-conductor': ['identity-service', 'amqp', 'pgsql-nova-db'],
+             'nova-objectstore': ['identity-service', 'amqp',
+                                  'pgsql-nova-db'],
+             'nova-scheduler': ['identity-service', 'amqp',
+                                'pgsql-nova-db'], },
+            utils.guard_map()
+        )
+
+    def test_service_guard_inactive(self):
+        '''Ensure that if disabled, service guards nothing'''
+        contexts = MagicMock()
+
+        @utils.service_guard({'test': ['interfacea', 'interfaceb']},
+                             contexts, False)
+        def dummy_func():
+            pass
+        dummy_func()
+        self.assertFalse(self.service_running.called)
+        self.assertFalse(contexts.complete_contexts.called)
+
+    def test_service_guard_active_guard(self):
+        '''Ensure services with incomplete interfaces are stopped'''
+        contexts = MagicMock()
+        contexts.complete_contexts.return_value = ['interfacea']
+        self.service_running.return_value = True
+
+        @utils.service_guard({'test': ['interfacea', 'interfaceb']},
+                             contexts, True)
+        def dummy_func():
+            pass
+        dummy_func()
+        self.service_running.assert_called_with('test')
+        self.service_stop.assert_called_with('test')
+        self.assertTrue(contexts.complete_contexts.called)
+
+    def test_service_guard_active_release(self):
+        '''Ensure services with complete interfaces are not stopped'''
+        contexts = MagicMock()
+        contexts.complete_contexts.return_value = ['interfacea',
+                                                   'interfaceb']
+
+        @utils.service_guard({'test': ['interfacea', 'interfaceb']},
+                             contexts, True)
+        def dummy_func():
+            pass
+        dummy_func()
+        self.assertFalse(self.service_running.called)
+        self.assertFalse(self.service_stop.called)
+        self.assertTrue(contexts.complete_contexts.called)

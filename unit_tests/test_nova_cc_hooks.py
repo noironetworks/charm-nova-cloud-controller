@@ -11,7 +11,11 @@ _map = utils.restart_map
 utils.register_configs = MagicMock()
 utils.restart_map = MagicMock()
 
-import nova_cc_hooks as hooks
+with patch('nova_cc_utils.guard_map') as gmap:
+    with patch('charmhelpers.core.hookenv.config') as config:
+        config.return_value = False
+        gmap.return_value = {}
+        import nova_cc_hooks as hooks
 
 utils.register_configs = _reg
 utils.restart_map = _map
@@ -25,11 +29,15 @@ TO_PATCH = [
     'charm_dir',
     'do_openstack_upgrade',
     'openstack_upgrade_available',
+    'cmd_all_services',
     'config',
     'determine_packages',
     'determine_ports',
+    'disable_services',
+    'enable_services',
     'open_port',
     'is_relation_made',
+    'local_unit',
     'log',
     'relation_get',
     'relation_set',
@@ -82,6 +90,8 @@ class NovaCCHooksTests(CharmTestCase):
         self.apt_install.assert_called_with(
             ['nova-scheduler', 'nova-api-ec2'], fatal=True)
         self.execd_preinstall.assert_called()
+        self.disable_services.assert_called()
+        self.cmd_all_services.assert_called_with('stop')
 
     @patch.object(hooks, 'configure_https')
     def test_config_changed_no_upgrade(self, conf_https):
@@ -155,8 +165,10 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertEquals(sorted(self.relation_set.call_args_list),
                           sorted(expected_relations))
 
+    @patch.object(utils, 'config')
     @patch.object(hooks, '_auth_config')
-    def test_compute_joined_neutron(self, auth_config):
+    def test_compute_joined_neutron(self, auth_config, _util_config):
+        _util_config.return_value = None
         self.is_relation_made.return_value = False
         self.network_manager.return_value = 'neutron'
         self.eligible_leader = True
@@ -182,15 +194,18 @@ class NovaCCHooksTests(CharmTestCase):
             quantum_plugin='nvp',
             network_manager='neutron', **FAKE_KS_AUTH_CFG)
 
+    @patch.object(utils, 'config')
     @patch.object(hooks, 'NeutronAPIContext')
     @patch.object(hooks, '_auth_config')
-    def test_compute_joined_neutron_api_rel(self, auth_config, napi):
+    def test_compute_joined_neutron_api_rel(self, auth_config, napi,
+                                            _util_config):
         def mock_NeutronAPIContext():
             return {
                 'neutron_plugin': 'bob',
                 'neutron_security_groups': 'yes',
                 'neutron_url': 'http://nova-cc-host1:9696',
             }
+        _util_config.return_value = None
         napi.return_value = mock_NeutronAPIContext
         self.is_relation_made.return_value = True
         self.network_manager.return_value = 'neutron'
@@ -314,6 +329,28 @@ class NovaCCHooksTests(CharmTestCase):
         self.migrate_database.assert_called_with()
 
     @patch.object(hooks, 'CONFIGS')
+    def test_db_changed_allowed(self, configs):
+        allowed_units = 'nova-cloud-controller/0 nova-cloud-controller/3'
+        self.test_relation.set({
+            'nova_allowed_units': allowed_units,
+        })
+        self.local_unit.return_value = 'nova-cloud-controller/3'
+        self._shared_db_test(configs)
+        self.assertTrue(configs.write_all.called)
+        self.migrate_database.assert_called_with()
+
+    @patch.object(hooks, 'CONFIGS')
+    def test_db_changed_not_allowed(self, configs):
+        allowed_units = 'nova-cloud-controller/0 nova-cloud-controller/3'
+        self.test_relation.set({
+            'nova_allowed_units': allowed_units,
+        })
+        self.local_unit.return_value = 'nova-cloud-controller/1'
+        self._shared_db_test(configs)
+        self.assertTrue(configs.write_all.called)
+        self.assertFalse(self.migrate_database.called)
+
+    @patch.object(hooks, 'CONFIGS')
     def test_postgresql_db_changed(self, configs):
         self._postgresql_db_test(configs)
         self.assertTrue(configs.write_all.called)
@@ -361,3 +398,89 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(configs.write_all.called)
         self.assertTrue(_compute_joined.called)
         self.assertTrue(_quantum_joined.called)
+
+    @patch.object(utils, 'config')
+    def test_console_settings_vnc(self, _utils_config):
+        _utils_config.return_value = 'vnc'
+        _cc_host = "nova-cc-host1"
+        self.canonical_url.return_value = 'http://' + _cc_host
+        _con_sets = hooks.console_settings()
+        console_settings = {
+            'console_proxy_novnc_address': 'http://%s:6080/vnc_auto.html' %
+                                           (_cc_host),
+            'console_proxy_novnc_port': 6080,
+            'console_access_protocol': 'vnc',
+            'console_proxy_novnc_host': _cc_host,
+            'console_proxy_xvpvnc_port': 6081,
+            'console_proxy_xvpvnc_host': _cc_host,
+            'console_proxy_xvpvnc_address': 'http://%s:6081/console' %
+                                            (_cc_host),
+            'console_keymap': 'en-us'
+        }
+        self.assertEqual(_con_sets, console_settings)
+
+    @patch.object(utils, 'config')
+    def test_console_settings_xvpvnc(self, _utils_config):
+        _utils_config.return_value = 'xvpvnc'
+        _cc_host = "nova-cc-host1"
+        self.canonical_url.return_value = 'http://' + _cc_host
+        _con_sets = hooks.console_settings()
+        console_settings = {
+            'console_access_protocol': 'xvpvnc',
+            'console_keymap': 'en-us',
+            'console_proxy_xvpvnc_port': 6081,
+            'console_proxy_xvpvnc_host': _cc_host,
+            'console_proxy_xvpvnc_address': 'http://%s:6081/console' %
+                                            (_cc_host),
+        }
+        self.assertEqual(_con_sets, console_settings)
+
+    @patch.object(utils, 'config')
+    def test_console_settings_novnc(self, _utils_config):
+        _utils_config.return_value = 'novnc'
+        _cc_host = "nova-cc-host1"
+        self.canonical_url.return_value = 'http://' + _cc_host
+        _con_sets = hooks.console_settings()
+        console_settings = {
+            'console_proxy_novnc_address': 'http://%s:6080/vnc_auto.html' %
+                                           (_cc_host),
+            'console_proxy_novnc_port': 6080,
+            'console_access_protocol': 'novnc',
+            'console_proxy_novnc_host': _cc_host,
+            'console_keymap': 'en-us'
+        }
+        self.assertEqual(_con_sets, console_settings)
+
+    @patch.object(utils, 'config')
+    def test_console_settings_spice(self, _utils_config):
+        _utils_config.return_value = 'spice'
+        _cc_host = "nova-cc-host1"
+        self.canonical_url.return_value = 'http://' + _cc_host
+        _con_sets = hooks.console_settings()
+        console_settings = {
+            'console_proxy_spice_address': 'http://%s:6082/spice_auto.html' %
+                                           (_cc_host),
+            'console_proxy_spice_host': _cc_host,
+            'console_proxy_spice_port': 6082,
+            'console_access_protocol': 'spice',
+            'console_keymap': 'en-us'
+        }
+        self.assertEqual(_con_sets, console_settings)
+
+    @patch.object(utils, 'config')
+    def test_console_settings_explicit_ip(self, _utils_config):
+        _utils_config.return_value = 'spice'
+        _cc_public_host = "public-host"
+        _cc_private_host = "private-host"
+        self.test_config.set('console-proxy-ip', _cc_public_host)
+        _con_sets = hooks.console_settings()
+        self.canonical_url.return_value = 'http://' + _cc_private_host
+        console_settings = {
+            'console_proxy_spice_address': 'http://%s:6082/spice_auto.html' %
+                                           (_cc_public_host),
+            'console_proxy_spice_host': _cc_public_host,
+            'console_proxy_spice_port': 6082,
+            'console_access_protocol': 'spice',
+            'console_keymap': 'en-us'
+        }
+        self.assertEqual(_con_sets, console_settings)

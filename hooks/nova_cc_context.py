@@ -1,4 +1,3 @@
-
 from charmhelpers.core.hookenv import (
     config, relation_ids, relation_set, log, ERROR,
     unit_get, related_units, relation_get)
@@ -39,6 +38,7 @@ class ApacheSSLContext(context.ApacheSSLContext):
 
 
 class NeutronAPIContext(context.OSContextGenerator):
+
     def __call__(self):
         log('Generating template context from neutron api relation')
         ctxt = {}
@@ -234,3 +234,21 @@ class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
     def __init__(self):
         super(NeutronPostgresqlDBContext,
               self).__init__(config('neutron-database'))
+
+
+class WorkerConfigContext(context.OSContextGenerator):
+
+    def __call__(self):
+        import psutil
+        multiplier = config('worker-multiplier') or 1
+        ctxt = {
+            "workers": psutil.NUM_CPUS * multiplier
+        }
+        return ctxt
+
+
+class NovaConfigContext(WorkerConfigContext):
+    def __call__(self):
+        ctxt = super(NovaConfigContext, self).__call__()
+        ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
+        return ctxt
