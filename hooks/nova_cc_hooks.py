@@ -50,13 +50,21 @@ from nova_cc_context import (
     NeutronAPIContext
 )
 
+from charmhelpers.contrib.peerstorage import (
+    peer_retrieve,
+    peer_echo,
+)
+
 from nova_cc_utils import (
     api_port,
     auth_token_config,
+    cmd_all_services,
     determine_endpoints,
     determine_packages,
     determine_ports,
+    disable_services,
     do_openstack_upgrade,
+    enable_services,
     keystone_ca_cert_b64,
     migrate_database,
     neutron_plugin,
@@ -114,6 +122,9 @@ def install():
             log('Installing %s to /usr/bin' % f)
             shutil.copy2(f, '/usr/bin')
     [open_port(port) for port in determine_ports()]
+    log('Disabling services into db relation joined')
+    disable_services()
+    cmd_all_services('stop')
 
 
 @hooks.hook('config-changed')
@@ -533,6 +544,16 @@ def quantum_joined(rid=None):
 @restart_on_change(restart_map(), stopstart=True)
 def cluster_changed():
     CONFIGS.write_all()
+    if is_relation_made('cluster'):
+        peer_echo(includes='dbsync_state')
+        dbsync_state = peer_retrieve('dbsync_state')
+        if dbsync_state == 'complete':
+            enable_services()
+            cmd_all_services('start')
+        else:
+            log('Database sync not ready. Shutting down services')
+            disable_services()
+            cmd_all_services('stop')
 
 
 @hooks.hook('ha-relation-joined')
@@ -598,13 +619,23 @@ def ha_changed():
         identity_joined(rid=rid)
 
 
+@hooks.hook('shared-db-relation-broken',
+            'pgsql-nova-db-relation-broken')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
+def db_departed():
+    CONFIGS.write_all()
+    for r_id in relation_ids('cluster'):
+        relation_set(relation_id=r_id, dbsync_state='incomplete')
+    disable_services()
+    cmd_all_services('stop')
+
+
 @hooks.hook('amqp-relation-broken',
             'cinder-volume-service-relation-broken',
             'identity-service-relation-broken',
             'image-service-relation-broken',
             'nova-volume-service-relation-broken',
-            'shared-db-relation-broken',
-            'pgsql-nova-db-relation-broken',
             'pgsql-neutron-db-relation-broken',
             'quantum-network-service-relation-broken')
 @service_guard(guard_map(), CONFIGS,
