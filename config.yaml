@@ -97,15 +97,11 @@ options:
   # HA configuration settings
   vip:
     type: string
-    description: "Virtual IP to use to front API services in ha configuration"
-  vip_iface:
-    type: string
-    default: eth0
-    description: "Network Interface where to place the Virtual IP"
-  vip_cidr:
-    type: int
-    default: 24
-    description: "Netmask that will be used for the Virtual IP"
+    description: |
+      Virtual IP(s) to use to front API services in HA configuration.
+      .
+      If multiple networks are being used, a VIP should be provided for each
+      network, separated by spaces.
   ha-bindiface:
     type: string
     default: eth0
@@ -170,3 +166,77 @@ options:
     description: |
       This is uuid of the default NVP/NSX L3 Gateway Service.
   # end of NVP/NSX configuration
+  # Network configuration options
+  # by default all access is over 'private-address'
+  os-admin-network:
+    type: string
+    description: |
+      The IP address and netmask of the OpenStack Admin network (e.g.,
+      192.168.0.0/24)
+      .
+      This network will be used for admin endpoints.
+  os-internal-network:
+    type: string
+    description: |
+      The IP address and netmask of the OpenStack Internal network (e.g.,
+      192.168.0.0/24)
+      .
+      This network will be used for internal endpoints.
+  os-public-network:
+    type: string
+    description: |
+      The IP address and netmask of the OpenStack Public network (e.g.,
+      192.168.0.0/24)
+      .
+      This network will be used for public endpoints.
+  service-guard:
+    type: boolean
+    default: false
+    description: |
+      Ensure required relations are made and complete before allowing services
+      to be started
+      .
+      By default, services may be up and accepting API request from install
+      onwards.
+      .
+      Enabling this flag ensures that services will not be started until the
+      minimum 'core relations' have been made between this charm and other
+      charms.
+      .
+      For this charm the following relations must be made:
+      .
+        * shared-db or (pgsql-nova-db, pgsql-neutron-db)
+        * amqp
+        * identity-service
+  console-access-protocol:
+    type: string
+    description: |
+       Protocol to use when accessing virtual machine console. Supported types
+       are None, spice, xvpvnc, novnc and vnc (for both xvpvnc and novnc)
+  console-proxy-ip:
+    type: string
+    default: local
+    description: |
+       If console-access-protocol != None then this is the ip published to
+       clients for access to console proxy. Set to local for the ip address of
+       the nova-cloud-controller serving the request to be used
+  console-keymap:
+    type: string
+    default: 'en-us'
+    description: |
+       Console keymap
+  worker-multiplier:
+    type: int
+    default: 2
+    description: |
+      The CPU core multiplier to use when configuring worker processes for
+      Nova and Neutron.  By default, the number of workers for each daemon
+      is set to twice the number of CPU cores a service unit has.
+  cpu-allocation-ratio:
+    type: float
+    default: 16.0
+    description: |
+      The per physical core -> virtual core ratio to use in the Nova scheduler.
+      .
+      Increasing this value will increase instance density on compute nodes
+      at the expense of instance performance.
