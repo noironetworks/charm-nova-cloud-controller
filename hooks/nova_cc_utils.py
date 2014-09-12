@@ -95,6 +95,7 @@ APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
 NEUTRON_DEFAULT = '/etc/default/neutron-server'
 QUANTUM_DEFAULT = '/etc/default/quantum-server'
+QUANTUM_OVS_CONF = '/etc/neutron/plugins/openvswitch/ovs_quantum_plugin.ini'
 
 BASE_RESOURCE_MAP = OrderedDict([
     (NOVA_CONF, {
@@ -141,6 +142,10 @@ BASE_RESOURCE_MAP = OrderedDict([
     (QUANTUM_API_PASTE, {
         'services': ['quantum-server'],
         'contexts': [nova_cc_context.IdentityServiceContext()],
+    }),
+    (QUANTUM_OVS_CONF, {
+        'services': ['quantum-server'],
+        'contexts': [nova_cc_context.NeutronCCContext()],
     }),
     (NEUTRON_CONF, {
         'services': ['neutron-server'],
