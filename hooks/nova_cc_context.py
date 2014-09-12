@@ -237,6 +237,7 @@ class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
 
 
 class WorkerConfigContext(context.OSContextGenerator):
+
     def __call__(self):
         import psutil
         multiplier = config('worker-multiplier') or 1
