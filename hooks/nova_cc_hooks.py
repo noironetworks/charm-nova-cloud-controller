@@ -544,7 +544,7 @@ def quantum_joined(rid=None):
 @restart_on_change(restart_map(), stopstart=True)
 def cluster_changed():
     CONFIGS.write_all()
-    if is_relation_made('cluster'):
+    if relation_ids('cluster'):
         peer_echo(includes='dbsync_state')
         dbsync_state = peer_retrieve('dbsync_state')
         if dbsync_state == 'complete':
