@@ -34,6 +34,7 @@ TO_PATCH = [
     'determine_ports',
     'open_port',
     'is_relation_made',
+    'local_unit',
     'log',
     'relation_get',
     'relation_set',
@@ -321,6 +322,28 @@ class NovaCCHooksTests(CharmTestCase):
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
         self.migrate_database.assert_called_with()
+
+    @patch.object(hooks, 'CONFIGS')
+    def test_db_changed_allowed(self, configs):
+        allowed_units = 'nova-cloud-controller/0 nova-cloud-controller/3'
+        self.test_relation.set({
+            'nova_allowed_units': allowed_units,
+        })
+        self.local_unit.return_value = 'nova-cloud-controller/3'
+        self._shared_db_test(configs)
+        self.assertTrue(configs.write_all.called)
+        self.migrate_database.assert_called_with()
+
+    @patch.object(hooks, 'CONFIGS')
+    def test_db_changed_not_allowed(self, configs):
+        allowed_units = 'nova-cloud-controller/0 nova-cloud-controller/3'
+        self.test_relation.set({
+            'nova_allowed_units': allowed_units,
+        })
+        self.local_unit.return_value = 'nova-cloud-controller/1'
+        self._shared_db_test(configs)
+        self.assertTrue(configs.write_all.called)
+        self.assertFalse(self.migrate_database.called)
 
     @patch.object(hooks, 'CONFIGS')
     def test_postgresql_db_changed(self, configs):

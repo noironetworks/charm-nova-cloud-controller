@@ -15,6 +15,7 @@ from charmhelpers.core.hookenv import (
     charm_dir,
     is_relation_made,
     log,
+    local_unit,
     ERROR,
     relation_get,
     relation_ids,
@@ -212,6 +213,13 @@ def db_changed():
     CONFIGS.write_all()
 
     if eligible_leader(CLUSTER_RES):
+        # Bugs 1353135 & 1187508. Dbs can appear to be ready before the units
+        # acl entry has been added. So, if the db supports passing a list of
+        # permitted units then check if we're in the list.
+        allowed_units = relation_get('nova_allowed_units')
+        if allowed_units and local_unit() not in allowed_units.split():
+            log('Allowed_units list provided and this unit not present')
+            return
         migrate_database()
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
