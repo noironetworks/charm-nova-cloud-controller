@@ -29,9 +29,12 @@ TO_PATCH = [
     'charm_dir',
     'do_openstack_upgrade',
     'openstack_upgrade_available',
+    'cmd_all_services',
     'config',
     'determine_packages',
     'determine_ports',
+    'disable_services',
+    'enable_services',
     'open_port',
     'is_relation_made',
     'local_unit',
@@ -87,6 +90,8 @@ class NovaCCHooksTests(CharmTestCase):
         self.apt_install.assert_called_with(
             ['nova-scheduler', 'nova-api-ec2'], fatal=True)
         self.execd_preinstall.assert_called()
+        self.disable_services.assert_called()
+        self.cmd_all_services.assert_called_with('stop')
 
     @patch.object(hooks, 'configure_https')
     def test_config_changed_no_upgrade(self, conf_https):
