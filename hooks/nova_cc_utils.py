@@ -89,13 +89,14 @@ NOVA_CONF = '%s/nova.conf' % NOVA_CONF_DIR
 NOVA_API_PASTE = '%s/api-paste.ini' % NOVA_CONF_DIR
 QUANTUM_CONF = '%s/quantum.conf' % QUANTUM_CONF_DIR
 QUANTUM_API_PASTE = '%s/api-paste.ini' % QUANTUM_CONF_DIR
+QUANTUM_OVS_CONF = '%s/plugins/openvswitch/ovs_quantum_plugin.ini' % \
+                   QUANTUM_CONF_DIR
 NEUTRON_CONF = '%s/neutron.conf' % NEUTRON_CONF_DIR
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
 NEUTRON_DEFAULT = '/etc/default/neutron-server'
 QUANTUM_DEFAULT = '/etc/default/quantum-server'
-QUANTUM_OVS_CONF = '/etc/neutron/plugins/openvswitch/ovs_quantum_plugin.ini'
 
 BASE_RESOURCE_MAP = OrderedDict([
     (NOVA_CONF, {
