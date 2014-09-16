@@ -251,4 +251,5 @@ class NovaConfigContext(WorkerConfigContext):
     def __call__(self):
         ctxt = super(NovaConfigContext, self).__call__()
         ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
+        ctxt['ram_allocation_ratio'] = config('ram-allocation-ratio')
         return ctxt
