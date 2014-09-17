@@ -276,11 +276,15 @@ class NovaIPv6Context(context.SharedDBContext):
             ctxt['use_ipv6'] = True
             ctxt['host_ip'] = '::'
             ctxt['neutron_url'] = "{}:9696".format(canonical_url())
+            for rid in relation_ids('shared-db'):
+                for unit in related_units(rid):
+                    rdata = relation_get(rid=rid, unit=unit)
+                    db_host = format_ipv6_addr(rdata.get('db_host'))
+                    if db_host is not None:
+                        ctxt['database_host'] = db_host
+
         else:
             ctxt['use_ipv6'] = False
             ctxt['host_ip'] = ctxt['neutron_url'] = unit_get('private-address')
 
-        if ctxt.get('database_host'):
-            db_host = ctxt['database_host']
-            ctxt['database_host'] = format_ipv6_addr(db_host) or db_host
         return ctxt
