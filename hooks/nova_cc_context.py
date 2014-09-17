@@ -1,4 +1,3 @@
-
 from charmhelpers.core.hookenv import (
     config, relation_ids, relation_set, log, ERROR,
     unit_get, related_units, relation_get)
@@ -15,6 +14,7 @@ from charmhelpers.contrib.hahelpers.cluster import (
 
 from charmhelpers.contrib.network.ip import (
     get_ipv6_addr,
+    format_ipv6_addr,
 )
 
 
@@ -250,9 +250,28 @@ class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
               self).__init__(config('neutron-database'))
 
 
-class NovaIPv6Context(context.OSContextGenerator):
+class WorkerConfigContext(context.OSContextGenerator):
+
     def __call__(self):
-        ctxt = {}
+        import psutil
+        multiplier = config('worker-multiplier') or 1
+        ctxt = {
+            "workers": psutil.NUM_CPUS * multiplier
+        }
+        return ctxt
+
+
+class NovaConfigContext(WorkerConfigContext):
+    def __call__(self):
+        ctxt = super(NovaConfigContext, self).__call__()
+        ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
+        return ctxt
+
+
+class NovaIPv6Context(context.SharedDBContext):
+    def __call__(self):
+        ctxt = super(NovaIPv6Context, self).__call__()
+        print "ctxt:%s" % ctxt
         if config('prefer-ipv6'):
             ctxt['use_ipv6'] = True
             ctxt['host_ip'] = '::'
@@ -260,4 +279,8 @@ class NovaIPv6Context(context.OSContextGenerator):
         else:
             ctxt['use_ipv6'] = False
             ctxt['host_ip'] = ctxt['neutron_url'] = unit_get('private-address')
+
+        if ctxt.get('database_host'):
+            db_host = ctxt['database_host']
+            ctxt['database_host'] = format_ipv6_addr(db_host) or db_host
         return ctxt
