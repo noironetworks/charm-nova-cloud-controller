@@ -108,8 +108,6 @@ from charmhelpers.contrib.network.ip import (
     get_ipv6_addr,
 )
 
-from charmhelpers.contrib.peerstorage import peer_store
-
 hooks = Hooks()
 CONFIGS = register_configs()
 
@@ -564,7 +562,10 @@ def quantum_joined(rid=None):
 @restart_on_change(restart_map(), stopstart=True)
 def cluster_changed():
     if config('prefer-ipv6'):
-        peer_store('private-address', get_ipv6_addr())
+        for rid in relation_ids('cluster'):
+            relation_set(relation_id=rid,
+                         relation_settings={'private-address':
+                                            get_ipv6_addr()})
     CONFIGS.write_all()
     if is_relation_made('cluster'):
         peer_echo(includes='dbsync_state')
