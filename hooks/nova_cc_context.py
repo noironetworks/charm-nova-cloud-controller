@@ -13,7 +13,7 @@ from charmhelpers.contrib.hahelpers.cluster import (
 )
 
 from charmhelpers.contrib.network.ip import (
-    get_ipv6_addr,
+    get_ipv6_addr
 )
 
 
@@ -162,6 +162,7 @@ def canonical_url(vip_setting='vip'):
     scheme = 'http'
     if https():
         scheme = 'https'
+
     if config('prefer-ipv6'):
         if is_clustered():
             addr = '[%s]' % config(vip_setting)
@@ -172,6 +173,7 @@ def canonical_url(vip_setting='vip'):
             addr = config(vip_setting)
         else:
             addr = unit_get('private-address')
+
     return '%s://%s' % (scheme, addr)
 
 
@@ -212,9 +214,11 @@ class NeutronCCContext(context.NeutronContext):
                 ctxt['nvp_controllers_list'] = \
                     _config['nvp-controllers'].split()
         ctxt['nova_url'] = "{}:8774/v2".format(canonical_url())
+
         if config('prefer-ipv6'):
             ctxt['bind_host'] = '::'
             ctxt['neutron_url'] = "{}:9696".format(canonical_url())
+
         return ctxt
 
 
@@ -270,6 +274,7 @@ class NovaConfigContext(WorkerConfigContext):
 class NovaIPv6Context(context.SharedDBContext):
     def __call__(self):
         ctxt = super(NovaIPv6Context, self).__call__()
+
         if config('prefer-ipv6'):
             ctxt['use_ipv6'] = True
             ctxt['host_ip'] = '::'
