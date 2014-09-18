@@ -270,7 +270,6 @@ class NovaConfigContext(WorkerConfigContext):
 class NovaIPv6Context(context.SharedDBContext):
     def __call__(self):
         ctxt = super(NovaIPv6Context, self).__call__()
-        print "ctxt:%s" % ctxt
         if config('prefer-ipv6'):
             ctxt['use_ipv6'] = True
             ctxt['host_ip'] = '::'
