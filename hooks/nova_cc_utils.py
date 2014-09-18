@@ -27,6 +27,7 @@ from charmhelpers.fetch import (
     apt_upgrade,
     apt_update,
     apt_install,
+    add_source
 )
 
 from charmhelpers.core.hookenv import (
@@ -44,11 +45,12 @@ from charmhelpers.core.host import (
     service,
     service_start,
     service_stop,
-    service_running
+    service_running,
+    lsb_release
 )
 
 from charmhelpers.contrib.network.ip import (
-    is_ipv6,
+    is_ipv6
 )
 
 import nova_cc_context
@@ -663,6 +665,7 @@ def ssh_compute_add(public_key, rid=None, unit=None, user=None):
     private_address = relation_get(rid=rid, unit=unit,
                                    attribute='private-address')
     hosts = [private_address]
+
     if not is_ipv6(private_address):
         if relation_get('hostname'):
             hosts.append(relation_get('hostname'))
@@ -901,3 +904,19 @@ def enable_services():
         override_file = '/etc/init/{}.override'.format(svc)
         if os.path.isfile(override_file):
             os.remove(override_file)
+
+
+def setup_ipv6():
+    ubuntu_rel = float(lsb_release()['DISTRIB_RELEASE'])
+    if ubuntu_rel < 14.04:
+        raise Exception("IPv6 is not supported for Ubuntu "
+                        "versions less than Trusty 14.04")
+
+    # NOTE(xianghui): Need to install haproxy(1.5.3) from trusty-backports
+    # to support ipv6 address, so check is required to make sure not
+    # breaking other versions, IPv6 only support for >= Trusty
+    if ubuntu_rel == 14.04:
+        add_source('deb http://archive.ubuntu.com/ubuntu trusty-backports'
+                   ' main')
+        apt_update()
+        apt_install('haproxy/trusty-backports', fatal=True)

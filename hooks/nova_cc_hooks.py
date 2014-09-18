@@ -29,13 +29,11 @@ from charmhelpers.core.host import (
     restart_on_change,
     service_running,
     service_stop,
-    lsb_release,
 )
 
 from charmhelpers.fetch import (
     apt_install,
     apt_update,
-    add_source,
     filter_installed_packages
 )
 
@@ -87,6 +85,7 @@ from nova_cc_utils import (
     console_attributes,
     service_guard,
     guard_map,
+    setup_ipv6
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -105,7 +104,7 @@ from charmhelpers.contrib.openstack.ip import (
 from charmhelpers.contrib.network.ip import (
     get_iface_for_address,
     get_netmask_for_address,
-    get_ipv6_addr,
+    get_ipv6_addr
 )
 
 hooks = Hooks()
@@ -117,15 +116,11 @@ def install():
     execd_preinstall()
     configure_installation_source(config('openstack-origin'))
 
-    trusty = lsb_release()['DISTRIB_CODENAME'] == 'trusty'
-    if config('prefer-ipv6') and trusty:
-        add_source('deb http://archive.ubuntu.com/ubuntu trusty-backports'
-                   ' main')
-
     apt_update()
     apt_install(determine_packages(), fatal=True)
-    if config('prefer-ipv6') and trusty:
-        apt_install('haproxy/trusty-backports', fatal=True)
+
+    if config('prefer-ipv6'):
+        setup_ipv6()
 
     _files = os.path.join(charm_dir(), 'files')
     if os.path.isdir(_files):
@@ -144,6 +139,9 @@ def install():
                active=config('service-guard'))
 @restart_on_change(restart_map(), stopstart=True)
 def config_changed():
+    if config('prefer-ipv6'):
+        setup_ipv6()
+
     global CONFIGS
     if openstack_upgrade_available('nova-common'):
         CONFIGS = do_openstack_upgrade()
@@ -566,6 +564,7 @@ def cluster_changed():
             relation_set(relation_id=rid,
                          relation_settings={'private-address':
                                             get_ipv6_addr()})
+
     CONFIGS.write_all()
     if is_relation_made('cluster'):
         peer_echo(includes='dbsync_state')
@@ -595,6 +594,7 @@ def ha_joined():
     else:
         res_nova_vip = 'ocf:heartbeat:IPaddr2'
         vip_params = 'ip'
+
     vip_group = []
     for vip in cluster_config['vip'].split():
         iface = get_iface_for_address(vip)
