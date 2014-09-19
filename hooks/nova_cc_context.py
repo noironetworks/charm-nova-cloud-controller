@@ -167,7 +167,7 @@ def canonical_url(vip_setting='vip'):
         if is_clustered():
             addr = '[%s]' % config(vip_setting)
         else:
-            addr = '[%s]' % get_ipv6_addr()
+            addr = '[%s]' % get_ipv6_addr()[0]
     else:
         if is_clustered():
             addr = config(vip_setting)
