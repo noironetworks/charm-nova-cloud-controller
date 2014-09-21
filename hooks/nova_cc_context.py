@@ -167,7 +167,7 @@ def canonical_url(vip_setting='vip'):
         if is_clustered():
             addr = '[%s]' % config(vip_setting)
         else:
-            addr = '[%s]' % get_ipv6_addr()[0]
+            addr = '[%s]' % get_ipv6_addr(exc_list=[config('vip')])[0]
     else:
         if is_clustered():
             addr = config(vip_setting)
@@ -275,12 +275,20 @@ class NovaIPv6Context(context.SharedDBContext):
     def __call__(self):
         ctxt = super(NovaIPv6Context, self).__call__()
 
+        for rid in relation_ids('identity-service'):
+            for unit in related_units(rid):
+                rdata = relation_get(rid=rid, unit=unit)
+                auth_host = rdata.get('auth_host')
+                break
+
         if config('prefer-ipv6'):
             ctxt['use_ipv6'] = True
             ctxt['host_ip'] = '::'
             ctxt['neutron_url'] = "{}:9696".format(canonical_url())
+            ctxt['auth_host_url'] = '[%s]' % auth_host
         else:
             ctxt['use_ipv6'] = False
             ctxt['host_ip'] = ctxt['neutron_url'] = unit_get('private-address')
+            ctxt['auth_host_url'] = auth_host
 
         return ctxt
