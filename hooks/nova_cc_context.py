@@ -239,9 +239,6 @@ class IdentityServiceContext(context.IdentityServiceContext):
         ctxt['keystone_ec2_url'] = ec2_tokens
         ctxt['region'] = config('region')
 
-        if config('prefer-ipv6') and ctxt['auth_host']:
-            ctxt['auth_host'] = '[%s]' % ctxt['auth_host']
-
         return ctxt
 
 
