@@ -239,3 +239,11 @@ options:
       .
       Increasing this value will increase instance density on compute nodes
       at the expense of instance performance.
+  ram-allocation-ratio:
+    type: float
+    default: 1.5
+    description: |
+      The physical ram -> virtual ram ratio to use in the Nova scheduler.
+      .
+      Increasing this value will increase instance density on compute nodes
+      at the potential expense of instance performance.
