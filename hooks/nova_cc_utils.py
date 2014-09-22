@@ -555,7 +555,7 @@ def migrate_database():
     log('Migrating the nova database.', level=INFO)
     cmd = ['nova-manage', 'db', 'sync']
     subprocess.check_output(cmd)
-    if is_relation_made('cluster'):
+    if relation_ids('cluster'):
         log('Informing peers that dbsync is complete', level=INFO)
         peer_store('dbsync_state', 'complete')
     log('Enabling services', level=INFO)
