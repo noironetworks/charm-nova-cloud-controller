@@ -552,6 +552,15 @@ def quantum_joined(rid=None):
     relation_set(relation_id=rid, **rel_settings)
 
 
+@hooks.hook('cluster-relation-joined')
+def cluster_joined():
+    if config('prefer-ipv6'):
+        for rid in relation_ids('cluster'):
+            addr = get_ipv6_addr(exc_list=[config('vip')])[0]
+            relation_set(relation_id=rid,
+                         relation_settings={'private-address': addr})
+
+
 @hooks.hook('cluster-relation-changed',
             'cluster-relation-departed',
             'cluster-relation-joined')
@@ -559,12 +568,6 @@ def quantum_joined(rid=None):
                active=config('service-guard'))
 @restart_on_change(restart_map(), stopstart=True)
 def cluster_changed():
-    if config('prefer-ipv6'):
-        for rid in relation_ids('cluster'):
-            addr = get_ipv6_addr(exc_list=[config('vip')])[0]
-            relation_set(relation_id=rid,
-                         relation_settings={'private-address': addr})
-
     CONFIGS.write_all()
     if is_relation_made('cluster'):
         peer_echo(includes='dbsync_state')
