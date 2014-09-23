@@ -580,6 +580,13 @@ def cluster_changed():
             disable_services()
             cmd_all_services('stop')
 
+    # peer_echo will pop up private-address
+    if config('prefer-ipv6'):
+        for rid in relation_ids('cluster'):
+            addr = get_ipv6_addr(exc_list=[config('vip')])[0]
+            relation_set(relation_id=rid,
+                         relation_settings={'private-address': addr})
+
 
 @hooks.hook('ha-relation-joined')
 def ha_joined():
