@@ -35,6 +35,7 @@ from charmhelpers.core.hookenv import (
     log,
     relation_get,
     relation_ids,
+    relation_set,
     remote_unit,
     is_relation_made,
     INFO,
@@ -50,7 +51,8 @@ from charmhelpers.core.host import (
 )
 
 from charmhelpers.contrib.network.ip import (
-    is_ipv6
+    is_ipv6,
+    get_ipv6_addr
 )
 
 import nova_cc_context
@@ -920,3 +922,11 @@ def setup_ipv6():
                    ' main')
         apt_update()
         apt_install('haproxy/trusty-backports', fatal=True)
+
+
+def set_ipv6_addr_for_cluster():
+    if config('prefer-ipv6'):
+        for rid in relation_ids('cluster'):
+            addr = get_ipv6_addr(exc_list=[config('vip')])[0]
+            relation_set(relation_id=rid,
+                         relation_settings={'private-address': addr})
