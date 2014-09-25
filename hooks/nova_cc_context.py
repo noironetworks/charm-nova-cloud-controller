@@ -215,10 +215,6 @@ class NeutronCCContext(context.NeutronContext):
                     _config['nvp-controllers'].split()
         ctxt['nova_url'] = "{}:8774/v2".format(canonical_url())
 
-        if config('prefer-ipv6'):
-            ctxt['bind_host'] = '::'
-            ctxt['neutron_url'] = "{}:9696".format(canonical_url())
-
         return ctxt
 
 
@@ -273,16 +269,13 @@ class NovaConfigContext(WorkerConfigContext):
         return ctxt
 
 
-class NovaIPv6Context(context.SharedDBContext):
+class NovaIPv6Context(context.BindHostContext):
     def __call__(self):
         ctxt = super(NovaIPv6Context, self).__call__()
 
         if config('prefer-ipv6'):
             ctxt['use_ipv6'] = True
-            ctxt['host_ip'] = '::'
-            ctxt['neutron_url'] = "{}:9696".format(canonical_url())
         else:
             ctxt['use_ipv6'] = False
-            ctxt['host_ip'] = ctxt['neutron_url'] = unit_get('private-address')
 
         return ctxt

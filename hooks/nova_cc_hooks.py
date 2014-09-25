@@ -85,7 +85,8 @@ from nova_cc_utils import (
     console_attributes,
     service_guard,
     guard_map,
-    setup_ipv6
+    setup_ipv6,
+    set_ipv6_addr_for_cluster
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -554,11 +555,7 @@ def quantum_joined(rid=None):
 
 @hooks.hook('cluster-relation-joined')
 def cluster_joined():
-    if config('prefer-ipv6'):
-        for rid in relation_ids('cluster'):
-            addr = get_ipv6_addr(exc_list=[config('vip')])[0]
-            relation_set(relation_id=rid,
-                         relation_settings={'private-address': addr})
+    set_ipv6_addr_for_cluster()
 
 
 @hooks.hook('cluster-relation-changed',
@@ -581,11 +578,7 @@ def cluster_changed():
             cmd_all_services('stop')
 
     # peer_echo will pop up private-address
-    if config('prefer-ipv6'):
-        for rid in relation_ids('cluster'):
-            addr = get_ipv6_addr(exc_list=[config('vip')])[0]
-            relation_set(relation_id=rid,
-                         relation_settings={'private-address': addr})
+    set_ipv6_addr_for_cluster()
 
 
 @hooks.hook('ha-relation-joined')
@@ -620,7 +613,8 @@ def ha_joined():
             )
             vip_group.append(vip_key)
 
-    relation_set(groups={'grp_nova_vips': ' '.join(vip_group)})
+    if len(vip_group) >= 1:
+        relation_set(groups={'grp_nova_vips': ' '.join(vip_group)})
 
     init_services = {
         'res_nova_haproxy': 'haproxy'
