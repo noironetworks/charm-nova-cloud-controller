@@ -40,6 +40,7 @@ from charmhelpers.fetch import (
 from charmhelpers.contrib.openstack.utils import (
     configure_installation_source,
     openstack_upgrade_available,
+    sync_db_with_multi_ipv6_addresses
 )
 
 from charmhelpers.contrib.openstack.neutron import (
@@ -142,6 +143,7 @@ def install():
 def config_changed():
     if config('prefer-ipv6'):
         setup_ipv6()
+        sync_db_with_multi_ipv6_addresses()
 
     global CONFIGS
     if openstack_upgrade_available('nova-common'):
@@ -193,12 +195,13 @@ def db_joined():
 
     if config('prefer-ipv6'):
         host = get_ipv6_addr(exc_list=[config('vip')])[0]
+        sync_db_with_multi_ipv6_addresses()
     else:
         host = unit_get('private-address')
+        relation_set(nova_database=config('database'),
+                     nova_username=config('database-user'),
+                     nova_hostname=host)
 
-    relation_set(nova_database=config('database'),
-                 nova_username=config('database-user'),
-                 nova_hostname=host)
     if network_manager() in ['quantum', 'neutron']:
         # XXX: Renaming relations from quantum_* to neutron_* here.
         relation_set(neutron_database=config('neutron-database'),
