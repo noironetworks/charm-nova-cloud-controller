@@ -89,7 +89,6 @@ from nova_cc_utils import (
 from charmhelpers.contrib.hahelpers.cluster import (
     eligible_leader,
     get_hacluster_config,
-    is_leader,
 )
 
 from charmhelpers.payload.execd import execd_preinstall
@@ -433,8 +432,6 @@ def console_settings():
 def compute_joined(rid=None, remote_restart=False):
     cons_settings = console_settings()
     relation_set(relation_id=rid, **cons_settings)
-    if not eligible_leader(CLUSTER_RES):
-        return
     rel_settings = {
         'network_manager': network_manager(),
         'volume_service': volume_service(),
@@ -519,9 +516,6 @@ def compute_departed():
 @hooks.hook('neutron-network-service-relation-joined',
             'quantum-network-service-relation-joined')
 def quantum_joined(rid=None):
-    if not eligible_leader(CLUSTER_RES):
-        return
-
     rel_settings = neutron_settings()
 
     # inform quantum about local keystone auth config
