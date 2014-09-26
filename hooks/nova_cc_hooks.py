@@ -100,7 +100,8 @@ from charmhelpers.contrib.openstack.ip import (
 
 from charmhelpers.contrib.network.ip import (
     get_iface_for_address,
-    get_netmask_for_address
+    get_netmask_for_address,
+    get_address_in_network,
 )
 
 hooks = Hooks()
@@ -144,6 +145,7 @@ def config_changed():
             for rid in relation_ids('cloud-compute')]
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
+    [cluster_joined(rid) for rid in relation_ids('cluster')]
 
 
 @hooks.hook('amqp-relation-joined')
@@ -527,6 +529,14 @@ def quantum_joined(rid=None):
     if ks_auth_config and ks_ca:
         rel_settings['ca_cert'] = ks_ca
     relation_set(relation_id=rid, **rel_settings)
+
+
+@hooks.hook('cluster-relation-joined')
+def cluster_joined(relation_id=None):
+    address = get_address_in_network(config('os-internal-network'),
+                                     unit_get('private-address'))
+    relation_set(relation_id=relation_id,
+                 relation_settings={'private-address': address})
 
 
 @hooks.hook('cluster-relation-changed',
