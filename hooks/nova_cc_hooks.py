@@ -280,8 +280,6 @@ def image_service_changed():
 
 @hooks.hook('identity-service-relation-joined')
 def identity_joined(rid=None):
-    if not eligible_leader(CLUSTER_RES):
-        return
     public_url = canonical_url(CONFIGS, PUBLIC)
     internal_url = canonical_url(CONFIGS, INTERNAL)
     admin_url = canonical_url(CONFIGS, ADMIN)
@@ -610,9 +608,6 @@ def ha_changed():
         if network_manager() == 'neutron':
             CONFIGS.write(NEUTRON_CONF)
 
-    if not is_leader(CLUSTER_RES):
-        log('ha_changed: hacluster complete but we are not leader.')
-        return
     log('Cluster configured, notifying other services and updating '
         'keystone endpoint configuration')
     for rid in relation_ids('identity-service'):
