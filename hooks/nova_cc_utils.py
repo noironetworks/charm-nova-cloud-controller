@@ -108,8 +108,7 @@ BASE_RESOURCE_MAP = OrderedDict([
     (NOVA_CONF, {
         'services': BASE_SERVICES,
         'contexts': [context.AMQPContext(ssl_dir=NOVA_CONF_DIR),
-                     context.SharedDBContext(
-                         relation_prefix='nova', ssl_dir=NOVA_CONF_DIR),
+                     context.SharedDBContext(ssl_dir=NOVA_CONF_DIR),
                      nova_cc_context.NovaPostgresqlDBContext(),
                      context.ImageServiceContext(),
                      context.OSConfigFlagContext(),
