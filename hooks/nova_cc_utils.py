@@ -12,6 +12,8 @@ from charmhelpers.contrib.openstack.neutron import (
 
 from charmhelpers.contrib.hahelpers.cluster import eligible_leader
 
+from charmhelpers.contrib.peerstorage import peer_store
+
 from charmhelpers.contrib.openstack.utils import (
     configure_installation_source,
     get_host_ip,
@@ -39,6 +41,7 @@ from charmhelpers.core.hookenv import (
 )
 
 from charmhelpers.core.host import (
+    service,
     service_start,
     service_stop,
     service_running
@@ -57,6 +60,7 @@ BASE_PACKAGES = [
     'python-keystoneclient',
     'python-mysqldb',
     'python-psycopg2',
+    'python-psutil',
     'uuid',
 ]
 
@@ -110,7 +114,9 @@ BASE_RESOURCE_MAP = OrderedDict([
                      context.LogLevelContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
-                     nova_cc_context.VolumeServiceContext()],
+                     nova_cc_context.VolumeServiceContext(),
+                     nova_cc_context.NeutronCCContext(),
+                     nova_cc_context.NovaConfigContext()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in BASE_SERVICES if 'api' in s],
@@ -150,7 +156,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext(),
-                     context.SyslogContext()],
+                     context.SyslogContext(),
+                     nova_cc_context.NovaConfigContext()],
     }),
     (NEUTRON_DEFAULT, {
         'services': ['neutron-server'],
@@ -307,9 +314,9 @@ def determine_ports():
     '''Assemble a list of API ports for services we are managing'''
     ports = []
     for services in restart_map().values():
-        for service in services:
+        for svc in services:
             try:
-                ports.append(API_PORTS[service])
+                ports.append(API_PORTS[svc])
             except KeyError:
                 pass
     return list(set(ports))
@@ -548,6 +555,12 @@ def migrate_database():
     log('Migrating the nova database.', level=INFO)
     cmd = ['nova-manage', 'db', 'sync']
     subprocess.check_output(cmd)
+    if relation_ids('cluster'):
+        log('Informing peers that dbsync is complete', level=INFO)
+        peer_store('dbsync_state', 'complete')
+    log('Enabling services', level=INFO)
+    enable_services()
+    cmd_all_services('start')
 
 
 def auth_token_config(setting):
@@ -866,3 +879,26 @@ def service_guard(guard_map, contexts, active=False):
                 f(*args)
         return wrapped_f
     return wrap
+
+
+def cmd_all_services(cmd):
+    if cmd == 'start':
+        for svc in services():
+            if not service_running(svc):
+                service_start(svc)
+    else:
+        for svc in services():
+            service(cmd, svc)
+
+
+def disable_services():
+    for svc in services():
+        with open('/etc/init/{}.override'.format(svc), 'wb') as out:
+            out.write('exec true\n')
+
+
+def enable_services():
+    for svc in services():
+        override_file = '/etc/init/{}.override'.format(svc)
+        if os.path.isfile(override_file):
+            os.remove(override_file)
