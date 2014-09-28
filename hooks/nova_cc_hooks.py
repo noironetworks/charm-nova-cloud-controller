@@ -664,11 +664,12 @@ def upgrade_charm():
         for unit in related_units(r_id):
             compute_changed(r_id, unit)
 
-
+# remote_restart is defaulted to true as nova-cells may have started the
+# nova-cell process before the db migration was run
 @hooks.hook('cell-relation-joined')
-def nova_cell_relation_joined(rid=None, remote_restart=False):
+def nova_cell_relation_joined(rid=None, remote_restart=True):
     if remote_restart:
-        relation_set(relation_id=rid, restart_trigger = str(uuid.uuid4()))
+        relation_set(relation_id=rid, restart_trigger=str(uuid.uuid4()))
     if is_relation_made('amqp', ['password']):
         amqp_rids = relation_ids('amqp')
         amqp_units = related_units(amqp_rids[0])
