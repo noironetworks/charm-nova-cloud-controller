@@ -359,7 +359,9 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(os, 'rename')
     @patch.object(os.path, 'isfile')
     @patch.object(hooks, 'CONFIGS')
-    def test_neutron_api_relation_joined(self, configs, isfile, rename):
+    @patch.object(hooks, 'get_cell_type')
+    def test_neutron_api_relation_joined(self, get_cell_type, configs, isfile,
+                                         rename):
         neutron_conf = '/etc/neutron/neutron.conf'
         nova_url = 'http://novaurl:8774/v2'
         isfile.return_value = True
@@ -367,12 +369,14 @@ class NovaCCHooksTests(CharmTestCase):
         _identity_joined = self.patch('identity_joined')
         self.relation_ids.side_effect = ['relid']
         self.canonical_url.return_value = 'http://novaurl'
+        get_cell_type.return_value = 'parent'
         with patch_open() as (_open, _file):
             hooks.neutron_api_relation_joined()
             self.service_stop.assert_called_with('neutron-server')
             rename.assert_called_with(neutron_conf, neutron_conf + '_unused')
             self.assertTrue(_identity_joined.called)
             self.relation_set.assert_called_with(relation_id=None,
+                                                 cell_type='parent',
                                                  nova_url=nova_url)
 
     @patch.object(hooks, 'CONFIGS')
