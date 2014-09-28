@@ -707,8 +707,10 @@ def upgrade_charm():
         for unit in related_units(r_id):
             compute_changed(r_id, unit)
 
+
 # remote_restart is defaulted to true as nova-cells may have started the
-# nova-cell process before the db migration was run
+# nova-cell process before the db migration was run so it will need a
+# kick
 @hooks.hook('cell-relation-joined')
 def nova_cell_relation_joined(rid=None, remote_restart=True):
     if remote_restart:
@@ -730,19 +732,15 @@ def nova_cell_relation_joined(rid=None, remote_restart=True):
 @hooks.hook('cell-relation-changed')
 def nova_cell_relation_changed():
     CONFIGS.complete_contexts()
-    # XXX Can we trust this ? Does the presence of a password always imply db is setup? (probably not)
-    if is_relation_made('shared-db', ['nova_password']):
-        relation_set(dbready=True)
-    else:
-        relation_set(dbready=False)
     CONFIGS.write(NOVA_CONF)
 
 
 def get_cell_type():
-    cell_info = NovaCellContext()()                                                                                                                                                               
+    cell_info = NovaCellContext()()
     if 'cell_type' in cell_info:
         return cell_info['cell_type']
     return None
+
 
 @hooks.hook('neutron-api-relation-joined')
 def neutron_api_relation_joined(rid=None):
@@ -759,8 +757,9 @@ def neutron_api_relation_joined(rid=None):
         'nova_url': nova_url,
     }
     if get_cell_type():
-         rel_settings['cell_type'] = get_cell_type()
+        rel_settings['cell_type'] = get_cell_type()
     relation_set(relation_id=rid, **rel_settings)
+
 
 @hooks.hook('neutron-api-relation-changed')
 @service_guard(guard_map(), CONFIGS,
