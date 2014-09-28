@@ -16,11 +16,13 @@ TO_PATCH = [
     'apt_update',
     'apt_upgrade',
     'apt_install',
+    'cmd_all_services',
     'config',
     'configure_installation_source',
     'disable_policy_rcd',
     'eligible_leader',
     'enable_policy_rcd',
+    'enable_services',
     'get_os_codename_install_source',
     'is_relation_made',
     'log',
@@ -30,6 +32,7 @@ TO_PATCH = [
     'neutron_plugin',
     'neutron_plugin_attribute',
     'os_release',
+    'peer_store',
     'register_configs',
     'relation_ids',
     'remote_unit',
@@ -591,8 +594,21 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('subprocess.check_output')
     def test_migrate_database(self, check_output):
         "Migrate database with nova-manage"
+        self.relation_ids.return_value = []
         utils.migrate_database()
         check_output.assert_called_with(['nova-manage', 'db', 'sync'])
+        self.enable_services.assert_called()
+        self.cmd_all_services.assert_called_with('start')
+
+    @patch('subprocess.check_output')
+    def test_migrate_database_cluster(self, check_output):
+        "Migrate database with nova-manage in a clustered env"
+        self.relation_ids.return_value = ['cluster:1']
+        utils.migrate_database()
+        check_output.assert_called_with(['nova-manage', 'db', 'sync'])
+        self.peer_store.assert_called_with('dbsync_state', 'complete')
+        self.enable_services.assert_called()
+        self.cmd_all_services.assert_called_with('start')
 
     @patch.object(utils, 'get_step_upgrade_source')
     @patch.object(utils, 'migrate_database')

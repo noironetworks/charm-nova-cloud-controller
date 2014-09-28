@@ -29,11 +29,15 @@ TO_PATCH = [
     'charm_dir',
     'do_openstack_upgrade',
     'openstack_upgrade_available',
+    'cmd_all_services',
     'config',
     'determine_packages',
     'determine_ports',
+    'disable_services',
+    'enable_services',
     'open_port',
     'is_relation_made',
+    'local_unit',
     'log',
     'relation_get',
     'relation_set',
@@ -86,6 +90,8 @@ class NovaCCHooksTests(CharmTestCase):
         self.apt_install.assert_called_with(
             ['nova-scheduler', 'nova-api-ec2'], fatal=True)
         self.execd_preinstall.assert_called()
+        self.disable_services.assert_called()
+        self.cmd_all_services.assert_called_with('stop')
 
     @patch.object(hooks, 'configure_https')
     def test_config_changed_no_upgrade(self, conf_https):
@@ -321,6 +327,28 @@ class NovaCCHooksTests(CharmTestCase):
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
         self.migrate_database.assert_called_with()
+
+    @patch.object(hooks, 'CONFIGS')
+    def test_db_changed_allowed(self, configs):
+        allowed_units = 'nova-cloud-controller/0 nova-cloud-controller/3'
+        self.test_relation.set({
+            'nova_allowed_units': allowed_units,
+        })
+        self.local_unit.return_value = 'nova-cloud-controller/3'
+        self._shared_db_test(configs)
+        self.assertTrue(configs.write_all.called)
+        self.migrate_database.assert_called_with()
+
+    @patch.object(hooks, 'CONFIGS')
+    def test_db_changed_not_allowed(self, configs):
+        allowed_units = 'nova-cloud-controller/0 nova-cloud-controller/3'
+        self.test_relation.set({
+            'nova_allowed_units': allowed_units,
+        })
+        self.local_unit.return_value = 'nova-cloud-controller/1'
+        self._shared_db_test(configs)
+        self.assertTrue(configs.write_all.called)
+        self.assertFalse(self.migrate_database.called)
 
     @patch.object(hooks, 'CONFIGS')
     def test_postgresql_db_changed(self, configs):

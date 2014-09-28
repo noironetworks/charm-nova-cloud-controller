@@ -15,6 +15,7 @@ from charmhelpers.core.hookenv import (
     charm_dir,
     is_relation_made,
     log,
+    local_unit,
     ERROR,
     relation_get,
     relation_ids,
@@ -31,7 +32,8 @@ from charmhelpers.core.host import (
 )
 
 from charmhelpers.fetch import (
-    apt_install, apt_update
+    apt_install, apt_update,
+    filter_installed_packages
 )
 
 from charmhelpers.contrib.openstack.utils import (
@@ -49,13 +51,21 @@ from nova_cc_context import (
     NovaCellContext,
 )
 
+from charmhelpers.contrib.peerstorage import (
+    peer_retrieve,
+    peer_echo,
+)
+
 from nova_cc_utils import (
     api_port,
     auth_token_config,
+    cmd_all_services,
     determine_endpoints,
     determine_packages,
     determine_ports,
+    disable_services,
     do_openstack_upgrade,
+    enable_services,
     keystone_ca_cert_b64,
     migrate_database,
     neutron_plugin,
@@ -113,6 +123,9 @@ def install():
             log('Installing %s to /usr/bin' % f)
             shutil.copy2(f, '/usr/bin')
     [open_port(port) for port in determine_ports()]
+    log('Disabling services into db relation joined')
+    disable_services()
+    cmd_all_services('stop')
 
 
 @hooks.hook('config-changed')
@@ -215,6 +228,13 @@ def db_changed():
     CONFIGS.write_all()
 
     if eligible_leader(CLUSTER_RES):
+        # Bugs 1353135 & 1187508. Dbs can appear to be ready before the units
+        # acl entry has been added. So, if the db supports passing a list of
+        # permitted units then check if we're in the list.
+        allowed_units = relation_get('nova_allowed_units')
+        if allowed_units and local_unit() not in allowed_units.split():
+            log('Allowed_units list provided and this unit not present')
+            return
         migrate_database()
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
@@ -530,6 +550,16 @@ def quantum_joined(rid=None):
 @restart_on_change(restart_map(), stopstart=True)
 def cluster_changed():
     CONFIGS.write_all()
+    if relation_ids('cluster'):
+        peer_echo(includes='dbsync_state')
+        dbsync_state = peer_retrieve('dbsync_state')
+        if dbsync_state == 'complete':
+            enable_services()
+            cmd_all_services('start')
+        else:
+            log('Database sync not ready. Shutting down services')
+            disable_services()
+            cmd_all_services('stop')
 
 
 @hooks.hook('ha-relation-joined')
@@ -555,7 +585,7 @@ def ha_joined():
             )
             vip_group.append(vip_key)
 
-    if len(vip_group) > 1:
+    if len(vip_group) >= 1:
         relation_set(groups={'grp_nova_vips': ' '.join(vip_group)})
 
     init_services = {
@@ -580,10 +610,11 @@ def ha_changed():
         return
 
     CONFIGS.write(NOVA_CONF)
-    if network_manager() == 'quantum':
-        CONFIGS.write(QUANTUM_CONF)
-    if network_manager() == 'neutron':
-        CONFIGS.write(NEUTRON_CONF)
+    if not is_relation_made('neutron-api'):
+        if network_manager() == 'quantum':
+            CONFIGS.write(QUANTUM_CONF)
+        if network_manager() == 'neutron':
+            CONFIGS.write(NEUTRON_CONF)
 
     if not is_leader(CLUSTER_RES):
         log('ha_changed: hacluster complete but we are not leader.')
@@ -594,13 +625,23 @@ def ha_changed():
         identity_joined(rid=rid)
 
 
+@hooks.hook('shared-db-relation-broken',
+            'pgsql-nova-db-relation-broken')
+@service_guard(guard_map(), CONFIGS,
+               active=config('service-guard'))
+def db_departed():
+    CONFIGS.write_all()
+    for r_id in relation_ids('cluster'):
+        relation_set(relation_id=r_id, dbsync_state='incomplete')
+    disable_services()
+    cmd_all_services('stop')
+
+
 @hooks.hook('amqp-relation-broken',
             'cinder-volume-service-relation-broken',
             'identity-service-relation-broken',
             'image-service-relation-broken',
             'nova-volume-service-relation-broken',
-            'shared-db-relation-broken',
-            'pgsql-nova-db-relation-broken',
             'pgsql-neutron-db-relation-broken',
             'quantum-network-service-relation-broken')
 @service_guard(guard_map(), CONFIGS,
@@ -656,6 +697,8 @@ def nova_vmware_relation_changed():
 
 @hooks.hook('upgrade-charm')
 def upgrade_charm():
+    apt_install(filter_installed_packages(determine_packages()),
+                fatal=True)
     for r_id in relation_ids('amqp'):
         amqp_joined(relation_id=r_id)
     for r_id in relation_ids('identity-service'):

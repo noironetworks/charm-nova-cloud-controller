@@ -228,3 +228,26 @@ options:
     default: False
     type: boolean
     description: Enable verbose logging
+  worker-multiplier:
+    type: int
+    default: 2
+    description: |
+      The CPU core multiplier to use when configuring worker processes for
+      Nova and Neutron.  By default, the number of workers for each daemon
+      is set to twice the number of CPU cores a service unit has.
+  cpu-allocation-ratio:
+    type: float
+    default: 16.0
+    description: |
+      The per physical core -> virtual core ratio to use in the Nova scheduler.
+      .
+      Increasing this value will increase instance density on compute nodes
+      at the expense of instance performance.
+  ram-allocation-ratio:
+    type: float
+    default: 1.5
+    description: |
+      The physical ram -> virtual ram ratio to use in the Nova scheduler.
+      .
+      Increasing this value will increase instance density on compute nodes
+      at the potential expense of instance performance.
