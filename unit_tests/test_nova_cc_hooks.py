@@ -356,6 +356,56 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(configs.write_all.called)
         self.migrate_database.assert_called_with()
 
+    @patch.object(hooks, 'nova_cell_relation_joined')
+    @patch.object(hooks, 'compute_joined')
+    @patch.object(hooks, 'CONFIGS')
+    def test_db_changed_remote_restarts(self, configs, comp_joined,
+                                        cell_joined):
+        def _relation_ids(rel):
+            relid = {
+                'cloud-compute': ['nova-compute/0'],
+                'cell': ['nova-cell-api/0'],
+            }
+            return relid[rel]
+        self.relation_ids.side_effect = _relation_ids
+        allowed_units = 'nova-cloud-controller/0'
+        self.test_relation.set({
+            'nova_allowed_units': allowed_units,
+        })
+        self.local_unit.return_value = 'nova-cloud-controller/0'
+        self._shared_db_test(configs)
+        comp_joined.assert_called_with(remote_restart=True,
+                                       rid='nova-compute/0')
+        cell_joined.assert_called_with(remote_restart=True,
+                                       rid='nova-cell-api/0')
+        self.migrate_database.assert_called_with()
+
+    @patch.object(hooks, 'nova_cell_relation_joined')
+    @patch.object(hooks, 'CONFIGS')
+    def test_amqp_changed_api_rel(self, configs, cell_joined):
+        configs.complete_contexts = MagicMock()
+        configs.complete_contexts.return_value = ['amqp']
+        configs.write = MagicMock()
+        self.is_relation_made.return_value = True
+        hooks.amqp_changed()
+        self.assertEquals(configs.write.call_args_list,
+                          [call('/etc/nova/nova.conf')])
+
+    @patch.object(hooks, 'nova_cell_relation_joined')
+    @patch.object(hooks, 'CONFIGS')
+    def test_amqp_changed_noapi_rel(self, configs, cell_joined):
+        configs.complete_contexts = MagicMock()
+        configs.complete_contexts.return_value = ['amqp']
+        configs.write = MagicMock()
+        self.relation_ids.return_value = ['nova-cell-api/0']
+        self.is_relation_made.return_value = False
+        self.network_manager.return_value = 'neutron'
+        hooks.amqp_changed()
+        self.assertEquals(configs.write.call_args_list,
+                          [call('/etc/nova/nova.conf'),
+                           call('/etc/neutron/neutron.conf')])
+        cell_joined.assert_called_with(rid='nova-cell-api/0')
+
     @patch.object(os, 'rename')
     @patch.object(os.path, 'isfile')
     @patch.object(hooks, 'CONFIGS')

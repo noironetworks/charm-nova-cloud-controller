@@ -279,11 +279,6 @@ def resource_map():
             if s not in resource_map[NOVA_CONF]['services']:
                 resource_map[NOVA_CONF]['services'].append(s)
 
-    novacell_ctxt = context.SubordinateConfigContext(interface='cell',
-                                                     service='nova',
-                                                     config_file=NOVA_CONF)
-    novacell_ctxt = novacell_ctxt()
-
     return resource_map
 
 
