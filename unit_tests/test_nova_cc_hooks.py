@@ -35,6 +35,7 @@ TO_PATCH = [
     'determine_ports',
     'disable_services',
     'enable_services',
+    'NovaCellContext',
     'open_port',
     'is_relation_made',
     'local_unit',
@@ -52,6 +53,7 @@ TO_PATCH = [
     'network_manager',
     'volume_service',
     'unit_get',
+    'uuid',
     'eligible_leader',
     'keystone_ca_cert_b64',
     'neutron_plugin',
@@ -382,6 +384,15 @@ class NovaCCHooksTests(CharmTestCase):
 
     @patch.object(hooks, 'nova_cell_relation_joined')
     @patch.object(hooks, 'CONFIGS')
+    def test_amqp_relation_broken(self, configs, cell_joined):
+        configs.write = MagicMock()
+        self.relation_ids.return_value = ['nova-cell-api/0']
+        hooks.relation_broken()
+        self.assertTrue(configs.write_all.called)
+        cell_joined.assert_called_with(rid='nova-cell-api/0')
+
+    @patch.object(hooks, 'nova_cell_relation_joined')
+    @patch.object(hooks, 'CONFIGS')
     def test_amqp_changed_api_rel(self, configs, cell_joined):
         configs.complete_contexts = MagicMock()
         configs.complete_contexts.return_value = ['amqp']
@@ -406,6 +417,25 @@ class NovaCCHooksTests(CharmTestCase):
                            call('/etc/neutron/neutron.conf')])
         cell_joined.assert_called_with(rid='nova-cell-api/0')
 
+    def test_nova_cell_relation_joined(self):
+        self.uuid.uuid4.return_value = 'bob'
+        hooks.nova_cell_relation_joined(rid='rid',
+                                        remote_restart=True)
+        self.relation_set.assert_called_with(restart_trigger='bob',
+                                             relation_id='rid')
+
+    @patch.object(hooks, 'CONFIGS')
+    def test_nova_cell_relation_changed(self, configs):
+        hooks.nova_cell_relation_changed()
+        configs.write.assert_called_with('/etc/nova/nova.conf')
+
+    def test_get_cell_type(self):
+        self.NovaCellContext().return_value = {
+            'cell_type': 'parent',
+            'cell_name': 'api',
+        }
+        self.assertEquals(hooks.get_cell_type(), 'parent')
+
     @patch.object(os, 'rename')
     @patch.object(os.path, 'isfile')
     @patch.object(hooks, 'CONFIGS')
@@ -417,7 +447,7 @@ class NovaCCHooksTests(CharmTestCase):
         isfile.return_value = True
         self.service_running.return_value = True
         _identity_joined = self.patch('identity_joined')
-        self.relation_ids.side_effect = ['relid']
+        self.relation_ids.return_value = ['relid']
         self.canonical_url.return_value = 'http://novaurl'
         get_cell_type.return_value = 'parent'
         with patch_open() as (_open, _file):

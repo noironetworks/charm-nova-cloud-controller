@@ -719,7 +719,6 @@ def nova_cell_relation_joined(rid=None, remote_restart=True):
 
 @hooks.hook('cell-relation-changed')
 def nova_cell_relation_changed():
-    CONFIGS.complete_contexts()
     CONFIGS.write(NOVA_CONF)
 
 
