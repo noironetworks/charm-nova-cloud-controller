@@ -507,7 +507,7 @@ def _do_openstack_upgrade(new_src):
         # create issues with db upgrades
         if relation_ids('neutron-api'):
             log('Not running neutron database migration as neutron-api service'
-            'is present.')
+                'is present.')
         else:
             neutron_db_manage(['stamp', cur_os_rel])
             migrate_neutron_database()
@@ -561,7 +561,7 @@ def migrate_nova_database():
 
 
 def migrate_neutron_database():
-    '''Runs neutron-db-manage to initialize a new database or migrate existing'''
+    '''Runs neutron-db-manage to init a new database or migrate existing'''
     log('Migrating the neutron database.', level=INFO)
     neutron_db_manage(['upgrade', 'head'])
 

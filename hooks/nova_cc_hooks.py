@@ -275,6 +275,7 @@ def postgresql_nova_db_changed():
          for rid in relation_ids('cloud-compute')]
         conditional_neutron_migration()
 
+
 @hooks.hook('pgsql-neutron-db-relation-changed')
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
