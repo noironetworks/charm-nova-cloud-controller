@@ -505,8 +505,12 @@ def _do_openstack_upgrade(new_src):
         # NOTE(jamespage) upgrade with existing config files as the
         # havana->icehouse migration enables new service_plugins which
         # create issues with db upgrades
-        neutron_db_manage(['stamp', cur_os_rel])
-        neutron_db_manage(['upgrade', 'head'])
+        if relation_ids('neutron-api'):
+            log('Not running neutron database migration as neutron-api service'
+                'is present.')
+        else:
+            neutron_db_manage(['stamp', cur_os_rel])
+            migrate_neutron_database()
         reset_os_release()
         configs = register_configs(release=new_os_rel)
         configs.write_all()
@@ -516,7 +520,7 @@ def _do_openstack_upgrade(new_src):
         ml2_migration()
 
     if eligible_leader(CLUSTER_RES):
-        migrate_database()
+        migrate_nova_database()
     [service_start(s) for s in services()]
 
     disable_policy_rcd()
@@ -543,7 +547,7 @@ def volume_service():
     return 'cinder'
 
 
-def migrate_database():
+def migrate_nova_database():
     '''Runs nova-manage to initialize a new database or migrate existing'''
     log('Migrating the nova database.', level=INFO)
     cmd = ['nova-manage', 'db', 'sync']
@@ -554,6 +558,12 @@ def migrate_database():
     log('Enabling services', level=INFO)
     enable_services()
     cmd_all_services('start')
+
+
+def migrate_neutron_database():
+    '''Runs neutron-db-manage to init a new database or migrate existing'''
+    log('Migrating the neutron database.', level=INFO)
+    neutron_db_manage(['upgrade', 'head'])
 
 
 def auth_token_config(setting):
