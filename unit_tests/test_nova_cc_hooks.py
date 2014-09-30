@@ -47,8 +47,10 @@ TO_PATCH = [
     'ssh_known_hosts_lines',
     'ssh_authorized_keys_lines',
     'save_script_rc',
+    'service_restart',
     'service_running',
     'service_stop',
+    'services',
     'execd_preinstall',
     'network_manager',
     'volume_service',
@@ -57,7 +59,9 @@ TO_PATCH = [
     'eligible_leader',
     'keystone_ca_cert_b64',
     'neutron_plugin',
-    'migrate_database',
+    'migrate_nova_database',
+    'migrate_neutron_database',
+    'uuid',
 ]
 
 
@@ -101,11 +105,17 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.config_changed()
         self.assertTrue(self.save_script_rc.called)
 
+    @patch.object(hooks, 'identity_joined')
+    @patch.object(hooks, 'neutron_api_relation_joined')
     @patch.object(hooks, 'configure_https')
-    def test_config_changed_with_upgrade(self, conf_https):
+    def test_config_changed_with_upgrade(self, conf_https, neutron_api_joined,
+                                         identity_joined):
         self.openstack_upgrade_available.return_value = True
+        self.relation_ids.return_value = ['generic_rid']
         hooks.config_changed()
         self.assertTrue(self.do_openstack_upgrade.called)
+        self.assertTrue(neutron_api_joined.called)
+        self.assertTrue(identity_joined.called)
         self.assertTrue(self.save_script_rc.called)
 
     def test_compute_changed_ssh_migration(self):
@@ -324,11 +334,13 @@ class NovaCCHooksTests(CharmTestCase):
         configs.write = MagicMock()
         hooks.postgresql_nova_db_changed()
 
+    @patch.object(hooks, 'conditional_neutron_migration')
     @patch.object(hooks, 'CONFIGS')
-    def test_db_changed(self, configs):
+    def test_db_changed(self, configs, cond_neutron_mig):
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
-        self.migrate_database.assert_called_with()
+        self.migrate_nova_database.assert_called_with()
+        cond_neutron_mig.assert_called_with()
 
     @patch.object(hooks, 'CONFIGS')
     def test_db_changed_allowed(self, configs):
@@ -339,7 +351,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.local_unit.return_value = 'nova-cloud-controller/3'
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
-        self.migrate_database.assert_called_with()
+        self.migrate_nova_database.assert_called_with()
 
     @patch.object(hooks, 'CONFIGS')
     def test_db_changed_not_allowed(self, configs):
@@ -350,13 +362,13 @@ class NovaCCHooksTests(CharmTestCase):
         self.local_unit.return_value = 'nova-cloud-controller/1'
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
-        self.assertFalse(self.migrate_database.called)
+        self.assertFalse(self.migrate_nova_database.called)
 
     @patch.object(hooks, 'CONFIGS')
     def test_postgresql_db_changed(self, configs):
         self._postgresql_db_test(configs)
         self.assertTrue(configs.write_all.called)
-        self.migrate_database.assert_called_with()
+        self.migrate_nova_database.assert_called_with()
 
     @patch.object(hooks, 'nova_cell_relation_joined')
     @patch.object(hooks, 'compute_joined')
@@ -367,6 +379,7 @@ class NovaCCHooksTests(CharmTestCase):
             relid = {
                 'cloud-compute': ['nova-compute/0'],
                 'cell': ['nova-cell-api/0'],
+                'neutron-api': ['neutron-api/0'],
             }
             return relid[rel]
         self.relation_ids.side_effect = _relation_ids
@@ -380,7 +393,7 @@ class NovaCCHooksTests(CharmTestCase):
                                        rid='nova-compute/0')
         cell_joined.assert_called_with(remote_restart=True,
                                        rid='nova-cell-api/0')
-        self.migrate_database.assert_called_with()
+        self.migrate_nova_database.assert_called_with()
 
     @patch.object(hooks, 'nova_cell_relation_joined')
     @patch.object(hooks, 'CONFIGS')
@@ -450,14 +463,16 @@ class NovaCCHooksTests(CharmTestCase):
         self.relation_ids.return_value = ['relid']
         self.canonical_url.return_value = 'http://novaurl'
         get_cell_type.return_value = 'parent'
+        self.uuid.uuid4.return_value = 'bob'
         with patch_open() as (_open, _file):
-            hooks.neutron_api_relation_joined()
+            hooks.neutron_api_relation_joined(remote_restart=True)
             self.service_stop.assert_called_with('neutron-server')
             rename.assert_called_with(neutron_conf, neutron_conf + '_unused')
             self.assertTrue(_identity_joined.called)
             self.relation_set.assert_called_with(relation_id=None,
                                                  cell_type='parent',
-                                                 nova_url=nova_url)
+                                                 nova_url=nova_url,
+                                                 restart_trigger='bob')
 
     @patch.object(hooks, 'CONFIGS')
     def test_neutron_api_relation_changed(self, configs):
@@ -568,3 +583,18 @@ class NovaCCHooksTests(CharmTestCase):
             'console_keymap': 'en-us'
         }
         self.assertEqual(_con_sets, console_settings)
+
+    def test_conditional_neutron_migration_api_rel(self):
+        self.relation_ids.return_value = ['neutron-api/0']
+        hooks.conditional_neutron_migration()
+        self.log.assert_called_with(
+            'Not running neutron database migration as neutron-api service'
+            'is present.'
+        )
+
+    def test_conditional_neutron_migration_noapi_rel(self):
+        self.relation_ids.return_value = []
+        hooks.conditional_neutron_migration()
+        self.services.return_value = ['neutron-server']
+        self.migrate_neutron_database.assert_called()
+        self.service_restart.assert_called()
