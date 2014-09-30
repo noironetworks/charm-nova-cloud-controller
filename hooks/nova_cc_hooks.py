@@ -29,6 +29,7 @@ from charmhelpers.core.host import (
     restart_on_change,
     service_running,
     service_stop,
+    service_restart,
 )
 
 from charmhelpers.fetch import (
@@ -66,7 +67,8 @@ from nova_cc_utils import (
     do_openstack_upgrade,
     enable_services,
     keystone_ca_cert_b64,
-    migrate_database,
+    migrate_neutron_database,
+    migrate_nova_database,
     neutron_plugin,
     save_script_rc,
     ssh_compute_add,
@@ -84,6 +86,7 @@ from nova_cc_utils import (
     console_attributes,
     service_guard,
     guard_map,
+    services,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -135,6 +138,8 @@ def config_changed():
     global CONFIGS
     if openstack_upgrade_available('nova-common'):
         CONFIGS = do_openstack_upgrade()
+        [neutron_api_relation_joined(rid=rid, remote_restart=True)
+            for rid in relation_ids('neutron-api')]
     save_script_rc()
     configure_https()
     CONFIGS.write_all()
@@ -168,6 +173,20 @@ def amqp_changed():
             CONFIGS.write(QUANTUM_CONF)
         if network_manager() == 'neutron':
             CONFIGS.write(NEUTRON_CONF)
+
+
+def conditional_neutron_migration():
+    if relation_ids('neutron-api'):
+        log('Not running neutron database migration as neutron-api service'
+            'is present.')
+    else:
+        migrate_neutron_database()
+        # neutron-api service may have appeared while the migration was
+        # running so prod it just in case
+        [neutron_api_relation_joined(rid=rid, remote_restart=True)
+            for rid in relation_ids('neutron-api')]
+        if 'neutron-server' in services():
+            service_restart('neutron-server')
 
 
 @hooks.hook('shared-db-relation-joined')
@@ -232,10 +251,11 @@ def db_changed():
         if allowed_units and local_unit() not in allowed_units.split():
             log('Allowed_units list provided and this unit not present')
             return
-        migrate_database()
+        migrate_nova_database()
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
          for rid in relation_ids('cloud-compute')]
+        conditional_neutron_migration()
 
 
 @hooks.hook('pgsql-nova-db-relation-changed')
@@ -249,10 +269,11 @@ def postgresql_nova_db_changed():
     CONFIGS.write_all()
 
     if eligible_leader(CLUSTER_RES):
-        migrate_database()
+        migrate_nova_database()
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
          for rid in relation_ids('cloud-compute')]
+        conditional_neutron_migration()
 
 
 @hooks.hook('pgsql-neutron-db-relation-changed')
@@ -701,7 +722,7 @@ def upgrade_charm():
 
 
 @hooks.hook('neutron-api-relation-joined')
-def neutron_api_relation_joined(rid=None):
+def neutron_api_relation_joined(rid=None, remote_restart=False):
     with open('/etc/init/neutron-server.override', 'wb') as out:
         out.write('manual\n')
     if os.path.isfile(NEUTRON_CONF):
@@ -710,8 +731,12 @@ def neutron_api_relation_joined(rid=None):
         service_stop('neutron-server')
     for id_rid in relation_ids('identity-service'):
         identity_joined(rid=id_rid)
-    nova_url = canonical_url(CONFIGS, INTERNAL) + ":8774/v2"
-    relation_set(relation_id=rid, nova_url=nova_url)
+    rel_settings = {
+        'nova_url': canonical_url(CONFIGS, INTERNAL) + ":8774/v2"
+    }
+    if remote_restart:
+        rel_settings['restart_trigger'] = str(uuid.uuid4())
+    relation_set(relation_id=rid, **rel_settings)
 
 
 @hooks.hook('neutron-api-relation-changed')
