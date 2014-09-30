@@ -35,7 +35,6 @@ from charmhelpers.core.hookenv import (
     log,
     relation_get,
     relation_ids,
-    relation_set,
     remote_unit,
     is_relation_made,
     INFO,
@@ -51,8 +50,7 @@ from charmhelpers.core.host import (
 )
 
 from charmhelpers.contrib.network.ip import (
-    is_ipv6,
-    get_ipv6_addr
+    is_ipv6
 )
 
 import nova_cc_context
@@ -107,7 +105,8 @@ QUANTUM_DEFAULT = '/etc/default/quantum-server'
 BASE_RESOURCE_MAP = OrderedDict([
     (NOVA_CONF, {
         'services': BASE_SERVICES,
-        'contexts': [context.AMQPContext(ssl_dir=NOVA_CONF_DIR),
+        'contexts': [context.AMQPContext(
+                     relation_prefix='nova', ssl_dir=NOVA_CONF_DIR),
                      context.SharedDBContext(ssl_dir=NOVA_CONF_DIR),
                      nova_cc_context.NovaPostgresqlDBContext(),
                      context.ImageServiceContext(),
@@ -909,23 +908,15 @@ def enable_services():
 
 def setup_ipv6():
     ubuntu_rel = float(lsb_release()['DISTRIB_RELEASE'])
-    if ubuntu_rel < 14.04:
+    if ubuntu_rel < 'trusty':
         raise Exception("IPv6 is not supported for Ubuntu "
                         "versions less than Trusty 14.04")
 
     # NOTE(xianghui): Need to install haproxy(1.5.3) from trusty-backports
     # to support ipv6 address, so check is required to make sure not
     # breaking other versions, IPv6 only support for >= Trusty
-    if ubuntu_rel == 14.04:
+    if ubuntu_rel == 'trusty':
         add_source('deb http://archive.ubuntu.com/ubuntu trusty-backports'
                    ' main')
         apt_update()
         apt_install('haproxy/trusty-backports', fatal=True)
-
-
-def set_ipv6_addr_for_cluster():
-    if config('prefer-ipv6'):
-        for rid in relation_ids('cluster'):
-            addr = get_ipv6_addr(exc_list=[config('vip')])[0]
-            relation_set(relation_id=rid,
-                         relation_settings={'private-address': addr})
