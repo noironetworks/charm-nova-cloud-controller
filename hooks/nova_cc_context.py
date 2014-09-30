@@ -272,10 +272,5 @@ class NovaConfigContext(WorkerConfigContext):
 class NovaIPv6Context(context.BindHostContext):
     def __call__(self):
         ctxt = super(NovaIPv6Context, self).__call__()
-
-        if config('prefer-ipv6'):
-            ctxt['use_ipv6'] = True
-        else:
-            ctxt['use_ipv6'] = False
-
+        ctxt['use_ipv6'] = config('prefer-ipv6')
         return ctxt

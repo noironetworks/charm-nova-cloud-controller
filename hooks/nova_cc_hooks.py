@@ -86,8 +86,7 @@ from nova_cc_utils import (
     console_attributes,
     service_guard,
     guard_map,
-    setup_ipv6,
-    set_ipv6_addr_for_cluster
+    setup_ipv6
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -106,7 +105,9 @@ from charmhelpers.contrib.openstack.ip import (
 from charmhelpers.contrib.network.ip import (
     get_iface_for_address,
     get_netmask_for_address,
-    get_ipv6_addr
+    get_address_in_network,
+    get_ipv6_addr,
+    is_ipv6
 )
 
 hooks = Hooks()
@@ -120,9 +121,6 @@ def install():
 
     apt_update()
     apt_install(determine_packages(), fatal=True)
-
-    if config('prefer-ipv6'):
-        setup_ipv6()
 
     _files = os.path.join(charm_dir(), 'files')
     if os.path.isdir(_files):
@@ -145,6 +143,10 @@ def config_changed():
         setup_ipv6()
         sync_db_with_multi_ipv6_addresses(config('database'),
                                           config('database-user'))
+    else:
+        relation_set(nova_database=config('database'),
+                     nova_username=config('database-user'),
+                     nova_hostname=unit_get('private-address'))
 
     global CONFIGS
     if openstack_upgrade_available('nova-common'):
@@ -197,7 +199,8 @@ def db_joined():
     if config('prefer-ipv6'):
         host = get_ipv6_addr(exc_list=[config('vip')])[0]
         sync_db_with_multi_ipv6_addresses(config('database'),
-                                          config('database-user'))
+                                          config('database-user'),
+                                          prefix='nova')
     else:
         host = unit_get('private-address')
         relation_set(nova_database=config('database'),
@@ -559,8 +562,16 @@ def quantum_joined(rid=None):
 
 
 @hooks.hook('cluster-relation-joined')
-def cluster_joined():
-    set_ipv6_addr_for_cluster()
+def cluster_joined(relation_id=None):
+    if config('prefer-ipv6'):
+        private_addr = get_ipv6_addr(exc_list=[config('vip')])[0]
+    else:
+        private_addr = unit_get('private-address')
+
+    address = get_address_in_network(config('os-internal-network'),
+                                     private_addr)
+    relation_set(relation_id=relation_id,
+                 relation_settings={'private-address': address})
 
 
 @hooks.hook('cluster-relation-changed',
@@ -582,9 +593,6 @@ def cluster_changed():
             disable_services()
             cmd_all_services('stop')
 
-    # peer_echo will pop up private-address
-    set_ipv6_addr_for_cluster()
-
 
 @hooks.hook('ha-relation-joined')
 def ha_joined():
@@ -596,15 +604,15 @@ def ha_joined():
         'res_nova_haproxy': 'op monitor interval="5s"'
     }
 
-    if config('prefer-ipv6'):
-        res_nova_vip = 'ocf:heartbeat:IPv6addr'
-        vip_params = 'ipv6addr'
-    else:
-        res_nova_vip = 'ocf:heartbeat:IPaddr2'
-        vip_params = 'ip'
-
     vip_group = []
     for vip in cluster_config['vip'].split():
+        if is_ipv6(vip):
+            res_nova_vip = 'ocf:heartbeat:IPv6addr'
+            vip_params = 'ipv6addr'
+        else:
+            res_nova_vip = 'ocf:heartbeat:IPaddr2'
+            vip_params = 'ip'
+
         iface = get_iface_for_address(vip)
         if iface is not None:
             vip_key = 'res_nova_{}_vip'.format(iface)
