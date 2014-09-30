@@ -145,7 +145,7 @@ def config_changed():
         setup_ipv6()
         sync_db_with_multi_ipv6_addresses(config('database'),
                                           config('database-user'),
-                                          prefix='nova')
+                                          relation_prefix='nova')
     else:
         relation_set(nova_database=config('database'),
                      nova_username=config('database-user'),
@@ -215,22 +215,31 @@ def db_joined():
         log(e, level=ERROR)
         raise Exception(e)
 
+    if network_manager() in ['quantum', 'neutron']:
+        config_neutron = True
+    else:
+        config_neutron = False
+
     if config('prefer-ipv6'):
-        host = get_ipv6_addr(exc_list=[config('vip')])[0]
         sync_db_with_multi_ipv6_addresses(config('database'),
                                           config('database-user'),
-                                          prefix='nova')
+                                          relation_prefix='nova')
+
+        if config_neutron:
+            sync_db_with_multi_ipv6_addresses(config('neutron-database'),
+                                              config('neutron-database-user'),
+                                              relation_prefix='neutron')
     else:
         host = unit_get('private-address')
         relation_set(nova_database=config('database'),
                      nova_username=config('database-user'),
                      nova_hostname=host)
 
-    if network_manager() in ['quantum', 'neutron']:
-        # XXX: Renaming relations from quantum_* to neutron_* here.
-        relation_set(neutron_database=config('neutron-database'),
-                     neutron_username=config('neutron-database-user'),
-                     neutron_hostname=host)
+        if config_neutron:
+            # XXX: Renaming relations from quantum_* to neutron_* here.
+            relation_set(neutron_database=config('neutron-database'),
+                         neutron_username=config('neutron-database-user'),
+                         neutron_hostname=host)
 
 
 @hooks.hook('pgsql-nova-db-relation-joined')
