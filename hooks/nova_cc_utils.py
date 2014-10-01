@@ -27,6 +27,7 @@ from charmhelpers.fetch import (
     apt_upgrade,
     apt_update,
     apt_install,
+    add_source
 )
 
 from charmhelpers.core.hookenv import (
@@ -44,7 +45,12 @@ from charmhelpers.core.host import (
     service,
     service_start,
     service_stop,
-    service_running
+    service_running,
+    lsb_release
+)
+
+from charmhelpers.contrib.network.ip import (
+    is_ipv6
 )
 
 import nova_cc_context
@@ -113,6 +119,7 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.VolumeServiceContext(),
+                     nova_cc_context.NovaIPv6Context(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.NovaConfigContext()],
     }),
@@ -668,16 +675,18 @@ def ssh_compute_add(public_key, rid=None, unit=None, user=None):
     private_address = relation_get(rid=rid, unit=unit,
                                    attribute='private-address')
     hosts = [private_address]
-    if relation_get('hostname'):
-        hosts.append(relation_get('hostname'))
 
-    if not is_ip(private_address):
-        hosts.append(get_host_ip(private_address))
-        hosts.append(private_address.split('.')[0])
-    else:
-        hn = get_hostname(private_address)
-        hosts.append(hn)
-        hosts.append(hn.split('.')[0])
+    if not is_ipv6(private_address):
+        if relation_get('hostname'):
+            hosts.append(relation_get('hostname'))
+
+        if not is_ip(private_address):
+            hosts.append(get_host_ip(private_address))
+            hosts.append(private_address.split('.')[0])
+        else:
+            hn = get_hostname(private_address)
+            hosts.append(hn)
+            hosts.append(hn.split('.')[0])
 
     for host in list(set(hosts)):
         if not ssh_known_host_key(host, unit, user):
@@ -905,3 +914,19 @@ def enable_services():
         override_file = '/etc/init/{}.override'.format(svc)
         if os.path.isfile(override_file):
             os.remove(override_file)
+
+
+def setup_ipv6():
+    ubuntu_rel = lsb_release()['DISTRIB_CODENAME'].lower()
+    if ubuntu_rel < "trusty":
+        raise Exception("IPv6 is not supported in the charms for Ubuntu "
+                        "versions less than Trusty 14.04")
+
+    # NOTE(xianghui): Need to install haproxy(1.5.3) from trusty-backports
+    # to support ipv6 address, so check is required to make sure not
+    # breaking other versions, IPv6 only support for >= Trusty
+    if ubuntu_rel == 'trusty':
+        add_source('deb http://archive.ubuntu.com/ubuntu trusty-backports'
+                   ' main')
+        apt_update()
+        apt_install('haproxy/trusty-backports', fatal=True)
