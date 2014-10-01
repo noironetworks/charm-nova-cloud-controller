@@ -40,6 +40,7 @@ from charmhelpers.fetch import (
 from charmhelpers.contrib.openstack.utils import (
     configure_installation_source,
     openstack_upgrade_available,
+    os_release,
 )
 
 from charmhelpers.contrib.openstack.neutron import (
@@ -179,6 +180,9 @@ def conditional_neutron_migration():
     if relation_ids('neutron-api'):
         log('Not running neutron database migration as neutron-api service'
             'is present.')
+    elif os_release('nova-common') <= 'icehouse':
+        log('Not running neutron database migration as migrations are handled'
+            'by the neutron-server process.')
     else:
         migrate_neutron_database()
         # neutron-api service may have appeared while the migration was
