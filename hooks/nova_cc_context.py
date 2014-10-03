@@ -12,6 +12,10 @@ from charmhelpers.contrib.hahelpers.cluster import (
     is_clustered
 )
 
+from charmhelpers.contrib.network.ip import (
+    get_ipv6_addr
+)
+
 
 def context_complete(ctxt):
     _missing = []
@@ -158,10 +162,18 @@ def canonical_url(vip_setting='vip'):
     scheme = 'http'
     if https():
         scheme = 'https'
-    if is_clustered():
-        addr = config(vip_setting)
+
+    if config('prefer-ipv6'):
+        if is_clustered():
+            addr = '[%s]' % config(vip_setting)
+        else:
+            addr = '[%s]' % get_ipv6_addr(exc_list=[config('vip')])[0]
     else:
-        addr = unit_get('private-address')
+        if is_clustered():
+            addr = config(vip_setting)
+        else:
+            addr = unit_get('private-address')
+
     return '%s://%s' % (scheme, addr)
 
 
@@ -202,6 +214,7 @@ class NeutronCCContext(context.NeutronContext):
                 ctxt['nvp_controllers_list'] = \
                     _config['nvp-controllers'].split()
         ctxt['nova_url'] = "{}:8774/v2".format(canonical_url())
+
         return ctxt
 
 
@@ -221,6 +234,7 @@ class IdentityServiceContext(context.IdentityServiceContext):
         )
         ctxt['keystone_ec2_url'] = ec2_tokens
         ctxt['region'] = config('region')
+
         return ctxt
 
 
@@ -252,4 +266,11 @@ class NovaConfigContext(WorkerConfigContext):
         ctxt = super(NovaConfigContext, self).__call__()
         ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
         ctxt['ram_allocation_ratio'] = config('ram-allocation-ratio')
+        return ctxt
+
+
+class NovaIPv6Context(context.BindHostContext):
+    def __call__(self):
+        ctxt = super(NovaIPv6Context, self).__call__()
+        ctxt['use_ipv6'] = config('prefer-ipv6')
         return ctxt
