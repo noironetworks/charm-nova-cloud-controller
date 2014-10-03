@@ -162,7 +162,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext(),
                      context.SyslogContext(),
-                     nova_cc_context.NovaConfigContext()],
+                     nova_cc_context.NovaConfigContext(),
+                     context.BindHostContext()],
     }),
     (NEUTRON_DEFAULT, {
         'services': ['neutron-server'],
