@@ -10,3 +10,4 @@ include:
         - apache
     - payload.execd
     - contrib.network.ip
+    - contrib.peerstorage
