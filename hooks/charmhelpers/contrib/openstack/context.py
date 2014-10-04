@@ -642,6 +642,20 @@ class NeutronContext(OSContextGenerator):
 
         return ovs_ctxt
 
+    def nuage_ctxt(self):
+        driver = neutron_plugin_attribute(self.plugin, 'driver',
+                                          self.network_manager)
+        config = neutron_plugin_attribute(self.plugin, 'config',
+                                          self.network_manager)
+        nuage_ctxt = {
+            'core_plugin': driver,
+            'neutron_plugin': 'vsp',
+            'neutron_security_groups': self.neutron_security_groups,
+            'local_ip': unit_private_ip(),
+            'config': config
+        }
+        return nuage_ctxt
+
     def nvp_ctxt(self):
         driver = neutron_plugin_attribute(self.plugin, 'driver',
                                           self.network_manager)
@@ -706,6 +720,8 @@ class NeutronContext(OSContextGenerator):
 
         if self.plugin == 'ovs':
             ctxt.update(self.ovs_ctxt())
+        elif self.plugin == 'vsp':
+            ctxt.update(self.nuage_ctxt())
         elif self.plugin in ['nvp', 'nsx']:
             ctxt.update(self.nvp_ctxt())
         elif self.plugin == 'n1kv':
