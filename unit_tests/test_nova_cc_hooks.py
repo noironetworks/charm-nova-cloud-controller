@@ -104,17 +104,19 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.config_changed()
         self.assertTrue(self.save_script_rc.called)
 
+    @patch.object(hooks, 'cluster_joined')
     @patch.object(hooks, 'identity_joined')
     @patch.object(hooks, 'neutron_api_relation_joined')
     @patch.object(hooks, 'configure_https')
     def test_config_changed_with_upgrade(self, conf_https, neutron_api_joined,
-                                         identity_joined):
+                                         identity_joined, cluster_joined):
         self.openstack_upgrade_available.return_value = True
         self.relation_ids.return_value = ['generic_rid']
         hooks.config_changed()
         self.assertTrue(self.do_openstack_upgrade.called)
         self.assertTrue(neutron_api_joined.called)
         self.assertTrue(identity_joined.called)
+        self.assertTrue(cluster_joined.called)
         self.assertTrue(self.save_script_rc.called)
 
     def test_compute_changed_ssh_migration(self):
