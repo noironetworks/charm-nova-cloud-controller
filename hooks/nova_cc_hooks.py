@@ -96,7 +96,6 @@ from nova_cc_utils import (
 from charmhelpers.contrib.hahelpers.cluster import (
     eligible_leader,
     get_hacluster_config,
-    is_leader,
 )
 
 from charmhelpers.payload.execd import execd_preinstall
@@ -113,6 +112,8 @@ from charmhelpers.contrib.network.ip import (
     get_ipv6_addr,
     is_ipv6
 )
+
+from charmhelpers.contrib.openstack.context import ADDRESS_TYPES
 
 hooks = Hooks()
 CONFIGS = register_configs()
@@ -163,6 +164,7 @@ def config_changed():
             for rid in relation_ids('cloud-compute')]
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
+    [cluster_joined(rid) for rid in relation_ids('cluster')]
 
 
 @hooks.hook('amqp-relation-joined')
@@ -334,8 +336,6 @@ def image_service_changed():
 
 @hooks.hook('identity-service-relation-joined')
 def identity_joined(rid=None):
-    if not eligible_leader(CLUSTER_RES):
-        return
     public_url = canonical_url(CONFIGS, PUBLIC)
     internal_url = canonical_url(CONFIGS, INTERNAL)
     admin_url = canonical_url(CONFIGS, ADMIN)
@@ -489,8 +489,6 @@ def console_settings():
 def compute_joined(rid=None, remote_restart=False):
     cons_settings = console_settings()
     relation_set(relation_id=rid, **cons_settings)
-    if not eligible_leader(CLUSTER_RES):
-        return
     rel_settings = {
         'network_manager': network_manager(),
         'volume_service': volume_service(),
@@ -575,9 +573,6 @@ def compute_departed():
 @hooks.hook('neutron-network-service-relation-joined',
             'quantum-network-service-relation-joined')
 def quantum_joined(rid=None):
-    if not eligible_leader(CLUSTER_RES):
-        return
-
     rel_settings = neutron_settings()
 
     # inform quantum about local keystone auth config
@@ -593,15 +588,19 @@ def quantum_joined(rid=None):
 
 @hooks.hook('cluster-relation-joined')
 def cluster_joined(relation_id=None):
+    for addr_type in ADDRESS_TYPES:
+        address = get_address_in_network(
+            config('os-{}-network'.format(addr_type))
+        )
+        if address:
+            relation_set(
+                relation_id=relation_id,
+                relation_settings={'{}-address'.format(addr_type): address}
+            )
     if config('prefer-ipv6'):
         private_addr = get_ipv6_addr(exc_list=[config('vip')])[0]
-    else:
-        private_addr = unit_get('private-address')
-
-    address = get_address_in_network(config('os-internal-network'),
-                                     private_addr)
-    relation_set(relation_id=relation_id,
-                 relation_settings={'private-address': address})
+        relation_set(relation_id=relation_id,
+                     relation_settings={'private-address': private_addr})
 
 
 @hooks.hook('cluster-relation-changed',
@@ -686,9 +685,6 @@ def ha_changed():
         if network_manager() == 'neutron':
             CONFIGS.write(NEUTRON_CONF)
 
-    if not is_leader(CLUSTER_RES):
-        log('ha_changed: hacluster complete but we are not leader.')
-        return
     log('Cluster configured, notifying other services and updating '
         'keystone endpoint configuration')
     for rid in relation_ids('identity-service'):
