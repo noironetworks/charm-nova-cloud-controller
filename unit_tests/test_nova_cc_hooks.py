@@ -40,6 +40,7 @@ TO_PATCH = [
     'is_relation_made',
     'local_unit',
     'log',
+    'os_release',
     'relation_get',
     'relation_set',
     'relation_ids',
@@ -105,17 +106,19 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.config_changed()
         self.assertTrue(self.save_script_rc.called)
 
+    @patch.object(hooks, 'cluster_joined')
     @patch.object(hooks, 'identity_joined')
     @patch.object(hooks, 'neutron_api_relation_joined')
     @patch.object(hooks, 'configure_https')
     def test_config_changed_with_upgrade(self, conf_https, neutron_api_joined,
-                                         identity_joined):
+                                         identity_joined, cluster_joined):
         self.openstack_upgrade_available.return_value = True
         self.relation_ids.return_value = ['generic_rid']
         hooks.config_changed()
         self.assertTrue(self.do_openstack_upgrade.called)
         self.assertTrue(neutron_api_joined.called)
         self.assertTrue(identity_joined.called)
+        self.assertTrue(cluster_joined.called)
         self.assertTrue(self.save_script_rc.called)
 
     def test_compute_changed_ssh_migration(self):
@@ -593,8 +596,18 @@ class NovaCCHooksTests(CharmTestCase):
         )
 
     def test_conditional_neutron_migration_noapi_rel(self):
+        self.os_release.return_value = 'juno'
+        self.relation_ids.return_value = []
+        self.services.return_value = ['neutron-server']
+        hooks.conditional_neutron_migration()
+        self.migrate_neutron_database.assert_called_with()
+        self.service_restart.assert_called_with('neutron-server')
+
+    def test_conditional_neutron_migration_noapi_rel_juno(self):
+        self.os_release.return_value = 'icehouse'
         self.relation_ids.return_value = []
         hooks.conditional_neutron_migration()
-        self.services.return_value = ['neutron-server']
-        self.migrate_neutron_database.assert_called()
-        self.service_restart.assert_called()
+        self.log.assert_called_with(
+            'Not running neutron database migration as migrations are handled'
+            'by the neutron-server process.'
+        )
