@@ -734,8 +734,12 @@ def upgrade_charm():
 # kick
 @hooks.hook('cell-relation-joined')
 def nova_cell_relation_joined(rid=None, remote_restart=True):
+    rel_settings = {
+        'nova_url': canonical_url(CONFIGS, INTERNAL) + ":8774/v2"
+    }
     if remote_restart:
-        relation_set(relation_id=rid, restart_trigger=str(uuid.uuid4()))
+        rel_settings['restart_trigger'] = str(uuid.uuid4())
+    relation_set(relation_id=rid, **rel_settings)
 
 
 @hooks.hook('cell-relation-changed')
