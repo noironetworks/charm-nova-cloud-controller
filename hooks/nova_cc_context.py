@@ -250,18 +250,7 @@ class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
               self).__init__(config('neutron-database'))
 
 
-class WorkerConfigContext(context.OSContextGenerator):
-
-    def __call__(self):
-        import psutil
-        multiplier = config('worker-multiplier') or 1
-        ctxt = {
-            "workers": psutil.NUM_CPUS * multiplier
-        }
-        return ctxt
-
-
-class NovaConfigContext(WorkerConfigContext):
+class NovaConfigContext(context.WorkerConfigContext):
     def __call__(self):
         ctxt = super(NovaConfigContext, self).__call__()
         ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
