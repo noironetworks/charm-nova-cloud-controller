@@ -812,7 +812,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
         })
 
     # XXX: Keep these relations named quantum_*??
-    if is_relation_made('neutron-api'):
+    if relation_ids('neutron-api'):
         endpoints.update({
             'quantum_service': None,
             'quantum_region': None,
