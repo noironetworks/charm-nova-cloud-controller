@@ -243,6 +243,14 @@ options:
     default: 'en-us'
     description: |
        Console keymap
+  debug:
+    default: False
+    type: boolean
+    description: Enable debug logging
+  verbose:
+    default: False
+    type: boolean
+    description: Enable verbose logging
   worker-multiplier:
     type: int
     default: 2
