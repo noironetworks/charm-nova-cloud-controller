@@ -35,6 +35,7 @@ TO_PATCH = [
     'determine_ports',
     'disable_services',
     'enable_services',
+    'NovaCellContext',
     'open_port',
     'is_relation_made',
     'local_unit',
@@ -55,6 +56,7 @@ TO_PATCH = [
     'network_manager',
     'volume_service',
     'unit_get',
+    'uuid',
     'eligible_leader',
     'keystone_ca_cert_b64',
     'neutron_plugin',
@@ -371,17 +373,101 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(configs.write_all.called)
         self.migrate_nova_database.assert_called_with()
 
+    @patch.object(hooks, 'nova_cell_relation_joined')
+    @patch.object(hooks, 'compute_joined')
+    @patch.object(hooks, 'CONFIGS')
+    def test_db_changed_remote_restarts(self, configs, comp_joined,
+                                        cell_joined):
+        def _relation_ids(rel):
+            relid = {
+                'cloud-compute': ['nova-compute/0'],
+                'cell': ['nova-cell-api/0'],
+                'neutron-api': ['neutron-api/0'],
+            }
+            return relid[rel]
+        self.relation_ids.side_effect = _relation_ids
+        allowed_units = 'nova-cloud-controller/0'
+        self.test_relation.set({
+            'nova_allowed_units': allowed_units,
+        })
+        self.local_unit.return_value = 'nova-cloud-controller/0'
+        self._shared_db_test(configs)
+        comp_joined.assert_called_with(remote_restart=True,
+                                       rid='nova-compute/0')
+        cell_joined.assert_called_with(remote_restart=True,
+                                       rid='nova-cell-api/0')
+        self.migrate_nova_database.assert_called_with()
+
+    @patch.object(hooks, 'nova_cell_relation_joined')
+    @patch.object(hooks, 'CONFIGS')
+    def test_amqp_relation_broken(self, configs, cell_joined):
+        configs.write = MagicMock()
+        self.relation_ids.return_value = ['nova-cell-api/0']
+        hooks.relation_broken()
+        self.assertTrue(configs.write_all.called)
+        cell_joined.assert_called_with(rid='nova-cell-api/0')
+
+    @patch.object(hooks, 'nova_cell_relation_joined')
+    @patch.object(hooks, 'CONFIGS')
+    def test_amqp_changed_api_rel(self, configs, cell_joined):
+        configs.complete_contexts = MagicMock()
+        configs.complete_contexts.return_value = ['amqp']
+        configs.write = MagicMock()
+        self.is_relation_made.return_value = True
+        hooks.amqp_changed()
+        self.assertEquals(configs.write.call_args_list,
+                          [call('/etc/nova/nova.conf')])
+
+    @patch.object(hooks, 'nova_cell_relation_joined')
+    @patch.object(hooks, 'CONFIGS')
+    def test_amqp_changed_noapi_rel(self, configs, cell_joined):
+        configs.complete_contexts = MagicMock()
+        configs.complete_contexts.return_value = ['amqp']
+        configs.write = MagicMock()
+        self.relation_ids.return_value = ['nova-cell-api/0']
+        self.is_relation_made.return_value = False
+        self.network_manager.return_value = 'neutron'
+        hooks.amqp_changed()
+        self.assertEquals(configs.write.call_args_list,
+                          [call('/etc/nova/nova.conf'),
+                           call('/etc/neutron/neutron.conf')])
+        cell_joined.assert_called_with(rid='nova-cell-api/0')
+
+    def test_nova_cell_relation_joined(self):
+        self.uuid.uuid4.return_value = 'bob'
+        self.canonical_url.return_value = 'http://novaurl'
+        hooks.nova_cell_relation_joined(rid='rid',
+                                        remote_restart=True)
+        self.relation_set.assert_called_with(restart_trigger='bob',
+                                             nova_url='http://novaurl:8774/v2',
+                                             relation_id='rid')
+
+    @patch.object(hooks, 'CONFIGS')
+    def test_nova_cell_relation_changed(self, configs):
+        hooks.nova_cell_relation_changed()
+        configs.write.assert_called_with('/etc/nova/nova.conf')
+
+    def test_get_cell_type(self):
+        self.NovaCellContext().return_value = {
+            'cell_type': 'parent',
+            'cell_name': 'api',
+        }
+        self.assertEquals(hooks.get_cell_type(), 'parent')
+
     @patch.object(os, 'rename')
     @patch.object(os.path, 'isfile')
     @patch.object(hooks, 'CONFIGS')
-    def test_neutron_api_relation_joined(self, configs, isfile, rename):
+    @patch.object(hooks, 'get_cell_type')
+    def test_neutron_api_relation_joined(self, get_cell_type, configs, isfile,
+                                         rename):
         neutron_conf = '/etc/neutron/neutron.conf'
         nova_url = 'http://novaurl:8774/v2'
         isfile.return_value = True
         self.service_running.return_value = True
         _identity_joined = self.patch('identity_joined')
-        self.relation_ids.side_effect = ['relid']
+        self.relation_ids.return_value = ['relid']
         self.canonical_url.return_value = 'http://novaurl'
+        get_cell_type.return_value = 'parent'
         self.uuid.uuid4.return_value = 'bob'
         with patch_open() as (_open, _file):
             hooks.neutron_api_relation_joined(remote_restart=True)
@@ -389,6 +475,7 @@ class NovaCCHooksTests(CharmTestCase):
             rename.assert_called_with(neutron_conf, neutron_conf + '_unused')
             self.assertTrue(_identity_joined.called)
             self.relation_set.assert_called_with(relation_id=None,
+                                                 cell_type='parent',
                                                  nova_url=nova_url,
                                                  restart_trigger='bob')
 
