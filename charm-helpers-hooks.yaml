@@ -5,7 +5,8 @@ include:
     - fetch
     - contrib.openstack|inc=*
     - contrib.storage
-    - contrib.hahelpers:
-        - apache
+    - contrib.peerstorage
+    - contrib.hahelpers
     - payload.execd
     - contrib.network.ip
+    - contrib.peerstorage

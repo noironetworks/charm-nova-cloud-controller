@@ -16,11 +16,13 @@ TO_PATCH = [
     'apt_update',
     'apt_upgrade',
     'apt_install',
+    'cmd_all_services',
     'config',
     'configure_installation_source',
     'disable_policy_rcd',
     'eligible_leader',
     'enable_policy_rcd',
+    'enable_services',
     'get_os_codename_install_source',
     'is_relation_made',
     'log',
@@ -30,6 +32,7 @@ TO_PATCH = [
     'neutron_plugin',
     'neutron_plugin_attribute',
     'os_release',
+    'peer_store',
     'register_configs',
     'relation_ids',
     'remote_unit',
@@ -516,7 +519,7 @@ class NovaCCUtilsTests(CharmTestCase):
 
     def test_determine_endpoints_nova_volume(self):
         self.is_relation_made.return_value = False
-        self.relation_ids.return_value = ['nova-volume-service/0']
+        self.relation_ids.side_effect = [['nova-volume-service/0'], []]
         endpoints = deepcopy(BASE_ENDPOINTS)
         endpoints.update({
             'nova-volume_admin_url':
@@ -550,7 +553,7 @@ class NovaCCUtilsTests(CharmTestCase):
 
     def test_determine_endpoints_neutron_api_rel(self):
         self.is_relation_made.return_value = True
-        self.relation_ids.return_value = []
+        self.relation_ids.side_effect = [[], ['neutron-api:1']]
         self.network_manager.return_value = 'quantum'
         endpoints = deepcopy(BASE_ENDPOINTS)
         endpoints.update({
@@ -589,16 +592,29 @@ class NovaCCUtilsTests(CharmTestCase):
         _known_hosts.assert_called_with('bar', None)
 
     @patch('subprocess.check_output')
-    def test_migrate_database(self, check_output):
+    def test_migrate_nova_database(self, check_output):
         "Migrate database with nova-manage"
-        utils.migrate_database()
+        self.relation_ids.return_value = []
+        utils.migrate_nova_database()
         check_output.assert_called_with(['nova-manage', 'db', 'sync'])
+        self.enable_services.assert_called()
+        self.cmd_all_services.assert_called_with('start')
+
+    @patch('subprocess.check_output')
+    def test_migrate_nova_database_cluster(self, check_output):
+        "Migrate database with nova-manage in a clustered env"
+        self.relation_ids.return_value = ['cluster:1']
+        utils.migrate_nova_database()
+        check_output.assert_called_with(['nova-manage', 'db', 'sync'])
+        self.peer_store.assert_called_with('dbsync_state', 'complete')
+        self.enable_services.assert_called()
+        self.cmd_all_services.assert_called_with('start')
 
     @patch.object(utils, 'get_step_upgrade_source')
-    @patch.object(utils, 'migrate_database')
+    @patch.object(utils, 'migrate_nova_database')
     @patch.object(utils, 'determine_packages')
     def test_upgrade_grizzly_icehouse(self, determine_packages,
-                                      migrate_database,
+                                      migrate_nova_database,
                                       get_step_upgrade_source):
         "Simulate a call to do_openstack_upgrade() for grizzly->icehouse"
         get_step_upgrade_source.return_value = 'cloud:precise-havana'
@@ -607,6 +623,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'havana',
             'icehouse']
         self.eligible_leader.return_value = True
+        self.relation_ids.return_value = []
         utils.do_openstack_upgrade()
         expected = [call(['stamp', 'grizzly']), call(['upgrade', 'head']),
                     call(['stamp', 'havana']), call(['upgrade', 'head'])]
@@ -618,19 +635,20 @@ class NovaCCUtilsTests(CharmTestCase):
         expected = [call(release='havana'), call(release='icehouse')]
         self.assertEquals(self.register_configs.call_args_list, expected)
         self.assertEquals(self.ml2_migration.call_count, 1)
-        self.assertTrue(migrate_database.call_count, 2)
+        self.assertTrue(migrate_nova_database.call_count, 2)
 
     @patch.object(utils, 'get_step_upgrade_source')
-    @patch.object(utils, 'migrate_database')
+    @patch.object(utils, 'migrate_nova_database')
     @patch.object(utils, 'determine_packages')
     def test_upgrade_havana_icehouse(self, determine_packages,
-                                     migrate_database,
+                                     migrate_nova_database,
                                      get_step_upgrade_source):
         "Simulate a call to do_openstack_upgrade() for havana->icehouse"
         get_step_upgrade_source.return_value = None
         self.os_release.return_value = 'havana'
         self.get_os_codename_install_source.return_value = 'icehouse'
         self.eligible_leader.return_value = True
+        self.relation_ids.return_value = []
         utils.do_openstack_upgrade()
         self.neutron_db_manage.assert_called_with(['upgrade', 'head'])
         self.apt_update.assert_called_with(fatal=True)
@@ -639,7 +657,28 @@ class NovaCCUtilsTests(CharmTestCase):
         self.apt_install.assert_called_with(determine_packages(), fatal=True)
         self.register_configs.assert_called_with(release='icehouse')
         self.assertEquals(self.ml2_migration.call_count, 1)
-        self.assertTrue(migrate_database.call_count, 1)
+        self.assertTrue(migrate_nova_database.call_count, 1)
+
+    @patch.object(utils, 'get_step_upgrade_source')
+    @patch.object(utils, 'migrate_nova_database')
+    @patch.object(utils, 'determine_packages')
+    def test_upgrade_havana_icehouse_apirel(self, determine_packages,
+                                            migrate_nova_database,
+                                            get_step_upgrade_source):
+        "Simulate a call to do_openstack_upgrade() for havana->icehouse api"
+        get_step_upgrade_source.return_value = None
+        self.os_release.return_value = 'havana'
+        self.get_os_codename_install_source.return_value = 'icehouse'
+        self.eligible_leader.return_value = True
+        self.relation_ids.return_value = ['neutron-api/0']
+        utils.do_openstack_upgrade()
+        self.apt_update.assert_called_with(fatal=True)
+        self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
+                                            dist=True)
+        self.apt_install.assert_called_with(determine_packages(), fatal=True)
+        self.register_configs.assert_called_with(release='icehouse')
+        self.assertEquals(self.ml2_migration.call_count, 1)
+        self.assertTrue(migrate_nova_database.call_count, 1)
 
     @patch.object(utils, '_do_openstack_upgrade')
     def test_upgrade_grizzly_icehouse_source(self, _do_openstack_upgrade):

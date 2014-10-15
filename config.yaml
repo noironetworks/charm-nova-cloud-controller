@@ -97,6 +97,7 @@ options:
   # HA configuration settings
   vip:
     type: string
+    default:
     description: |
       Virtual IP(s) to use to front API services in HA configuration.
       .
@@ -114,8 +115,21 @@ options:
     description: |
        Default multicast port number that will be used to communicate between
        HA Cluster nodes.
+  haproxy-server-timeout:
+    type: int
+    default:
+    description: |
+       Server timeout configuration in ms for haproxy, used in HA configurations.
+       If not provided, default value of 30000ms is used.
+  haproxy-client-timeout:
+    type: int
+    default:
+    description: |
+       Client timeout configuration in ms for haproxy, used in HA configurations.
+       If not provided, default value of 30000ms is used.
   ssl_cert:
     type: string
+    default:
     description: |
       SSL certificate to install and use for API ports.  Setting this value
       and ssl_key will enable reverse proxying, point Nova's entry in the
@@ -123,9 +137,11 @@ options:
       issued by Keystone (if it is configured to do so).
   ssl_key:
     type: string
+    default:
     description: SSL key to use with certificate specified as ssl_cert.
   ssl_ca:
     type: string
+    default:
     description: |
       SSL CA to use with the certificate and key provided - this is only
       required if you are providing a privately signed ssl_cert and ssl_key.
@@ -137,6 +153,7 @@ options:
   # Neutron NVP and VMware NSX plugin configuration
   nvp-controllers:
     type: string
+    default:
     description: Space delimited addresses of NVP/NSX controllers
   nvp-username:
     type: string
@@ -152,12 +169,14 @@ options:
     description: Name of the NVP cluster configuration to create (grizzly only)
   nvp-tz-uuid:
     type: string
+    default:
     description: |
       This is uuid of the default NVP/NSX Transport zone that will be used for
       creating tunneled isolated Quantum networks.  It needs to be created
       in NVP before starting Quantum with the nvp plugin.
   nvp-l3-uuid:
     type: string
+    default:
     description: |
       This is uuid of the default NVP/NSX L3 Gateway Service.
   # end of NVP/NSX configuration
@@ -165,6 +184,7 @@ options:
   # by default all access is over 'private-address'
   os-admin-network:
     type: string
+    default:
     description: |
       The IP address and netmask of the OpenStack Admin network (e.g.,
       192.168.0.0/24)
@@ -172,6 +192,7 @@ options:
       This network will be used for admin endpoints.
   os-internal-network:
     type: string
+    default:
     description: |
       The IP address and netmask of the OpenStack Internal network (e.g.,
       192.168.0.0/24)
@@ -179,6 +200,7 @@ options:
       This network will be used for internal endpoints.
   os-public-network:
     type: string
+    default:
     description: |
       The IP address and netmask of the OpenStack Public network (e.g.,
       192.168.0.0/24)
@@ -205,6 +227,7 @@ options:
         * identity-service
   console-access-protocol:
     type: string
+    default:
     description: |
        Protocol to use when accessing virtual machine console. Supported types
        are None, spice, xvpvnc, novnc and vnc (for both xvpvnc and novnc)
@@ -220,3 +243,46 @@ options:
     default: 'en-us'
     description: |
        Console keymap
+  debug:
+    default: False
+    type: boolean
+    description: Enable debug logging
+  verbose:
+    default: False
+    type: boolean
+    description: Enable verbose logging
+  worker-multiplier:
+    type: int
+    default: 2
+    description: |
+      The CPU core multiplier to use when configuring worker processes for
+      Nova and Neutron.  By default, the number of workers for each daemon
+      is set to twice the number of CPU cores a service unit has.
+  cpu-allocation-ratio:
+    type: float
+    default: 16.0
+    description: |
+      The per physical core -> virtual core ratio to use in the Nova scheduler.
+      .
+      Increasing this value will increase instance density on compute nodes
+      at the expense of instance performance.
+  ram-allocation-ratio:
+    type: float
+    default: 1.5
+    description: |
+      The physical ram -> virtual ram ratio to use in the Nova scheduler.
+      .
+      Increasing this value will increase instance density on compute nodes
+      at the potential expense of instance performance.
+  prefer-ipv6:
+    type: boolean
+    default: False
+    description: |
+      If True enables IPv6 support. The charm will expect network interfaces
+      to be configured with an IPv6 address. If set to False (default) IPv4
+      is expected.
+      .
+      NOTE: these charms do not currently support IPv6 privacy extension. In
+      order for this charm to function correctly, the privacy extension must be
+      disabled and a non-temporary address must be configured/available on
+      your network interface.
