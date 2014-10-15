@@ -1,4 +1,3 @@
-
 from charmhelpers.core.hookenv import (
     config, relation_ids, relation_set, log, ERROR,
     unit_get, related_units, relation_get)
@@ -11,6 +10,10 @@ from charmhelpers.contrib.hahelpers.cluster import (
     determine_api_port,
     https,
     is_clustered
+)
+
+from charmhelpers.contrib.network.ip import (
+    get_ipv6_addr
 )
 
 
@@ -36,6 +39,24 @@ class ApacheSSLContext(context.ApacheSSLContext):
         from nova_cc_utils import determine_ports
         self.external_ports = determine_ports()
         return super(ApacheSSLContext, self).__call__()
+
+
+class NovaCellContext(context.OSContextGenerator):
+    interfaces = ['nova-cell']
+
+    def __call__(self):
+        log('Generating template context for cell')
+        ctxt = {}
+        for rid in relation_ids('cell'):
+            for unit in related_units(rid):
+                rdata = relation_get(rid=rid, unit=unit)
+                ctxt = {
+                    'cell_type': rdata.get('cell_type'),
+                    'cell_name': rdata.get('cell_name'),
+                }
+                if context.context_complete(ctxt):
+                    return ctxt
+        return {}
 
 
 class NeutronAPIContext(context.OSContextGenerator):
@@ -159,10 +180,18 @@ def canonical_url(vip_setting='vip'):
     scheme = 'http'
     if https():
         scheme = 'https'
-    if is_clustered():
-        addr = config(vip_setting)
+
+    if config('prefer-ipv6'):
+        if is_clustered():
+            addr = '[%s]' % config(vip_setting)
+        else:
+            addr = '[%s]' % get_ipv6_addr(exc_list=[config('vip')])[0]
     else:
-        addr = unit_get('private-address')
+        if is_clustered():
+            addr = config(vip_setting)
+        else:
+            addr = unit_get('private-address')
+
     return '%s://%s' % (scheme, addr)
 
 
@@ -203,6 +232,7 @@ class NeutronCCContext(context.NeutronContext):
                 ctxt['nvp_controllers_list'] = \
                     _config['nvp-controllers'].split()
         ctxt['nova_url'] = "{}:8774/v2".format(canonical_url())
+
         return ctxt
 
 
@@ -222,6 +252,7 @@ class IdentityServiceContext(context.IdentityServiceContext):
         )
         ctxt['keystone_ec2_url'] = ec2_tokens
         ctxt['region'] = config('region')
+
         return ctxt
 
 
@@ -235,3 +266,18 @@ class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
     def __init__(self):
         super(NeutronPostgresqlDBContext,
               self).__init__(config('neutron-database'))
+
+
+class NovaConfigContext(context.WorkerConfigContext):
+    def __call__(self):
+        ctxt = super(NovaConfigContext, self).__call__()
+        ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
+        ctxt['ram_allocation_ratio'] = config('ram-allocation-ratio')
+        return ctxt
+
+
+class NovaIPv6Context(context.BindHostContext):
+    def __call__(self):
+        ctxt = super(NovaIPv6Context, self).__call__()
+        ctxt['use_ipv6'] = config('prefer-ipv6')
+        return ctxt
