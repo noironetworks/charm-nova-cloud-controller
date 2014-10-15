@@ -942,4 +942,3 @@ def setup_ipv6():
                    ' main')
         apt_update()
         apt_install('haproxy/trusty-backports', fatal=True)
->>>>>>> MERGE-SOURCE
