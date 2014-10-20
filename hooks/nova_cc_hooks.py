@@ -93,7 +93,6 @@ from nova_cc_utils import (
     service_guard,
     guard_map,
     get_topics,
-    services,
     setup_ipv6,
 )
 
