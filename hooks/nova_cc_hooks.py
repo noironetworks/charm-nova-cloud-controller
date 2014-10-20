@@ -42,6 +42,7 @@ from charmhelpers.contrib.openstack.utils import (
     configure_installation_source,
     openstack_upgrade_available,
     os_release,
+    os_requires_version,
     sync_db_with_multi_ipv6_addresses
 )
 
@@ -857,6 +858,7 @@ def neutron_api_relation_broken():
 
 
 @hooks.hook('zeromq-configuration-relation-joined')
+@os_requires_version('juno', 'neutron-common')
 def zeromq_configuration_relation_joined(relid=None):
     relation_set(relation_id=relid,
                  topics=" ".join(get_topics()),
