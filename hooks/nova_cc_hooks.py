@@ -621,7 +621,7 @@ def cluster_joined(relation_id=None):
 def cluster_changed():
     CONFIGS.write_all()
     if relation_ids('cluster'):
-        peer_echo(includes='dbsync_state')
+        peer_echo(includes=['dbsync_state'])
         dbsync_state = peer_retrieve('dbsync_state')
         if dbsync_state == 'complete':
             enable_services()
