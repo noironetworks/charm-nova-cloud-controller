@@ -51,7 +51,8 @@ from charmhelpers.contrib.openstack.neutron import (
 )
 
 from nova_cc_context import (
-    NeutronAPIContext
+    NeutronAPIContext,
+    NovaCellContext,
 )
 
 from charmhelpers.contrib.peerstorage import (
@@ -188,6 +189,8 @@ def amqp_changed():
             CONFIGS.write(QUANTUM_CONF)
         if network_manager() == 'neutron':
             CONFIGS.write(NEUTRON_CONF)
+    [nova_cell_relation_joined(rid=rid)
+        for rid in relation_ids('cell')]
 
 
 def conditional_neutron_migration():
@@ -289,7 +292,10 @@ def db_changed():
         migrate_nova_database()
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
-         for rid in relation_ids('cloud-compute')]
+            for rid in relation_ids('cloud-compute')]
+        log('Triggering remote cell restarts.')
+        [nova_cell_relation_joined(rid=rid, remote_restart=True)
+            for rid in relation_ids('cell')]
         conditional_neutron_migration()
 
 
@@ -611,7 +617,7 @@ def cluster_joined(relation_id=None):
 def cluster_changed():
     CONFIGS.write_all()
     if relation_ids('cluster'):
-        peer_echo(includes='dbsync_state')
+        peer_echo(includes=['dbsync_state'])
         dbsync_state = peer_retrieve('dbsync_state')
         if dbsync_state == 'complete':
             enable_services()
@@ -714,6 +720,8 @@ def db_departed():
                active=config('service-guard'))
 def relation_broken():
     CONFIGS.write_all()
+    [nova_cell_relation_joined(rid=rid)
+        for rid in relation_ids('cell')]
 
 
 def configure_https():
@@ -772,6 +780,32 @@ def upgrade_charm():
             compute_changed(r_id, unit)
 
 
+# remote_restart is defaulted to true as nova-cells may have started the
+# nova-cell process before the db migration was run so it will need a
+# kick
+@hooks.hook('cell-relation-joined')
+def nova_cell_relation_joined(rid=None, remote_restart=True):
+    rel_settings = {
+        'nova_url': "%s:8774/v2" % canonical_url(CONFIGS, INTERNAL)
+    }
+    if remote_restart:
+        rel_settings['restart_trigger'] = str(uuid.uuid4())
+    relation_set(relation_id=rid, **rel_settings)
+
+
+@hooks.hook('cell-relation-changed')
+@restart_on_change(restart_map())
+def nova_cell_relation_changed():
+    CONFIGS.write(NOVA_CONF)
+
+
+def get_cell_type():
+    cell_info = NovaCellContext()()
+    if 'cell_type' in cell_info:
+        return cell_info['cell_type']
+    return None
+
+
 @hooks.hook('neutron-api-relation-joined')
 def neutron_api_relation_joined(rid=None, remote_restart=False):
     with open('/etc/init/neutron-server.override', 'wb') as out:
@@ -785,6 +819,8 @@ def neutron_api_relation_joined(rid=None, remote_restart=False):
     rel_settings = {
         'nova_url': canonical_url(CONFIGS, INTERNAL) + ":8774/v2"
     }
+    if get_cell_type():
+        rel_settings['cell_type'] = get_cell_type()
     if remote_restart:
         rel_settings['restart_trigger'] = str(uuid.uuid4())
     relation_set(relation_id=rid, **rel_settings)

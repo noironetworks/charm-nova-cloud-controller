@@ -57,6 +57,8 @@ from charmhelpers.contrib.network.ip import (
     is_address_in_network
 )
 
+from charmhelpers.contrib.openstack.utils import get_host_ip
+
 CA_CERT_PATH = '/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt'
 
 
@@ -429,7 +431,7 @@ class HAProxyContext(OSContextGenerator):
         if config('prefer-ipv6'):
             addr = get_ipv6_addr(exc_list=[config('vip')])[0]
         else:
-            addr = unit_get('private-address')
+            addr = get_host_ip(unit_get('private-address'))
 
         cluster_hosts = {}
 
@@ -901,3 +903,22 @@ class BindHostContext(OSContextGenerator):
             return {
                 'bind_host': '0.0.0.0'
             }
+
+
+class WorkerConfigContext(OSContextGenerator):
+
+    @property
+    def num_cpus(self):
+        try:
+            from psutil import NUM_CPUS
+        except ImportError:
+            apt_install('python-psutil', fatal=True)
+            from psutil import NUM_CPUS
+        return NUM_CPUS
+
+    def __call__(self):
+        multiplier = config('worker-multiplier') or 1
+        ctxt = {
+            "workers": self.num_cpus * multiplier
+        }
+        return ctxt
