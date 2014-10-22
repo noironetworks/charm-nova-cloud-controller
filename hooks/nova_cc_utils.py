@@ -115,7 +115,9 @@ BASE_RESOURCE_MAP = OrderedDict([
                          interface='nova-vmware',
                          service='nova',
                          config_file=NOVA_CONF),
+                     nova_cc_context.NovaCellContext(),
                      context.SyslogContext(),
+                     context.LogLevelContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.VolumeServiceContext(),
@@ -812,7 +814,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
         })
 
     # XXX: Keep these relations named quantum_*??
-    if is_relation_made('neutron-api'):
+    if relation_ids('neutron-api'):
         endpoints.update({
             'quantum_service': None,
             'quantum_region': None,
