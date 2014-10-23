@@ -396,6 +396,8 @@ def get_step_upgrade_source(new_src):
         ('precise-proposed/grizzly', 'cloud:precise-havana/proposed')
     }
 
+    configure_installation_source(new_src)
+
     with open('/etc/apt/sources.list.d/cloud-archive.list', 'r') as f:
         line = f.readline()
         for target_src, (cur_pocket, step_src) in sources.items():
@@ -540,6 +542,9 @@ def _do_openstack_upgrade(new_src):
 
 def do_openstack_upgrade():
     new_src = config('openstack-origin')
+    if new_src[:6] != 'cloud:':
+        raise ValueError("Unable to perform upgrade to %s" % new_src)
+
     step_src = get_step_upgrade_source(new_src)
     if step_src is not None:
         _do_openstack_upgrade(step_src)
