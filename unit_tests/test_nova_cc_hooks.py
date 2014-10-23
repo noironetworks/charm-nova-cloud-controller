@@ -589,14 +589,6 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.assertEqual(_con_sets, console_settings)
 
-    def test_conditional_neutron_migration_api_rel(self):
-        self.relation_ids.return_value = ['neutron-api/0']
-        hooks.conditional_neutron_migration()
-        self.log.assert_called_with(
-            'Not running neutron database migration as neutron-api service'
-            'is present.'
-        )
-
     def test_conditional_neutron_migration_noapi_rel(self):
         self.os_release.return_value = 'juno'
         self.relation_ids.return_value = []
