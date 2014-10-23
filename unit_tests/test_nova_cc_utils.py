@@ -186,7 +186,7 @@ class NovaCCUtilsTests(CharmTestCase):
             '/etc/neutron/neutron.conf',
         ]
         for q_conf in confs:
-            self.assertFalse(q_conf in _map.keys())
+            self.assertEquals(_map[q_conf]['services'], [])
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_resource_map_vmware(self, subcontext):
