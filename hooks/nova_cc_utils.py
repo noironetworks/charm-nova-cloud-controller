@@ -396,6 +396,8 @@ def get_step_upgrade_source(new_src):
         ('precise-proposed/grizzly', 'cloud:precise-havana/proposed')
     }
 
+    configure_installation_source(new_src)
+
     with open('/etc/apt/sources.list.d/cloud-archive.list', 'r') as f:
         line = f.readline()
         for target_src, (cur_pocket, step_src) in sources.items():
