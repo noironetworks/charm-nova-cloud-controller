@@ -68,7 +68,7 @@ BASE_PACKAGES = [
     'python-psycopg2',
     'python-psutil',
     'uuid',
-    'python-memcached',
+    'python-memcache',
 ]
 
 BASE_SERVICES = [
