@@ -1,6 +1,6 @@
 from charmhelpers.core.hookenv import (
     config, relation_ids, relation_set, log, ERROR,
-    unit_get, related_units, relation_get)
+    unit_get, related_units, relation_get, relations_for_id)
 
 from charmhelpers.fetch import apt_install, filter_installed_packages
 from charmhelpers.contrib.openstack import context, neutron, utils
@@ -280,4 +280,23 @@ class NovaIPv6Context(context.BindHostContext):
     def __call__(self):
         ctxt = super(NovaIPv6Context, self).__call__()
         ctxt['use_ipv6'] = config('prefer-ipv6')
+        return ctxt
+
+
+class InstanceConsoleContext(context.OSContextGenerator):
+    interfaces = []
+
+    def __call__(self):
+        ctxt = {}
+        servers = []
+        try:
+            for rid in relation_ids('cache'):
+                for rel in relations_for_id(rid):
+                    servers.append({'private-address': rel['private-address'],
+                                    'port': rel['port']})
+        except Exception as ex:
+            log(str(ex))
+            servers = []
+
+        ctxt['memcached_servers'] = servers
         return ctxt

@@ -852,6 +852,15 @@ def neutron_api_relation_broken():
         quantum_joined(rid=rid)
 
 
+@hooks.hook('cache-relation-joined',
+            'cache-relation-departed',
+            'cache-relation-changed',
+            'cache-relation-broken')
+@restart_on_change(restart_map())
+def memcached_joined():
+    CONFIGS.write(NOVA_CONF)
+
+
 def main():
     try:
         hooks.execute(sys.argv)
