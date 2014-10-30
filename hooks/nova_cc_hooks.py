@@ -116,6 +116,8 @@ from charmhelpers.contrib.network.ip import (
 
 from charmhelpers.contrib.openstack.context import ADDRESS_TYPES
 
+from charmhelpers.contrib.charmsupport.nrpe import NRPE
+
 hooks = Hooks()
 CONFIGS = register_configs()
 
@@ -166,6 +168,7 @@ def config_changed():
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
     [cluster_joined(rid) for rid in relation_ids('cluster')]
+    update_nrpe_config()
 
 
 @hooks.hook('amqp-relation-joined')
@@ -775,6 +778,7 @@ def upgrade_charm():
     for r_id in relation_ids('cloud-compute'):
         for unit in related_units(r_id):
             compute_changed(r_id, unit)
+    update_nrpe_config()
 
 
 # remote_restart is defaulted to true as nova-cells may have started the
@@ -848,6 +852,27 @@ def neutron_api_relation_broken():
     for rid in relation_ids('quantum-network-service'):
         quantum_joined(rid=rid)
 
+@hooks.hook('nrpe-external-master-relation-joined', 'nrpe-external-master-relation-changed')
+def update_nrpe_config():
+    SERVICES = [
+        'nova-api-os-compute',
+        'nova-api-ec2',
+        'nova-cert',
+        'nova-objectstore',
+        'nova-scheduler',
+        'nova-conductor',
+    ]
+    nrpe = NRPE()
+    apt_install('python-dbus')
+    
+    for service in SERVICES:
+        nrpe.add_check(
+            shortname=service,
+            description='%s process' % service,
+            check_cmd = 'check_upstart_job %s' % service,
+            )
+
+    nrpe.write()
 
 def main():
     try:
