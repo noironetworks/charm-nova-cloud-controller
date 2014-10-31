@@ -41,6 +41,24 @@ class ApacheSSLContext(context.ApacheSSLContext):
         return super(ApacheSSLContext, self).__call__()
 
 
+class NovaCellContext(context.OSContextGenerator):
+    interfaces = ['nova-cell']
+
+    def __call__(self):
+        log('Generating template context for cell')
+        ctxt = {}
+        for rid in relation_ids('cell'):
+            for unit in related_units(rid):
+                rdata = relation_get(rid=rid, unit=unit)
+                ctxt = {
+                    'cell_type': rdata.get('cell_type'),
+                    'cell_name': rdata.get('cell_name'),
+                }
+                if context.context_complete(ctxt):
+                    return ctxt
+        return {}
+
+
 class NeutronAPIContext(context.OSContextGenerator):
 
     def __call__(self):
@@ -250,18 +268,7 @@ class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
               self).__init__(config('neutron-database'))
 
 
-class WorkerConfigContext(context.OSContextGenerator):
-
-    def __call__(self):
-        import psutil
-        multiplier = config('worker-multiplier') or 1
-        ctxt = {
-            "workers": psutil.NUM_CPUS * multiplier
-        }
-        return ctxt
-
-
-class NovaConfigContext(WorkerConfigContext):
+class NovaConfigContext(context.WorkerConfigContext):
     def __call__(self):
         ctxt = super(NovaConfigContext, self).__call__()
         ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')

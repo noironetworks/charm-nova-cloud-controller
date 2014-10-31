@@ -115,7 +115,9 @@ BASE_RESOURCE_MAP = OrderedDict([
                          interface='nova-vmware',
                          service='nova',
                          config_file=NOVA_CONF),
+                     nova_cc_context.NovaCellContext(),
                      context.SyslogContext(),
+                     context.LogLevelContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.VolumeServiceContext(),
@@ -162,7 +164,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext(),
                      context.SyslogContext(),
-                     nova_cc_context.NovaConfigContext()],
+                     nova_cc_context.NovaConfigContext(),
+                     context.BindHostContext()],
     }),
     (NEUTRON_DEFAULT, {
         'services': ['neutron-server'],
@@ -229,42 +232,44 @@ def resource_map():
     else:
         resource_map.pop(APACHE_24_CONF)
 
-    if is_relation_made('neutron-api'):
+    resource_map[NOVA_CONF]['contexts'].append(
+        nova_cc_context.NeutronCCContext())
+    # pop out irrelevant resources from the OrderedDict (easier than adding
+    # them late)
+    if net_manager != 'quantum':
         [resource_map.pop(k) for k in list(resource_map.iterkeys())
-         if 'quantum' in k or 'neutron' in k]
+         if 'quantum' in k]
+    if net_manager != 'neutron':
+        [resource_map.pop(k) for k in list(resource_map.iterkeys())
+         if 'neutron' in k]
+    # add neutron plugin requirements. nova-c-c only needs the
+    # neutron-server associated with configs, not the plugin agent.
+    if net_manager in ['quantum', 'neutron']:
+        plugin = neutron_plugin()
+        if plugin:
+            conf = neutron_plugin_attribute(plugin, 'config', net_manager)
+            ctxts = (neutron_plugin_attribute(plugin, 'contexts',
+                                              net_manager)
+                     or [])
+            services = neutron_plugin_attribute(plugin, 'server_services',
+                                                net_manager)
+            resource_map[conf] = {}
+            resource_map[conf]['services'] = services
+            resource_map[conf]['contexts'] = ctxts
+            resource_map[conf]['contexts'].append(
+                nova_cc_context.NeutronCCContext())
+
+            # update for postgres
+            resource_map[conf]['contexts'].append(
+                nova_cc_context.NeutronPostgresqlDBContext())
+
+    if is_relation_made('neutron-api'):
+        for k in list(resource_map.iterkeys()):
+            # neutron-api runs neutron services
+            if 'quantum' in k or 'neutron' in k:
+                resource_map[k]['services'] = []
         resource_map[NOVA_CONF]['contexts'].append(
             nova_cc_context.NeutronAPIContext())
-    else:
-        resource_map[NOVA_CONF]['contexts'].append(
-            nova_cc_context.NeutronCCContext())
-        # pop out irrelevant resources from the OrderedDict (easier than adding
-        # them late)
-        if net_manager != 'quantum':
-            [resource_map.pop(k) for k in list(resource_map.iterkeys())
-             if 'quantum' in k]
-        if net_manager != 'neutron':
-            [resource_map.pop(k) for k in list(resource_map.iterkeys())
-             if 'neutron' in k]
-        # add neutron plugin requirements. nova-c-c only needs the
-        # neutron-server associated with configs, not the plugin agent.
-        if net_manager in ['quantum', 'neutron']:
-            plugin = neutron_plugin()
-            if plugin:
-                conf = neutron_plugin_attribute(plugin, 'config', net_manager)
-                ctxts = (neutron_plugin_attribute(plugin, 'contexts',
-                                                  net_manager)
-                         or [])
-                services = neutron_plugin_attribute(plugin, 'server_services',
-                                                    net_manager)
-                resource_map[conf] = {}
-                resource_map[conf]['services'] = services
-                resource_map[conf]['contexts'] = ctxts
-                resource_map[conf]['contexts'].append(
-                    nova_cc_context.NeutronCCContext())
-
-                # update for postgres
-                resource_map[conf]['contexts'].append(
-                    nova_cc_context.NeutronPostgresqlDBContext())
 
     # nova-conductor for releases >= G.
     if os_release('nova-common') not in ['essex', 'folsom']:
@@ -392,6 +397,8 @@ def get_step_upgrade_source(new_src):
         'cloud:precise-icehouse/proposed':
         ('precise-proposed/grizzly', 'cloud:precise-havana/proposed')
     }
+
+    configure_installation_source(new_src)
 
     with open('/etc/apt/sources.list.d/cloud-archive.list', 'r') as f:
         line = f.readline()
@@ -537,6 +544,9 @@ def _do_openstack_upgrade(new_src):
 
 def do_openstack_upgrade():
     new_src = config('openstack-origin')
+    if new_src[:6] != 'cloud:':
+        raise ValueError("Unable to perform upgrade to %s" % new_src)
+
     step_src = get_step_upgrade_source(new_src)
     if step_src is not None:
         _do_openstack_upgrade(step_src)
@@ -811,7 +821,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
         })
 
     # XXX: Keep these relations named quantum_*??
-    if is_relation_made('neutron-api'):
+    if relation_ids('neutron-api'):
         endpoints.update({
             'quantum_service': None,
             'quantum_region': None,

@@ -186,7 +186,7 @@ class NovaCCUtilsTests(CharmTestCase):
             '/etc/neutron/neutron.conf',
         ]
         for q_conf in confs:
-            self.assertFalse(q_conf in _map.keys())
+            self.assertEquals(_map[q_conf]['services'], [])
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_resource_map_vmware(self, subcontext):
@@ -519,7 +519,7 @@ class NovaCCUtilsTests(CharmTestCase):
 
     def test_determine_endpoints_nova_volume(self):
         self.is_relation_made.return_value = False
-        self.relation_ids.return_value = ['nova-volume-service/0']
+        self.relation_ids.side_effect = [['nova-volume-service/0'], []]
         endpoints = deepcopy(BASE_ENDPOINTS)
         endpoints.update({
             'nova-volume_admin_url':
@@ -553,7 +553,7 @@ class NovaCCUtilsTests(CharmTestCase):
 
     def test_determine_endpoints_neutron_api_rel(self):
         self.is_relation_made.return_value = True
-        self.relation_ids.return_value = []
+        self.relation_ids.side_effect = [[], ['neutron-api:1']]
         self.network_manager.return_value = 'quantum'
         endpoints = deepcopy(BASE_ENDPOINTS)
         endpoints.update({
@@ -617,6 +617,7 @@ class NovaCCUtilsTests(CharmTestCase):
                                       migrate_nova_database,
                                       get_step_upgrade_source):
         "Simulate a call to do_openstack_upgrade() for grizzly->icehouse"
+        self.test_config.set('openstack-origin', 'cloud:precise-icehouse')
         get_step_upgrade_source.return_value = 'cloud:precise-havana'
         self.os_release.side_effect = ['grizzly', 'havana']
         self.get_os_codename_install_source.side_effect = [
@@ -644,6 +645,7 @@ class NovaCCUtilsTests(CharmTestCase):
                                      migrate_nova_database,
                                      get_step_upgrade_source):
         "Simulate a call to do_openstack_upgrade() for havana->icehouse"
+        self.test_config.set('openstack-origin', 'cloud:precise-icehouse')
         get_step_upgrade_source.return_value = None
         self.os_release.return_value = 'havana'
         self.get_os_codename_install_source.return_value = 'icehouse'
@@ -666,6 +668,7 @@ class NovaCCUtilsTests(CharmTestCase):
                                             migrate_nova_database,
                                             get_step_upgrade_source):
         "Simulate a call to do_openstack_upgrade() for havana->icehouse api"
+        self.test_config.set('openstack-origin', 'cloud:precise-icehouse')
         get_step_upgrade_source.return_value = None
         self.os_release.return_value = 'havana'
         self.get_os_codename_install_source.return_value = 'icehouse'
