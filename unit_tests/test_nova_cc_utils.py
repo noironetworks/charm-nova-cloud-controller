@@ -155,8 +155,9 @@ class NovaCCUtilsTests(CharmTestCase):
             _map = utils.resource_map()
             return _map
 
+    @patch('charmhelpers.core.hookenv.config')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    def test_resource_map_quantum(self, subcontext):
+    def test_resource_map_quantum(self, subcontext, config_):
         self.is_relation_made.return_value = False
         self._resource_map(network_manager='quantum')
         _map = utils.resource_map()
@@ -167,8 +168,9 @@ class NovaCCUtilsTests(CharmTestCase):
         ]
         [self.assertIn(q_conf, _map.keys()) for q_conf in confs]
 
+    @patch('charmhelpers.core.hookenv.config')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    def test_resource_map_neutron(self, subcontext):
+    def test_resource_map_neutron(self, subcontext, config_):
         self.is_relation_made.return_value = False
         self._resource_map(network_manager='neutron')
         _map = utils.resource_map()
@@ -259,9 +261,11 @@ class NovaCCUtilsTests(CharmTestCase):
         for service in console_services:
             self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
 
+    @patch('charmhelpers.core.hookenv.config')
     @patch('os.path.exists')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    def test_restart_map_api_before_frontends(self, subcontext, _exists):
+    def test_restart_map_api_before_frontends(self, subcontext, _exists,
+                                              config_):
         self.is_relation_made.return_value = False
         _exists.return_value = False
         self._resource_map(network_manager='neutron')
@@ -303,8 +307,9 @@ class NovaCCUtilsTests(CharmTestCase):
         pkgs = utils.determine_packages()
         self.assertIn('quantum-server', pkgs)
 
+    @patch('charmhelpers.core.hookenv.config')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    def test_determine_packages_neutron(self, subcontext):
+    def test_determine_packages_neutron(self, subcontext, config_):
         self.is_relation_made.return_value = False
         self._resource_map(network_manager='neutron')
         pkgs = utils.determine_packages()
