@@ -1,7 +1,7 @@
 from charmhelpers.core.hookenv import (
-    config, relation_ids, relation_set, log, ERROR,
+    relation_ids, relation_set, log, ERROR,
     unit_get, related_units, relation_get, relations_for_id)
-
+from charmhelpers.core import hookenv
 from charmhelpers.fetch import apt_install, filter_installed_packages
 from charmhelpers.contrib.openstack import context, neutron, utils
 
@@ -181,14 +181,14 @@ def canonical_url(vip_setting='vip'):
     if https():
         scheme = 'https'
 
-    if config('prefer-ipv6'):
+    if hookenv.config('prefer-ipv6'):
         if is_clustered():
-            addr = '[%s]' % config(vip_setting)
+            addr = '[%s]' % hookenv.config(vip_setting)
         else:
-            addr = '[%s]' % get_ipv6_addr(exc_list=[config('vip')])[0]
+            addr = '[%s]' % get_ipv6_addr(exc_list=[hookenv.config('vip')])[0]
     else:
         if is_clustered():
-            addr = config(vip_setting)
+            addr = hookenv.config(vip_setting)
         else:
             addr = unit_get('private-address')
 
@@ -209,8 +209,8 @@ class NeutronCCContext(context.NeutronContext):
 
     @property
     def neutron_security_groups(self):
-        sec_groups = (config('neutron-security-groups') or
-                      config('quantum-security-groups'))
+        sec_groups = (hookenv.config('neutron-security-groups') or
+                      hookenv.config('quantum-security-groups'))
         return sec_groups.lower() == 'yes'
 
     def _ensure_packages(self):
@@ -220,9 +220,9 @@ class NeutronCCContext(context.NeutronContext):
 
     def __call__(self):
         ctxt = super(NeutronCCContext, self).__call__()
-        ctxt['external_network'] = config('neutron-external-network')
-        if config('quantum-plugin') in ['nvp', 'nsx']:
-            _config = config()
+        ctxt['external_network'] = hookenv.config('neutron-external-network')
+        if hookenv.config('quantum-plugin') in ['nvp', 'nsx']:
+            _config = hookenv.config()
             for k, v in _config.iteritems():
                 if k.startswith('nvp'):
                     ctxt[k.replace('-', '_')] = v
@@ -251,7 +251,7 @@ class IdentityServiceContext(context.IdentityServiceContext):
             ctxt['service_port']
         )
         ctxt['keystone_ec2_url'] = ec2_tokens
-        ctxt['region'] = config('region')
+        ctxt['region'] = hookenv.config('region')
 
         return ctxt
 
@@ -265,21 +265,21 @@ class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
 
     def __init__(self):
         super(NeutronPostgresqlDBContext,
-              self).__init__(config('neutron-database'))
+              self).__init__(hookenv.config('neutron-database'))
 
 
 class NovaConfigContext(context.WorkerConfigContext):
     def __call__(self):
         ctxt = super(NovaConfigContext, self).__call__()
-        ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
-        ctxt['ram_allocation_ratio'] = config('ram-allocation-ratio')
+        ctxt['cpu_allocation_ratio'] = hookenv.config('cpu-allocation-ratio')
+        ctxt['ram_allocation_ratio'] = hookenv.config('ram-allocation-ratio')
         return ctxt
 
 
 class NovaIPv6Context(context.BindHostContext):
     def __call__(self):
         ctxt = super(NovaIPv6Context, self).__call__()
-        ctxt['use_ipv6'] = config('prefer-ipv6')
+        ctxt['use_ipv6'] = hookenv.config('prefer-ipv6')
         return ctxt
 
 
