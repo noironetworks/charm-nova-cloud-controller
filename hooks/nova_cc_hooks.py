@@ -134,8 +134,9 @@ def install():
     if os.path.isdir(_files):
         for f in os.listdir(_files):
             f = os.path.join(_files, f)
-            log('Installing %s to /usr/bin' % f)
-            shutil.copy2(f, '/usr/bin')
+            if os.path.isfile(f):
+                log('Installing %s to /usr/bin' % f)
+                shutil.copy2(f, '/usr/bin')
     [open_port(port) for port in determine_ports()]
     log('Disabling services into db relation joined')
     disable_services()
@@ -865,6 +866,7 @@ def update_nrpe_config():
     ]
     # Find out if nrpe set nagios_hostname
     hostname = None
+    host_context = None
     for rel in relations_of_type('nrpe-external-master'):
         if 'nagios_hostname' in rel:
             hostname = rel['nagios_hostname']
@@ -873,7 +875,10 @@ def update_nrpe_config():
     nrpe = NRPE(hostname=hostname)
     apt_install('python-dbus')
 
-    current_unit = "%s:%s" % (host_context, local_unit())
+    if host_context:
+        current_unit = "%s:%s" % (host_context, local_unit())
+    else:
+        current_unit = local_unit()
 
     for service in SERVICES:
         nrpe.add_check(
