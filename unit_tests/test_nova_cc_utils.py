@@ -664,23 +664,27 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch.object(utils, 'get_step_upgrade_source')
     @patch.object(utils, 'migrate_nova_database')
     @patch.object(utils, 'determine_packages')
-    def test_upgrade_havana_icehouse_apirel(self, determine_packages,
-                                            migrate_nova_database,
-                                            get_step_upgrade_source):
-        "Simulate a call to do_openstack_upgrade() for havana->icehouse api"
-        self.test_config.set('openstack-origin', 'cloud:precise-icehouse')
+    def test_upgrade_icehouse_juno(self, determine_packages,
+                                   migrate_nova_database,
+                                   get_step_upgrade_source):
+        "Simulate a call to do_openstack_upgrade() for icehouse->juno"
+        self.test_config.set('openstack-origin', 'cloud:trusty-juno')
         get_step_upgrade_source.return_value = None
-        self.os_release.return_value = 'havana'
-        self.get_os_codename_install_source.return_value = 'icehouse'
+        self.os_release.return_value = 'icehouse'
+        self.get_os_codename_install_source.return_value = 'juno'
         self.eligible_leader.return_value = True
-        self.relation_ids.return_value = ['neutron-api/0']
+        self.relation_ids.return_value = []
         utils.do_openstack_upgrade()
+        neutron_db_calls = [call(['stamp', 'icehouse']),
+                            call(['upgrade', 'head'])]
+        self.neutron_db_manage.assert_has_calls(neutron_db_calls,
+                                                any_order=False)
         self.apt_update.assert_called_with(fatal=True)
         self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
                                             dist=True)
         self.apt_install.assert_called_with(determine_packages(), fatal=True)
-        self.register_configs.assert_called_with(release='icehouse')
-        self.assertEquals(self.ml2_migration.call_count, 1)
+        self.register_configs.assert_called_with(release='juno')
+        self.assertEquals(self.ml2_migration.call_count, 0)
         self.assertTrue(migrate_nova_database.call_count, 1)
 
     @patch.object(utils, '_do_openstack_upgrade')
