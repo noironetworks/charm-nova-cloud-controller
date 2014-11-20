@@ -1,6 +1,20 @@
 from __future__ import print_function
 
 import mock
+
+#####
+# NOTE(freyes): this is a workaround to patch config() function imported by
+# nova_cc_utils before it gets a reference to the actual config() provided by
+# hookenv module.
+from charmhelpers.core import hookenv
+_conf = hookenv.config
+hookenv.config = mock.MagicMock()
+import nova_cc_utils as _utils
+# this assert is a double check + to avoid pep8 warning
+assert _utils.config == hookenv.config
+hookenv.config = _conf
+#####
+
 import nova_cc_context as context
 
 from charmhelpers.contrib.openstack import utils
