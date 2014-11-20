@@ -234,42 +234,44 @@ def resource_map():
     else:
         resource_map.pop(APACHE_24_CONF)
 
-    if is_relation_made('neutron-api'):
+    resource_map[NOVA_CONF]['contexts'].append(
+        nova_cc_context.NeutronCCContext())
+    # pop out irrelevant resources from the OrderedDict (easier than adding
+    # them late)
+    if net_manager != 'quantum':
         [resource_map.pop(k) for k in list(resource_map.iterkeys())
-         if 'quantum' in k or 'neutron' in k]
+         if 'quantum' in k]
+    if net_manager != 'neutron':
+        [resource_map.pop(k) for k in list(resource_map.iterkeys())
+         if 'neutron' in k]
+    # add neutron plugin requirements. nova-c-c only needs the
+    # neutron-server associated with configs, not the plugin agent.
+    if net_manager in ['quantum', 'neutron']:
+        plugin = neutron_plugin()
+        if plugin:
+            conf = neutron_plugin_attribute(plugin, 'config', net_manager)
+            ctxts = (neutron_plugin_attribute(plugin, 'contexts',
+                                              net_manager)
+                     or [])
+            services = neutron_plugin_attribute(plugin, 'server_services',
+                                                net_manager)
+            resource_map[conf] = {}
+            resource_map[conf]['services'] = services
+            resource_map[conf]['contexts'] = ctxts
+            resource_map[conf]['contexts'].append(
+                nova_cc_context.NeutronCCContext())
+
+            # update for postgres
+            resource_map[conf]['contexts'].append(
+                nova_cc_context.NeutronPostgresqlDBContext())
+
+    if is_relation_made('neutron-api'):
+        for k in list(resource_map.iterkeys()):
+            # neutron-api runs neutron services
+            if 'quantum' in k or 'neutron' in k:
+                resource_map[k]['services'] = []
         resource_map[NOVA_CONF]['contexts'].append(
             nova_cc_context.NeutronAPIContext())
-    else:
-        resource_map[NOVA_CONF]['contexts'].append(
-            nova_cc_context.NeutronCCContext())
-        # pop out irrelevant resources from the OrderedDict (easier than adding
-        # them late)
-        if net_manager != 'quantum':
-            [resource_map.pop(k) for k in list(resource_map.iterkeys())
-             if 'quantum' in k]
-        if net_manager != 'neutron':
-            [resource_map.pop(k) for k in list(resource_map.iterkeys())
-             if 'neutron' in k]
-        # add neutron plugin requirements. nova-c-c only needs the
-        # neutron-server associated with configs, not the plugin agent.
-        if net_manager in ['quantum', 'neutron']:
-            plugin = neutron_plugin()
-            if plugin:
-                conf = neutron_plugin_attribute(plugin, 'config', net_manager)
-                ctxts = (neutron_plugin_attribute(plugin, 'contexts',
-                                                  net_manager)
-                         or [])
-                services = neutron_plugin_attribute(plugin, 'server_services',
-                                                    net_manager)
-                resource_map[conf] = {}
-                resource_map[conf]['services'] = services
-                resource_map[conf]['contexts'] = ctxts
-                resource_map[conf]['contexts'].append(
-                    nova_cc_context.NeutronCCContext())
-
-                # update for postgres
-                resource_map[conf]['contexts'].append(
-                    nova_cc_context.NeutronPostgresqlDBContext())
 
     # nova-conductor for releases >= G.
     if os_release('nova-common') not in ['essex', 'folsom']:
@@ -398,6 +400,8 @@ def get_step_upgrade_source(new_src):
         ('precise-proposed/grizzly', 'cloud:precise-havana/proposed')
     }
 
+    configure_installation_source(new_src)
+
     with open('/etc/apt/sources.list.d/cloud-archive.list', 'r') as f:
         line = f.readline()
         for target_src, (cur_pocket, step_src) in sources.items():
@@ -517,12 +521,8 @@ def _do_openstack_upgrade(new_src):
         # NOTE(jamespage) upgrade with existing config files as the
         # havana->icehouse migration enables new service_plugins which
         # create issues with db upgrades
-        if relation_ids('neutron-api'):
-            log('Not running neutron database migration as neutron-api service'
-                'is present.')
-        else:
-            neutron_db_manage(['stamp', cur_os_rel])
-            migrate_neutron_database()
+        neutron_db_manage(['stamp', cur_os_rel])
+        migrate_neutron_database()
         reset_os_release()
         configs = register_configs(release=new_os_rel)
         configs.write_all()
@@ -542,6 +542,9 @@ def _do_openstack_upgrade(new_src):
 
 def do_openstack_upgrade():
     new_src = config('openstack-origin')
+    if new_src[:6] != 'cloud:':
+        raise ValueError("Unable to perform upgrade to %s" % new_src)
+
     step_src = get_step_upgrade_source(new_src)
     if step_src is not None:
         _do_openstack_upgrade(step_src)
