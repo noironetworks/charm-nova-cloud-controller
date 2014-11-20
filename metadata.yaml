@@ -40,7 +40,7 @@ requires:
   nova-vmware:
     interface: nova-vmware
     scope: container
-  cache:
+  memcache:
     interface: memcache
 peers:
   cluster:
