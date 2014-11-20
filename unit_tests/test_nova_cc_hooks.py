@@ -1,6 +1,7 @@
 from mock import MagicMock, patch, call
 from test_utils import CharmTestCase, patch_open
 import os
+
 with patch('charmhelpers.core.hookenv.config') as config:
     config.return_value = 'neutron'
     import nova_cc_utils as utils
