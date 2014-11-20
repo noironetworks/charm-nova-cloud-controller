@@ -290,7 +290,7 @@ class InstanceConsoleContext(context.OSContextGenerator):
         ctxt = {}
         servers = []
         try:
-            for rid in relation_ids('cache'):
+            for rid in relation_ids('memcache'):
                 for rel in relations_for_id(rid):
                     servers.append({'private-address': rel['private-address'],
                                     'port': rel['port']})
