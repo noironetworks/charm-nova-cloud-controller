@@ -14,6 +14,7 @@ TO_PATCH = [
     'relation_ids',
     'relation_get',
     'related_units',
+    'config',
     'log',
     'unit_get',
     'relations_for_id',
@@ -29,6 +30,7 @@ class NovaComputeContextTests(CharmTestCase):
     def setUp(self):
         super(NovaComputeContextTests, self).setUp(context, TO_PATCH)
         self.relation_get.side_effect = self.test_relation.get
+        self.config.side_effect = self.test_config.get
         self.log.side_effect = fake_log
 
     @mock.patch.object(utils, 'os_release')
