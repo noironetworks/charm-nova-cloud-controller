@@ -13,7 +13,8 @@ from charmhelpers.contrib.hahelpers.cluster import (
 )
 
 from charmhelpers.contrib.network.ip import (
-    get_ipv6_addr
+    get_ipv6_addr,
+    format_ipv6_addr
 )
 
 
@@ -292,7 +293,10 @@ class InstanceConsoleContext(context.OSContextGenerator):
         try:
             for rid in relation_ids('memcache'):
                 for rel in relations_for_id(rid):
-                    servers.append({'private-address': rel['private-address'],
+                    priv_addr = rel['private-address']
+                    # format it as IPv6 address if neeeded
+                    priv_addr = format_ipv6_addr(priv_addr) or priv_addr
+                    servers.append({'private-address': priv_addr,
                                     'port': rel['port']})
         except Exception as ex:
             log("Couldn't get caching servers: {}".format(str(ex)),
