@@ -48,7 +48,8 @@ class NovaComputeContextTests(CharmTestCase):
         self.log.side_effect = fake_log
 
     @mock.patch.object(utils, 'os_release')
-    def test_instance_console_context_without_memcache(self, os_release):
+    @mock.patch('charmhelpers.contrib.network.ip.log')
+    def test_instance_console_context_without_memcache(self, os_release, log_):
         self.unit_get.return_value = '127.0.0.1'
         self.relation_ids.return_value = 'cache:0'
         self.related_units.return_value = 'memcached/0'
@@ -58,10 +59,24 @@ class NovaComputeContextTests(CharmTestCase):
                          instance_console())
 
     @mock.patch.object(utils, 'os_release')
-    def test_instance_console_context_with_memcache(self, os_release):
-        memcached_servers = [{'private-address': '127.0.1.1',
+    @mock.patch('charmhelpers.contrib.network.ip.log')
+    def test_instance_console_context_with_memcache(self, os_release, log_):
+        self.check_instance_console_context_with_memcache(os_release,
+                                                          '127.0.1.1',
+                                                          '127.0.1.1')
+
+    @mock.patch.object(utils, 'os_release')
+    @mock.patch('charmhelpers.contrib.network.ip.log')
+    def test_instance_console_context_with_memcache_ipv6(self, os_release,
+                                                         log_):
+        self.check_instance_console_context_with_memcache(os_release, '::1',
+                                                          '[::1]')
+
+    def check_instance_console_context_with_memcache(self, os_release, ip,
+                                                     formated_ip):
+        memcached_servers = [{'private-address': formated_ip,
                               'port': '11211'}]
-        self.unit_get.return_value = '127.0.0.1'
+        self.unit_get.return_value = ip
         self.relation_ids.return_value = ['cache:0']
         self.relations_for_id.return_value = memcached_servers
         self.related_units.return_value = 'memcached/0'
