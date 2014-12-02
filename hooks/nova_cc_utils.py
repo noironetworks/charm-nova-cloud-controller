@@ -27,6 +27,7 @@ from charmhelpers.fetch import (
     apt_upgrade,
     apt_update,
     apt_install,
+    add_source,
 )
 
 from charmhelpers.core.hookenv import (
@@ -200,6 +201,21 @@ CONSOLE_CONFIG = {
         'proxy-port': 6081,
     },
 }
+
+
+def additional_install_locations(plugin):
+    '''
+    Add any required additional install locations for the charm, based
+    on the Neutron plugin being used. This will also force an immediate
+    package upgrade.
+    '''
+    if plugin == 'Calico':
+        add_source('ppa:cory-benfield/project-calico')
+
+        apt_update()
+        apt_upgrade()
+
+    return
 
 
 def resource_map():
