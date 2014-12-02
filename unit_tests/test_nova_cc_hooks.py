@@ -60,6 +60,7 @@ TO_PATCH = [
     'migrate_nova_database',
     'migrate_neutron_database',
     'uuid',
+    'additional_install_locations',
 ]
 
 

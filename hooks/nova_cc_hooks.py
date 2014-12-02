@@ -88,6 +88,7 @@ from nova_cc_utils import (
     service_guard,
     guard_map,
     services,
+    additional_install_locations,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -112,39 +113,10 @@ hooks = Hooks()
 CONFIGS = register_configs()
 
 
-def calico_hack():
-    # Abort early if this has already been done. Confirm by looking
-    # for whether BIRD's repository has been added.
-    if os.path.exists('/etc/apt/sources.list.d/cz_nic-labs-bird-trusty.list'):
-        return
-
-    env = os.environ.copy()
-
-    check_call(
-        'curl -L https://calico-pkg.s3.amazonaws.com/key | '
-        'apt-key add -',
-        shell=True
-    )
-
-    with open('/etc/apt/sources.list.d/calico.list', 'w') as f:
-        f.write('deb http://calico-pkg.s3.amazonaws.com calico main')
-
-    with open('/etc/apt/preferences', 'w') as f:
-        f.write('Package: *\nPin: origin calico-pkg.s3.amazonaws.com\nPin-Priority: 1001\n')
-
-    env['LANG'] = 'en_US.UTF-8'
-    check_call(['add-apt-repository', 'ppa:cz.nic-labs/bird'], env=env)
-
-    apt_update()
-    apt_upgrade(options=['--force-yes'], dist=True)
-
-    return
-
 @hooks.hook()
 def install():
     execd_preinstall()
     configure_installation_source(config('openstack-origin'))
-    calico_hack()
     apt_update()
     apt_install(determine_packages(), fatal=True)
 
