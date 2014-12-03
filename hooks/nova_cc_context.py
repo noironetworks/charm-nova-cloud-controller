@@ -1,19 +1,35 @@
 from charmhelpers.core.hookenv import (
-    config, relation_ids, relation_set, log, ERROR,
-    unit_get, related_units, relation_get)
-
-from charmhelpers.fetch import apt_install, filter_installed_packages
-from charmhelpers.contrib.openstack import context, neutron, utils
-
+    config,
+    relation_ids,
+    relation_set,
+    log,
+    ERROR,
+    unit_get,
+    related_units,
+    relation_get,
+)
+from charmhelpers.fetch import (
+    apt_install,
+    filter_installed_packages,
+)
+from charmhelpers.contrib.openstack import (
+    context,
+    neutron,
+    utils,
+)
 from charmhelpers.contrib.hahelpers.cluster import (
     determine_apache_port,
     determine_api_port,
     https,
-    is_clustered
+    is_clustered,
 )
-
 from charmhelpers.contrib.network.ip import (
-    get_ipv6_addr
+    get_ipv6_addr,
+    format_ipv6_addr,
+)
+from charmhelpers.contrib.openstack.ip import (
+    resolve_address,
+    INTERNAL,
 )
 
 
@@ -273,6 +289,8 @@ class NovaConfigContext(context.WorkerConfigContext):
         ctxt = super(NovaConfigContext, self).__call__()
         ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
         ctxt['ram_allocation_ratio'] = config('ram-allocation-ratio')
+        addr = resolve_address(INTERNAL)
+        ctxt['host_ip'] = format_ipv6_addr(addr) or addr
         return ctxt
 
 
