@@ -13,7 +13,13 @@ from charmhelpers.contrib.hahelpers.cluster import (
 )
 
 from charmhelpers.contrib.network.ip import (
-    get_ipv6_addr
+    get_ipv6_addr,
+    format_ipv6_addr
+)
+
+from charmhelpers.contrib.openstack.ip import (
+    resolve_address,
+    INTERNAL,
 )
 
 
@@ -273,6 +279,8 @@ class NovaConfigContext(context.WorkerConfigContext):
         ctxt = super(NovaConfigContext, self).__call__()
         ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
         ctxt['ram_allocation_ratio'] = config('ram-allocation-ratio')
+        addr = resolve_address(INTERNAL)
+        ctxt['host_ip'] = format_ipv6_addr(addr) or addr
         return ctxt
 
 
