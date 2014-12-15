@@ -198,10 +198,7 @@ def amqp_changed():
 
 
 def conditional_neutron_migration():
-    if relation_ids('neutron-api'):
-        log('Not running neutron database migration as neutron-api service'
-            'is present.')
-    elif os_release('nova-common') <= 'icehouse':
+    if os_release('nova-common') <= 'icehouse':
         log('Not running neutron database migration as migrations are handled'
             'by the neutron-server process.')
     else:
