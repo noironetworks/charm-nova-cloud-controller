@@ -317,7 +317,7 @@ class InstanceConsoleContext(context.OSContextGenerator):
                     servers.append({'private-address': priv_addr,
                                     'port': rel['port']})
         except Exception as ex:
-            log("Couldn't get caching servers: {}".format(str(ex)),
+            log("Couldn't get memcache servers: {}".format(str(ex)),
                 level='WARNING')
             servers = []
 
