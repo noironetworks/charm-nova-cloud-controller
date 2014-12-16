@@ -321,5 +321,6 @@ class InstanceConsoleContext(context.OSContextGenerator):
                 level='WARNING')
             servers = []
 
-        ctxt['memcached_servers'] = servers
+        ctxt['memcached_servers'] = ','.join(
+            ["%s:%s" % (s['private-address'], s['port']) for s in servers])
         return ctxt
