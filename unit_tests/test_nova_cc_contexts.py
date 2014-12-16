@@ -55,7 +55,7 @@ class NovaComputeContextTests(CharmTestCase):
         self.related_units.return_value = 'memcached/0'
         instance_console = context.InstanceConsoleContext()
         os_release.return_value = 'icehouse'
-        self.assertEqual({'memcached_servers': []},
+        self.assertEqual({'memcached_servers': ''},
                          instance_console())
 
     @mock.patch.object(utils, 'os_release')
@@ -83,5 +83,5 @@ class NovaComputeContextTests(CharmTestCase):
         instance_console = context.InstanceConsoleContext()
         os_release.return_value = 'icehouse'
         self.maxDiff = None
-        self.assertEqual({'memcached_servers': memcached_servers},
+        self.assertEqual({'memcached_servers': "%s:11211" % (formated_ip, )},
                          instance_console())
