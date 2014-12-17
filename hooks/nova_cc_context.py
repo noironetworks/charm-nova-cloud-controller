@@ -6,6 +6,7 @@ from charmhelpers.core.hookenv import (
     ERROR,
     unit_get,
     related_units,
+    relations_for_id,
     relation_get,
 )
 from charmhelpers.fetch import (
@@ -298,4 +299,25 @@ class NovaIPv6Context(context.BindHostContext):
     def __call__(self):
         ctxt = super(NovaIPv6Context, self).__call__()
         ctxt['use_ipv6'] = config('prefer-ipv6')
+        return ctxt
+
+
+class InstanceConsoleContext(context.OSContextGenerator):
+    interfaces = []
+
+    def __call__(self):
+        ctxt = {}
+        servers = []
+        try:
+            for rid in relation_ids('memcache'):
+                for rel in relations_for_id(rid):
+                    priv_addr = rel['private-address']
+                    # Format it as IPv6 address if needed
+                    priv_addr = format_ipv6_addr(priv_addr) or priv_addr
+                    servers.append("%s:%s" % (priv_addr, rel['port']))
+        except Exception as ex:
+            log("Could not get memcache servers: %s" % (ex), level='WARNING')
+            servers = []
+
+        ctxt['memcached_servers'] = ','.join(servers)
         return ctxt
