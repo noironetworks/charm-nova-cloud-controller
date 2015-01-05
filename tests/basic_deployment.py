@@ -467,7 +467,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                     'rabbit_host': rabbitmq_relation['hostname'],
                     'glance_api_servers': glance_relation['glance-api-server'],
                     'network_manager': 'nova.network.manager.FlatDHCPManager',
-                    's3_listen_port': '3333',
+                    's3_listen_port': '3323',
                     'osapi_compute_listen_port': '8774',
                     'ec2_listen_port': '8773'}
 
