@@ -441,6 +441,12 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                                                       endpoint_type='publicURL')
         keystone_ec2 = "{}/ec2tokens".format(keystone_ep)
 
+        if self._get_openstack_release() < self.precise_icehouse:
+            database_connection = 'sql_connection'
+        else:
+            # For >= icehouse we move away from deprecated sql_connection
+            database_connection = 'connection'
+
         expected = {'dhcpbridge_flagfile': '/etc/nova/nova.conf',
                     'dhcpbridge': '/usr/bin/nova-dhcpbridge',
                     'logdir': '/var/log/nova',
@@ -460,7 +466,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                     'auth_strategy': 'keystone',
                     'compute_driver': 'libvirt.LibvirtDriver',
                     'keystone_ec2_url': keystone_ec2,
-                    'sql_connection': db_uri,
+                    database_connection: db_uri,
                     'rabbit_userid': 'nova',
                     'rabbit_virtual_host': 'openstack',
                     'rabbit_password': rabbitmq_relation['password'],
@@ -526,7 +532,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 found = True
                 if instance.status != 'ACTIVE':
                     msg = "cirros instance is not active"
-                    amulet.raise_status(amulet.FAIL, msg=message)
+                    amulet.raise_status(amulet.FAIL, msg=msg)
 
         if not found:
             message = "nova cirros instance does not exist"
