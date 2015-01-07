@@ -30,6 +30,12 @@ options:
     default: nova
     type: string
     description: Database name
+  nova-alchemy-flags:
+    type: string
+    default:
+    description: |
+      Comma-separated list of key=value sqlalchemy related config flags to be
+      set in nova.conf [database] section.
   neutron-database-user:
     default: neutron
     type: string
@@ -38,6 +44,12 @@ options:
     default: neutron
     type: string
     description: Database name for Neutron (if enabled)
+  neutron-alchemy-flags:
+    type: string
+    default:
+    description: |
+      Comma-separated list of key=value sqlalchemy related config flags to be
+      set in neutron.conf [database] section.
   network-manager:
     default: FlatDHCPManager
     type: string
@@ -139,12 +151,6 @@ options:
     type: string
     default:
     description: SSL key to use with certificate specified as ssl_cert.
-  neutron-alchemy-flags:
-    type: string
-    default:
-    description: |
-      Comma separated list of key=value sqlalchemy related config flags to be
-      set in plugin ini file.
   ssl_ca:
     type: string
     default:
