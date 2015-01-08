@@ -175,7 +175,7 @@ BASE_RESOURCE_MAP = OrderedDict([
         'contexts': [nova_cc_context.NeutronCCContext()],
     }),
     (HAPROXY_CONF, {
-        'contexts': [context.HAProxyContext(),
+        'contexts': [context.HAProxyContext(singlenode_mode=True),
                      nova_cc_context.HAProxyContext()],
         'services': ['haproxy'],
     }),
