@@ -854,6 +854,7 @@ def neutron_api_relation_broken():
     for rid in relation_ids('quantum-network-service'):
         quantum_joined(rid=rid)
 
+
 @hooks.hook('nrpe-external-master-relation-joined',
             'nrpe-external-master-relation-changed')
 def update_nrpe_config():
@@ -883,23 +884,27 @@ def update_nrpe_config():
                 shortname=service,
                 description='process check {%s}' % current_unit,
                 check_cmd='check_upstart_job %s' % service,
-                )
+            )
         elif os.path.exists(sysv_init):
             cronpath = '/etc/cron.d/nagios-service-check-%s' % service
-            cron_template = '*/5 * * * * root \
-/usr/local/lib/nagios/plugins/check_exit_status.pl -s /etc/init.d/%s \
-status > /var/lib/nagios/service-check-%s.txt\n' % (service, service)
+            cron_entry = ('*/5 * * * * root '
+                          '/usr/local/lib/nagios/plugins/check_exit_status.pl '
+                          '-s /etc/init.d/%s status > '
+                          '/var/lib/nagios/service-check-%s.txt\n' % (service,
+                                                                      service)
+                          )
             f = open(cronpath, 'w')
-            f.write(cron_template)
+            f.write(cron_entry)
             f.close()
             nrpe.add_check(
                 shortname=service,
                 description='process check {%s}' % current_unit,
-                check_cmd='check_status_file.py -f \
-/var/lib/nagios/service-check-%s.txt' % service,
-                )
+                check_cmd='check_status_file.py -f '
+                          '/var/lib/nagios/service-check-%s.txt' % service,
+            )
 
     nrpe.write()
+
 
 @hooks.hook('memcache-relation-joined',
             'memcache-relation-departed',
