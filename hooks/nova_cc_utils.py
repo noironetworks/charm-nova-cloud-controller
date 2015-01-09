@@ -67,7 +67,9 @@ BASE_PACKAGES = [
     'python-mysqldb',
     'python-psycopg2',
     'python-psutil',
+    'python-six',
     'uuid',
+    'python-memcache',
 ]
 
 BASE_SERVICES = [
@@ -123,7 +125,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.VolumeServiceContext(),
                      nova_cc_context.NovaIPv6Context(),
                      nova_cc_context.NeutronCCContext(),
-                     nova_cc_context.NovaConfigContext()],
+                     nova_cc_context.NovaConfigContext(),
+                     nova_cc_context.InstanceConsoleContext()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in BASE_SERVICES if 'api' in s],
@@ -172,7 +175,7 @@ BASE_RESOURCE_MAP = OrderedDict([
         'contexts': [nova_cc_context.NeutronCCContext()],
     }),
     (HAPROXY_CONF, {
-        'contexts': [context.HAProxyContext(),
+        'contexts': [context.HAProxyContext(singlenode_mode=True),
                      nova_cc_context.HAProxyContext()],
         'services': ['haproxy'],
     }),
@@ -519,12 +522,8 @@ def _do_openstack_upgrade(new_src):
         # NOTE(jamespage) upgrade with existing config files as the
         # havana->icehouse migration enables new service_plugins which
         # create issues with db upgrades
-        if relation_ids('neutron-api'):
-            log('Not running neutron database migration as neutron-api service'
-                'is present.')
-        else:
-            neutron_db_manage(['stamp', cur_os_rel])
-            migrate_neutron_database()
+        neutron_db_manage(['stamp', cur_os_rel])
+        migrate_neutron_database()
         reset_os_release()
         configs = register_configs(release=new_os_rel)
         configs.write_all()

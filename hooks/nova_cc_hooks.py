@@ -901,6 +901,15 @@ status > /var/lib/nagios/service-check-%s.txt\n' % (service, service)
 
     nrpe.write()
 
+@hooks.hook('memcache-relation-joined',
+            'memcache-relation-departed',
+            'memcache-relation-changed',
+            'memcache-relation-broken')
+@restart_on_change(restart_map())
+def memcached_joined():
+    CONFIGS.write(NOVA_CONF)
+
+
 def main():
     try:
         hooks.execute(sys.argv)
