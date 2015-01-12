@@ -7,6 +7,9 @@ description: |
 categories:
   - openstack
 provides:
+  nrpe-external-master:
+    interface: nrpe-external-master
+    scope: container
   cloud-controller:
     interface: nova
 requires:

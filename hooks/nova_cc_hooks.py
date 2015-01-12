@@ -116,6 +116,8 @@ from charmhelpers.contrib.network.ip import (
 
 from charmhelpers.contrib.openstack.context import ADDRESS_TYPES
 
+from charmhelpers.contrib.charmsupport import nrpe
+
 hooks = Hooks()
 CONFIGS = register_configs()
 
@@ -131,8 +133,9 @@ def install():
     if os.path.isdir(_files):
         for f in os.listdir(_files):
             f = os.path.join(_files, f)
-            log('Installing %s to /usr/bin' % f)
-            shutil.copy2(f, '/usr/bin')
+            if os.path.isfile(f):
+                log('Installing %s to /usr/bin' % f)
+                shutil.copy2(f, '/usr/bin')
     [open_port(port) for port in determine_ports()]
     log('Disabling services into db relation joined')
     disable_services()
@@ -166,6 +169,7 @@ def config_changed():
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
     [cluster_joined(rid) for rid in relation_ids('cluster')]
+    update_nrpe_config()
 
 
 @hooks.hook('amqp-relation-joined')
@@ -775,6 +779,7 @@ def upgrade_charm():
     for r_id in relation_ids('cloud-compute'):
         for unit in related_units(r_id):
             compute_changed(r_id, unit)
+    update_nrpe_config()
 
 
 # remote_restart is defaulted to true as nova-cells may have started the
@@ -847,6 +852,18 @@ def neutron_api_relation_broken():
         compute_joined(rid=rid)
     for rid in relation_ids('quantum-network-service'):
         quantum_joined(rid=rid)
+
+
+@hooks.hook('nrpe-external-master-relation-joined',
+            'nrpe-external-master-relation-changed')
+def update_nrpe_config():
+    # python-dbus is used by check_upstart_job
+    apt_install('python-dbus')
+    hostname = nrpe.get_nagios_hostname()
+    current_unit = nrpe.get_nagios_unit_name()
+    nrpe_setup = nrpe.NRPE(hostname=hostname)
+    nrpe.add_init_service_checks(nrpe_setup, services(), current_unit)
+    nrpe_setup.write()
 
 
 @hooks.hook('memcache-relation-joined',
