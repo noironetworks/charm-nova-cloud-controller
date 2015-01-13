@@ -67,7 +67,9 @@ BASE_PACKAGES = [
     'python-mysqldb',
     'python-psycopg2',
     'python-psutil',
+    'python-six',
     'uuid',
+    'python-memcache',
 ]
 
 BASE_SERVICES = [
@@ -125,7 +127,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      context.NotificationDriverContext(),
                      nova_cc_context.NovaIPv6Context(),
                      nova_cc_context.NeutronCCContext(),
-                     nova_cc_context.NovaConfigContext()],
+                     nova_cc_context.NovaConfigContext(),
+                     nova_cc_context.InstanceConsoleContext()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in BASE_SERVICES if 'api' in s],
@@ -174,7 +177,7 @@ BASE_RESOURCE_MAP = OrderedDict([
         'contexts': [nova_cc_context.NeutronCCContext()],
     }),
     (HAPROXY_CONF, {
-        'contexts': [context.HAProxyContext(),
+        'contexts': [context.HAProxyContext(singlenode_mode=True),
                      nova_cc_context.HAProxyContext()],
         'services': ['haproxy'],
     }),

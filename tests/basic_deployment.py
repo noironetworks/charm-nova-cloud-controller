@@ -467,9 +467,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                     'rabbit_host': rabbitmq_relation['hostname'],
                     'glance_api_servers': glance_relation['glance-api-server'],
                     'network_manager': 'nova.network.manager.FlatDHCPManager',
-                    's3_listen_port': '3333',
-                    'osapi_compute_listen_port': '8774',
-                    'ec2_listen_port': '8773'}
+                    's3_listen_port': '3323',
+                    'osapi_compute_listen_port': '8764',
+                    'ec2_listen_port': '8763'}
 
         ret = u.validate_config_data(unit, conf, 'DEFAULT', expected)
         if ret:
