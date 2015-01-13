@@ -430,22 +430,10 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                                                    'nova-cloud-controller:amqp')
         glance_relation = self.glance_sentry.relation('image-service',
                                           'nova-cloud-controller:image-service')
-        mysql_relation = self.mysql_sentry.relation('shared-db',
-                                              'nova-cloud-controller:shared-db')
-        db_uri = "mysql://{}:{}@{}/{}".format('nova',
-                                              mysql_relation['nova_password'],
-                                              mysql_relation['db_host'],
-                                              'nova')
         keystone_ep = self.keystone_demo.service_catalog.url_for(\
                                                       service_type='identity',
                                                       endpoint_type='publicURL')
         keystone_ec2 = "{}/ec2tokens".format(keystone_ep)
-
-        if self._get_openstack_release() < self.precise_icehouse:
-            database_connection = 'sql_connection'
-        else:
-            # For >= icehouse we move away from deprecated sql_connection
-            database_connection = 'connection'
 
         expected = {'dhcpbridge_flagfile': '/etc/nova/nova.conf',
                     'dhcpbridge': '/usr/bin/nova-dhcpbridge',
@@ -466,7 +454,6 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                     'auth_strategy': 'keystone',
                     'compute_driver': 'libvirt.LibvirtDriver',
                     'keystone_ec2_url': keystone_ec2,
-                    database_connection: db_uri,
                     'rabbit_userid': 'nova',
                     'rabbit_virtual_host': 'openstack',
                     'rabbit_password': rabbitmq_relation['password'],
@@ -477,11 +464,43 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                     'osapi_compute_listen_port': '8774',
                     'ec2_listen_port': '8773'}
 
+        # This has been moved to [database] for I and above
+        if self._get_openstack_release() < self.precise_icehouse:
+            mysql_relation = self.mysql_sentry.relation('shared-db',
+                                            'nova-cloud-controller:shared-db')
+            db_uri = "mysql://{}:{}@{}/{}".format('nova',
+                                              mysql_relation['nova_password'],
+                                              mysql_relation['db_host'],
+                                              'nova')
+            expected['sql_connection'] = db_uri
+
         ret = u.validate_config_data(unit, conf, 'DEFAULT', expected)
         if ret:
             message = "nova config error: {}".format(ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
+    def test_nova_database_config(self):
+        """Verify the data in the nova config file's database section."""
+        # NOTE(hopem): this is >= Icehouse only
+        if self._get_openstack_release() < self.precise_icehouse:
+            return
+
+        unit = self.nova_cc_sentry
+        conf = '/etc/nova/nova.conf'
+        mysql_relation = self.mysql_sentry.relation('shared-db',
+                                              'nova-cloud-controller:shared-db')
+        db_uri = "mysql://{}:{}@{}/{}".format('nova',
+                                              mysql_relation['nova_password'],
+                                              mysql_relation['db_host'],
+                                              'nova')
+
+        # For >= icehouse we move away from deprecated sql_connection
+        expected = {'connection': db_uri}
+
+        ret = u.validate_config_data(unit, conf, 'database', expected)
+        if ret:
+            message = "nova config error: {}".format(ret)
+            amulet.raise_status(amulet.FAIL, msg=message)
 
     def test_nova_keystone_authtoken_config(self):
         """Verify the data in the nova config file's keystone_authtoken
