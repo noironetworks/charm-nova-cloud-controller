@@ -6,6 +6,7 @@ from charmhelpers.core.hookenv import (
     ERROR,
     unit_get,
     related_units,
+    relations_for_id,
     relation_get,
 )
 from charmhelpers.fetch import (
@@ -134,18 +135,28 @@ class HAProxyContext(context.HAProxyContext):
 
         # determine which port api processes should bind to, depending
         # on existence of haproxy + apache frontends
-        compute_api = determine_api_port(api_port('nova-api-os-compute'))
-        ec2_api = determine_api_port(api_port('nova-api-ec2'))
-        s3_api = determine_api_port(api_port('nova-objectstore'))
-        nvol_api = determine_api_port(api_port('nova-api-os-volume'))
-        neutron_api = determine_api_port(api_port('neutron-server'))
+        compute_api = determine_api_port(api_port('nova-api-os-compute'),
+                                         singlenode_mode=True)
+        ec2_api = determine_api_port(api_port('nova-api-ec2'),
+                                     singlenode_mode=True)
+        s3_api = determine_api_port(api_port('nova-objectstore'),
+                                    singlenode_mode=True)
+        nvol_api = determine_api_port(api_port('nova-api-os-volume'),
+                                      singlenode_mode=True)
+        neutron_api = determine_api_port(api_port('neutron-server'),
+                                         singlenode_mode=True)
 
         # Apache ports
-        a_compute_api = determine_apache_port(api_port('nova-api-os-compute'))
-        a_ec2_api = determine_apache_port(api_port('nova-api-ec2'))
-        a_s3_api = determine_apache_port(api_port('nova-objectstore'))
-        a_nvol_api = determine_apache_port(api_port('nova-api-os-volume'))
-        a_neutron_api = determine_apache_port(api_port('neutron-server'))
+        a_compute_api = determine_apache_port(api_port('nova-api-os-compute'),
+                                              singlenode_mode=True)
+        a_ec2_api = determine_apache_port(api_port('nova-api-ec2'),
+                                          singlenode_mode=True)
+        a_s3_api = determine_apache_port(api_port('nova-objectstore'),
+                                         singlenode_mode=True)
+        a_nvol_api = determine_apache_port(api_port('nova-api-os-volume'),
+                                           singlenode_mode=True)
+        a_neutron_api = determine_apache_port(api_port('neutron-server'),
+                                              singlenode_mode=True)
 
         # to be set in nova.conf accordingly.
         listen_ports = {
@@ -298,4 +309,25 @@ class NovaIPv6Context(context.BindHostContext):
     def __call__(self):
         ctxt = super(NovaIPv6Context, self).__call__()
         ctxt['use_ipv6'] = config('prefer-ipv6')
+        return ctxt
+
+
+class InstanceConsoleContext(context.OSContextGenerator):
+    interfaces = []
+
+    def __call__(self):
+        ctxt = {}
+        servers = []
+        try:
+            for rid in relation_ids('memcache'):
+                for rel in relations_for_id(rid):
+                    priv_addr = rel['private-address']
+                    # Format it as IPv6 address if needed
+                    priv_addr = format_ipv6_addr(priv_addr) or priv_addr
+                    servers.append("%s:%s" % (priv_addr, rel['port']))
+        except Exception as ex:
+            log("Could not get memcache servers: %s" % (ex), level='WARNING')
+            servers = []
+
+        ctxt['memcached_servers'] = ','.join(servers)
         return ctxt
