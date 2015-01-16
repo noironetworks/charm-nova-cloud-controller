@@ -858,7 +858,6 @@ def neutron_api_relation_broken():
         quantum_joined(rid=rid)
 
 
-<<<<<<< TREE
 @hooks.hook('zeromq-configuration-relation-joined')
 @os_requires_version('juno', 'neutron-common')
 def zeromq_configuration_relation_joined(relid=None):
