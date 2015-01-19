@@ -30,8 +30,8 @@ TO_PATCH = [
     'related_units',
     'config',
     'log',
-    'unit_get',
     'relations_for_id',
+    'https',
 ]
 
 
@@ -50,7 +50,6 @@ class NovaComputeContextTests(CharmTestCase):
     @mock.patch.object(utils, 'os_release')
     @mock.patch('charmhelpers.contrib.network.ip.log')
     def test_instance_console_context_without_memcache(self, os_release, log_):
-        self.unit_get.return_value = '127.0.0.1'
         self.relation_ids.return_value = 'cache:0'
         self.related_units.return_value = 'memcached/0'
         instance_console = context.InstanceConsoleContext()
@@ -76,7 +75,6 @@ class NovaComputeContextTests(CharmTestCase):
                                                      formated_ip):
         memcached_servers = [{'private-address': formated_ip,
                               'port': '11211'}]
-        self.unit_get.return_value = ip
         self.relation_ids.return_value = ['cache:0']
         self.relations_for_id.return_value = memcached_servers
         self.related_units.return_value = 'memcached/0'
@@ -85,3 +83,29 @@ class NovaComputeContextTests(CharmTestCase):
         self.maxDiff = None
         self.assertEqual({'memcached_servers': "%s:11211" % (formated_ip, )},
                          instance_console())
+
+    @mock.patch('charmhelpers.contrib.openstack.ip.config')
+    @mock.patch('charmhelpers.contrib.openstack.ip.is_clustered')
+    def test_neutron_context_single_vip(self, mock_is_clustered, mock_config):
+        self.https.return_value = False
+        mock_is_clustered.return_value = True
+        config = {'vip': '10.0.0.1',
+                  'os-internal-network': '10.0.0.1/24',
+                  'os-admin-network': '10.0.1.0/24',
+                  'os-public-network': '10.0.2.0/24'}
+        mock_config.side_effect = lambda key: config[key]
+        ctxt = context.NeutronCCContext()()
+        self.assertEqual(ctxt['nova_url'], 'http://10.0.0.1:8774/v2')
+
+    @mock.patch('charmhelpers.contrib.openstack.ip.config')
+    @mock.patch('charmhelpers.contrib.openstack.ip.is_clustered')
+    def test_neutron_context_multi_vip(self, mock_is_clustered, mock_config):
+        self.https.return_value = False
+        mock_is_clustered.return_value = True
+        config = {'vip': '10.0.0.1 10.0.1.1 10.0.2.1',
+                  'os-internal-network': '10.0.1.0/24',
+                  'os-admin-network': '10.0.0.0/24',
+                  'os-public-network': '10.0.2.0/24'}
+        mock_config.side_effect = lambda key: config[key]
+        ctxt = context.NeutronCCContext()()
+        self.assertEqual(ctxt['nova_url'], 'http://10.0.1.1:8774/v2')
