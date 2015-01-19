@@ -4,7 +4,6 @@ from charmhelpers.core.hookenv import (
     relation_set,
     log,
     ERROR,
-    unit_get,
     related_units,
     relations_for_id,
     relation_get,
@@ -22,10 +21,9 @@ from charmhelpers.contrib.hahelpers.cluster import (
     determine_apache_port,
     determine_api_port,
     https,
-    is_clustered,
 )
 from charmhelpers.contrib.network.ip import (
-    get_ipv6_addr,
+    is_ipv6,
     format_ipv6_addr,
 )
 from charmhelpers.contrib.openstack.ip import (
@@ -196,30 +194,32 @@ class HAProxyContext(context.HAProxyContext):
         return ctxt
 
 
-def canonical_url(vip_setting='vip'):
-    '''
-    Returns the correct HTTP URL to this host given the state of HTTPS
+def canonical_url():
+    """Returns the correct HTTP URL to this host given the state of HTTPS
     configuration and hacluster.
-
-    :vip_setting:                str: Setting in charm config that specifies
-                                      VIP address.
-    '''
+    """
     scheme = 'http'
     if https():
         scheme = 'https'
 
-    if config('prefer-ipv6'):
-        if is_clustered():
-            addr = '[%s]' % config(vip_setting)
-        else:
-            addr = '[%s]' % get_ipv6_addr(exc_list=[config('vip')])[0]
-    else:
-        if is_clustered():
-            addr = config(vip_setting)
-        else:
-            addr = unit_get('private-address')
+    address = resolve_address(INTERNAL)
+    if is_ipv6(address):
+        address = "[{}]".format(address)
 
-    return '%s://%s' % (scheme, addr)
+    return '%s://%s' % (scheme, address)
+
+
+def use_local_neutron_api():
+    """If no neutron-api relation exists returns True.
+
+    If no neutron-api relation exists we assume that we are going to use
+    legacy-mode i.e. local neutron server.
+    """
+    for rid in relation_ids('neutron-api'):
+        for unit in related_units(rid):
+            return False
+
+    return True
 
 
 class NeutronCCContext(context.NeutronContext):
@@ -258,7 +258,10 @@ class NeutronCCContext(context.NeutronContext):
                     ','.join(_config['nvp-controllers'].split())
                 ctxt['nvp_controllers_list'] = \
                     _config['nvp-controllers'].split()
+
         ctxt['nova_url'] = "{}:8774/v2".format(canonical_url())
+        if use_local_neutron_api():
+            ctxt['neutron_url'] = "{}:9696/v2".format(canonical_url())
 
         return ctxt
 
