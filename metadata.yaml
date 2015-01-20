@@ -7,6 +7,9 @@ description: |
 categories:
   - openstack
 provides:
+  nrpe-external-master:
+    interface: nrpe-external-master
+    scope: container
   cloud-controller:
     interface: nova
 requires:
@@ -32,12 +35,16 @@ requires:
     interface: quantum
   neutron-api:
     interface: neutron-api
+  cell:
+    interface: nova-cell
   ha:
     interface: hacluster
     scope: container
   nova-vmware:
     interface: nova-vmware
     scope: container
+  memcache:
+    interface: memcache
 peers:
   cluster:
     interface: nova-ha

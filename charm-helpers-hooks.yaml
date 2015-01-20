@@ -6,7 +6,9 @@ include:
     - contrib.openstack|inc=*
     - contrib.storage
     - contrib.peerstorage
-    - contrib.hahelpers:
-        - apache
+    - contrib.hahelpers
     - payload.execd
     - contrib.network.ip
+    - contrib.peerstorage
+    - contrib.python.packages
+    - contrib.charmsupport
