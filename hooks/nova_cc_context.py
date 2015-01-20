@@ -261,7 +261,7 @@ class NeutronCCContext(context.NeutronContext):
 
         ctxt['nova_url'] = "{}:8774/v2".format(canonical_url())
         if use_local_neutron_api():
-            ctxt['neutron_url'] = "{}:9696/v2".format(canonical_url())
+            ctxt['neutron_url'] = "{}:9696".format(canonical_url())
 
         return ctxt
 
