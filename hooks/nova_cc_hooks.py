@@ -127,6 +127,7 @@ CONFIGS = register_configs()
 def install():
     execd_preinstall()
     configure_installation_source(config('openstack-origin'))
+    additional_install_locations(neutron_plugin())
     apt_update()
     apt_install(determine_packages(), fatal=True)
 
