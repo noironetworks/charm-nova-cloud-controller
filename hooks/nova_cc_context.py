@@ -1,15 +1,36 @@
 from charmhelpers.core.hookenv import (
-    config, relation_ids, relation_set, log, ERROR,
-    unit_get, related_units, relation_get)
-
-from charmhelpers.fetch import apt_install, filter_installed_packages
-from charmhelpers.contrib.openstack import context, neutron, utils
-
+    config,
+    relation_ids,
+    relation_set,
+    log,
+    ERROR,
+    unit_get,
+    related_units,
+    relations_for_id,
+    relation_get,
+)
+from charmhelpers.fetch import (
+    apt_install,
+    filter_installed_packages,
+)
+from charmhelpers.contrib.openstack import (
+    context,
+    neutron,
+    utils,
+)
 from charmhelpers.contrib.hahelpers.cluster import (
     determine_apache_port,
     determine_api_port,
     https,
-    is_clustered
+    is_clustered,
+)
+from charmhelpers.contrib.network.ip import (
+    get_ipv6_addr,
+    format_ipv6_addr,
+)
+from charmhelpers.contrib.openstack.ip import (
+    resolve_address,
+    INTERNAL,
 )
 
 
@@ -35,6 +56,24 @@ class ApacheSSLContext(context.ApacheSSLContext):
         from nova_cc_utils import determine_ports
         self.external_ports = determine_ports()
         return super(ApacheSSLContext, self).__call__()
+
+
+class NovaCellContext(context.OSContextGenerator):
+    interfaces = ['nova-cell']
+
+    def __call__(self):
+        log('Generating template context for cell')
+        ctxt = {}
+        for rid in relation_ids('cell'):
+            for unit in related_units(rid):
+                rdata = relation_get(rid=rid, unit=unit)
+                ctxt = {
+                    'cell_type': rdata.get('cell_type'),
+                    'cell_name': rdata.get('cell_name'),
+                }
+                if context.context_complete(ctxt):
+                    return ctxt
+        return {}
 
 
 class NeutronAPIContext(context.OSContextGenerator):
@@ -96,18 +135,28 @@ class HAProxyContext(context.HAProxyContext):
 
         # determine which port api processes should bind to, depending
         # on existence of haproxy + apache frontends
-        compute_api = determine_api_port(api_port('nova-api-os-compute'))
-        ec2_api = determine_api_port(api_port('nova-api-ec2'))
-        s3_api = determine_api_port(api_port('nova-objectstore'))
-        nvol_api = determine_api_port(api_port('nova-api-os-volume'))
-        neutron_api = determine_api_port(api_port('neutron-server'))
+        compute_api = determine_api_port(api_port('nova-api-os-compute'),
+                                         singlenode_mode=True)
+        ec2_api = determine_api_port(api_port('nova-api-ec2'),
+                                     singlenode_mode=True)
+        s3_api = determine_api_port(api_port('nova-objectstore'),
+                                    singlenode_mode=True)
+        nvol_api = determine_api_port(api_port('nova-api-os-volume'),
+                                      singlenode_mode=True)
+        neutron_api = determine_api_port(api_port('neutron-server'),
+                                         singlenode_mode=True)
 
         # Apache ports
-        a_compute_api = determine_apache_port(api_port('nova-api-os-compute'))
-        a_ec2_api = determine_apache_port(api_port('nova-api-ec2'))
-        a_s3_api = determine_apache_port(api_port('nova-objectstore'))
-        a_nvol_api = determine_apache_port(api_port('nova-api-os-volume'))
-        a_neutron_api = determine_apache_port(api_port('neutron-server'))
+        a_compute_api = determine_apache_port(api_port('nova-api-os-compute'),
+                                              singlenode_mode=True)
+        a_ec2_api = determine_apache_port(api_port('nova-api-ec2'),
+                                          singlenode_mode=True)
+        a_s3_api = determine_apache_port(api_port('nova-objectstore'),
+                                         singlenode_mode=True)
+        a_nvol_api = determine_apache_port(api_port('nova-api-os-volume'),
+                                           singlenode_mode=True)
+        a_neutron_api = determine_apache_port(api_port('neutron-server'),
+                                              singlenode_mode=True)
 
         # to be set in nova.conf accordingly.
         listen_ports = {
@@ -158,10 +207,18 @@ def canonical_url(vip_setting='vip'):
     scheme = 'http'
     if https():
         scheme = 'https'
-    if is_clustered():
-        addr = config(vip_setting)
+
+    if config('prefer-ipv6'):
+        if is_clustered():
+            addr = '[%s]' % config(vip_setting)
+        else:
+            addr = '[%s]' % get_ipv6_addr(exc_list=[config('vip')])[0]
     else:
-        addr = unit_get('private-address')
+        if is_clustered():
+            addr = config(vip_setting)
+        else:
+            addr = unit_get('private-address')
+
     return '%s://%s' % (scheme, addr)
 
 
@@ -202,6 +259,7 @@ class NeutronCCContext(context.NeutronContext):
                 ctxt['nvp_controllers_list'] = \
                     _config['nvp-controllers'].split()
         ctxt['nova_url'] = "{}:8774/v2".format(canonical_url())
+
         return ctxt
 
 
@@ -221,6 +279,7 @@ class IdentityServiceContext(context.IdentityServiceContext):
         )
         ctxt['keystone_ec2_url'] = ec2_tokens
         ctxt['region'] = config('region')
+
         return ctxt
 
 
@@ -236,20 +295,39 @@ class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
               self).__init__(config('neutron-database'))
 
 
-class WorkerConfigContext(context.OSContextGenerator):
-
-    def __call__(self):
-        import psutil
-        multiplier = config('worker-multiplier') or 1
-        ctxt = {
-            "workers": psutil.NUM_CPUS * multiplier
-        }
-        return ctxt
-
-
-class NovaConfigContext(WorkerConfigContext):
+class NovaConfigContext(context.WorkerConfigContext):
     def __call__(self):
         ctxt = super(NovaConfigContext, self).__call__()
         ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
         ctxt['ram_allocation_ratio'] = config('ram-allocation-ratio')
+        addr = resolve_address(INTERNAL)
+        ctxt['host_ip'] = format_ipv6_addr(addr) or addr
+        return ctxt
+
+
+class NovaIPv6Context(context.BindHostContext):
+    def __call__(self):
+        ctxt = super(NovaIPv6Context, self).__call__()
+        ctxt['use_ipv6'] = config('prefer-ipv6')
+        return ctxt
+
+
+class InstanceConsoleContext(context.OSContextGenerator):
+    interfaces = []
+
+    def __call__(self):
+        ctxt = {}
+        servers = []
+        try:
+            for rid in relation_ids('memcache'):
+                for rel in relations_for_id(rid):
+                    priv_addr = rel['private-address']
+                    # Format it as IPv6 address if needed
+                    priv_addr = format_ipv6_addr(priv_addr) or priv_addr
+                    servers.append("%s:%s" % (priv_addr, rel['port']))
+        except Exception as ex:
+            log("Could not get memcache servers: %s" % (ex), level='WARNING')
+            servers = []
+
+        ctxt['memcached_servers'] = ','.join(servers)
         return ctxt

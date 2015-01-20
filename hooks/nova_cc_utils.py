@@ -27,7 +27,7 @@ from charmhelpers.fetch import (
     apt_upgrade,
     apt_update,
     apt_install,
-    add_source,
+    add_source
 )
 
 from charmhelpers.core.hookenv import (
@@ -45,7 +45,12 @@ from charmhelpers.core.host import (
     service,
     service_start,
     service_stop,
-    service_running
+    service_running,
+    lsb_release
+)
+
+from charmhelpers.contrib.network.ip import (
+    is_ipv6
 )
 
 import nova_cc_context
@@ -62,7 +67,9 @@ BASE_PACKAGES = [
     'python-mysqldb',
     'python-psycopg2',
     'python-psutil',
+    'python-six',
     'uuid',
+    'python-memcache',
 ]
 
 BASE_SERVICES = [
@@ -103,6 +110,9 @@ BASE_RESOURCE_MAP = OrderedDict([
         'contexts': [context.AMQPContext(ssl_dir=NOVA_CONF_DIR),
                      context.SharedDBContext(
                          relation_prefix='nova', ssl_dir=NOVA_CONF_DIR),
+                     context.OSConfigFlagContext(
+                         charm_flag='nova-alchemy-flags',
+                         template_flag='nova_alchemy_flags'),
                      nova_cc_context.NovaPostgresqlDBContext(),
                      context.ImageServiceContext(),
                      context.OSConfigFlagContext(),
@@ -110,12 +120,16 @@ BASE_RESOURCE_MAP = OrderedDict([
                          interface='nova-vmware',
                          service='nova',
                          config_file=NOVA_CONF),
+                     nova_cc_context.NovaCellContext(),
                      context.SyslogContext(),
+                     context.LogLevelContext(),
                      nova_cc_context.HAProxyContext(),
                      nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.VolumeServiceContext(),
+                     nova_cc_context.NovaIPv6Context(),
                      nova_cc_context.NeutronCCContext(),
-                     nova_cc_context.NovaConfigContext()],
+                     nova_cc_context.NovaConfigContext(),
+                     nova_cc_context.InstanceConsoleContext()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in BASE_SERVICES if 'api' in s],
@@ -156,14 +170,15 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext(),
                      context.SyslogContext(),
-                     nova_cc_context.NovaConfigContext()],
+                     nova_cc_context.NovaConfigContext(),
+                     context.BindHostContext()],
     }),
     (NEUTRON_DEFAULT, {
         'services': ['neutron-server'],
         'contexts': [nova_cc_context.NeutronCCContext()],
     }),
     (HAPROXY_CONF, {
-        'contexts': [context.HAProxyContext(),
+        'contexts': [context.HAProxyContext(singlenode_mode=True),
                      nova_cc_context.HAProxyContext()],
         'services': ['haproxy'],
     }),
@@ -238,42 +253,44 @@ def resource_map():
     else:
         resource_map.pop(APACHE_24_CONF)
 
-    if is_relation_made('neutron-api'):
+    resource_map[NOVA_CONF]['contexts'].append(
+        nova_cc_context.NeutronCCContext())
+    # pop out irrelevant resources from the OrderedDict (easier than adding
+    # them late)
+    if net_manager != 'quantum':
         [resource_map.pop(k) for k in list(resource_map.iterkeys())
-         if 'quantum' in k or 'neutron' in k]
+         if 'quantum' in k]
+    if net_manager != 'neutron':
+        [resource_map.pop(k) for k in list(resource_map.iterkeys())
+         if 'neutron' in k]
+    # add neutron plugin requirements. nova-c-c only needs the
+    # neutron-server associated with configs, not the plugin agent.
+    if net_manager in ['quantum', 'neutron']:
+        plugin = neutron_plugin()
+        if plugin:
+            conf = neutron_plugin_attribute(plugin, 'config', net_manager)
+            ctxts = (neutron_plugin_attribute(plugin, 'contexts',
+                                              net_manager)
+                     or [])
+            services = neutron_plugin_attribute(plugin, 'server_services',
+                                                net_manager)
+            resource_map[conf] = {}
+            resource_map[conf]['services'] = services
+            resource_map[conf]['contexts'] = ctxts
+            resource_map[conf]['contexts'].append(
+                nova_cc_context.NeutronCCContext())
+
+            # update for postgres
+            resource_map[conf]['contexts'].append(
+                nova_cc_context.NeutronPostgresqlDBContext())
+
+    if is_relation_made('neutron-api'):
+        for k in list(resource_map.iterkeys()):
+            # neutron-api runs neutron services
+            if 'quantum' in k or 'neutron' in k:
+                resource_map[k]['services'] = []
         resource_map[NOVA_CONF]['contexts'].append(
             nova_cc_context.NeutronAPIContext())
-    else:
-        resource_map[NOVA_CONF]['contexts'].append(
-            nova_cc_context.NeutronCCContext())
-        # pop out irrelevant resources from the OrderedDict (easier than adding
-        # them late)
-        if net_manager != 'quantum':
-            [resource_map.pop(k) for k in list(resource_map.iterkeys())
-             if 'quantum' in k]
-        if net_manager != 'neutron':
-            [resource_map.pop(k) for k in list(resource_map.iterkeys())
-             if 'neutron' in k]
-        # add neutron plugin requirements. nova-c-c only needs the
-        # neutron-server associated with configs, not the plugin agent.
-        if net_manager in ['quantum', 'neutron']:
-            plugin = neutron_plugin()
-            if plugin:
-                conf = neutron_plugin_attribute(plugin, 'config', net_manager)
-                ctxts = (neutron_plugin_attribute(plugin, 'contexts',
-                                                  net_manager)
-                         or [])
-                services = neutron_plugin_attribute(plugin, 'server_services',
-                                                    net_manager)
-                resource_map[conf] = {}
-                resource_map[conf]['services'] = services
-                resource_map[conf]['contexts'] = ctxts
-                resource_map[conf]['contexts'].append(
-                    nova_cc_context.NeutronCCContext())
-
-                # update for postgres
-                resource_map[conf]['contexts'].append(
-                    nova_cc_context.NeutronPostgresqlDBContext())
 
     # nova-conductor for releases >= G.
     if os_release('nova-common') not in ['essex', 'folsom']:
@@ -402,6 +419,8 @@ def get_step_upgrade_source(new_src):
         ('precise-proposed/grizzly', 'cloud:precise-havana/proposed')
     }
 
+    configure_installation_source(new_src)
+
     with open('/etc/apt/sources.list.d/cloud-archive.list', 'r') as f:
         line = f.readline()
         for target_src, (cur_pocket, step_src) in sources.items():
@@ -521,12 +540,8 @@ def _do_openstack_upgrade(new_src):
         # NOTE(jamespage) upgrade with existing config files as the
         # havana->icehouse migration enables new service_plugins which
         # create issues with db upgrades
-        if relation_ids('neutron-api'):
-            log('Not running neutron database migration as neutron-api service'
-                'is present.')
-        else:
-            neutron_db_manage(['stamp', cur_os_rel])
-            migrate_neutron_database()
+        neutron_db_manage(['stamp', cur_os_rel])
+        migrate_neutron_database()
         reset_os_release()
         configs = register_configs(release=new_os_rel)
         configs.write_all()
@@ -546,6 +561,9 @@ def _do_openstack_upgrade(new_src):
 
 def do_openstack_upgrade():
     new_src = config('openstack-origin')
+    if new_src[:6] != 'cloud:':
+        raise ValueError("Unable to perform upgrade to %s" % new_src)
+
     step_src = get_step_upgrade_source(new_src)
     if step_src is not None:
         _do_openstack_upgrade(step_src)
@@ -684,16 +702,18 @@ def ssh_compute_add(public_key, rid=None, unit=None, user=None):
     private_address = relation_get(rid=rid, unit=unit,
                                    attribute='private-address')
     hosts = [private_address]
-    if relation_get('hostname'):
-        hosts.append(relation_get('hostname'))
 
-    if not is_ip(private_address):
-        hosts.append(get_host_ip(private_address))
-        hosts.append(private_address.split('.')[0])
-    else:
-        hn = get_hostname(private_address)
-        hosts.append(hn)
-        hosts.append(hn.split('.')[0])
+    if not is_ipv6(private_address):
+        if relation_get('hostname'):
+            hosts.append(relation_get('hostname'))
+
+        if not is_ip(private_address):
+            hosts.append(get_host_ip(private_address))
+            hosts.append(private_address.split('.')[0])
+        else:
+            hn = get_hostname(private_address)
+            hosts.append(hn)
+            hosts.append(hn.split('.')[0])
 
     for host in list(set(hosts)):
         if not ssh_known_host_key(host, unit, user):
@@ -818,7 +838,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
         })
 
     # XXX: Keep these relations named quantum_*??
-    if is_relation_made('neutron-api'):
+    if relation_ids('neutron-api'):
         endpoints.update({
             'quantum_service': None,
             'quantum_region': None,
@@ -921,3 +941,19 @@ def enable_services():
         override_file = '/etc/init/{}.override'.format(svc)
         if os.path.isfile(override_file):
             os.remove(override_file)
+
+
+def setup_ipv6():
+    ubuntu_rel = lsb_release()['DISTRIB_CODENAME'].lower()
+    if ubuntu_rel < "trusty":
+        raise Exception("IPv6 is not supported in the charms for Ubuntu "
+                        "versions less than Trusty 14.04")
+
+    # NOTE(xianghui): Need to install haproxy(1.5.3) from trusty-backports
+    # to support ipv6 address, so check is required to make sure not
+    # breaking other versions, IPv6 only support for >= Trusty
+    if ubuntu_rel == 'trusty':
+        add_source('deb http://archive.ubuntu.com/ubuntu trusty-backports'
+                   ' main')
+        apt_update()
+        apt_install('haproxy/trusty-backports', fatal=True)

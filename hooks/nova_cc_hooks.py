@@ -33,14 +33,16 @@ from charmhelpers.core.host import (
 )
 
 from charmhelpers.fetch import (
-    apt_install, apt_update,
-    apt_upgrade,
+    apt_install,
+    apt_update,
     filter_installed_packages
 )
 
 from charmhelpers.contrib.openstack.utils import (
     configure_installation_source,
     openstack_upgrade_available,
+    os_release,
+    sync_db_with_multi_ipv6_addresses
 )
 
 from charmhelpers.contrib.openstack.neutron import (
@@ -49,7 +51,8 @@ from charmhelpers.contrib.openstack.neutron import (
 )
 
 from nova_cc_context import (
-    NeutronAPIContext
+    NeutronAPIContext,
+    NovaCellContext,
 )
 
 from charmhelpers.contrib.peerstorage import (
@@ -88,13 +91,13 @@ from nova_cc_utils import (
     service_guard,
     guard_map,
     services,
-    additional_install_locations,
+    setup_ipv6,
+    additional_install_locations
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
     eligible_leader,
     get_hacluster_config,
-    is_leader,
 )
 
 from charmhelpers.payload.execd import execd_preinstall
@@ -106,8 +109,15 @@ from charmhelpers.contrib.openstack.ip import (
 
 from charmhelpers.contrib.network.ip import (
     get_iface_for_address,
-    get_netmask_for_address
+    get_netmask_for_address,
+    get_address_in_network,
+    get_ipv6_addr,
+    is_ipv6
 )
+
+from charmhelpers.contrib.openstack.context import ADDRESS_TYPES
+
+from charmhelpers.contrib.charmsupport import nrpe
 
 hooks = Hooks()
 CONFIGS = register_configs()
@@ -124,8 +134,9 @@ def install():
     if os.path.isdir(_files):
         for f in os.listdir(_files):
             f = os.path.join(_files, f)
-            log('Installing %s to /usr/bin' % f)
-            shutil.copy2(f, '/usr/bin')
+            if os.path.isfile(f):
+                log('Installing %s to /usr/bin' % f)
+                shutil.copy2(f, '/usr/bin')
     [open_port(port) for port in determine_ports()]
     log('Disabling services into db relation joined')
     disable_services()
@@ -137,6 +148,12 @@ def install():
                active=config('service-guard'))
 @restart_on_change(restart_map(), stopstart=True)
 def config_changed():
+    if config('prefer-ipv6'):
+        setup_ipv6()
+        sync_db_with_multi_ipv6_addresses(config('database'),
+                                          config('database-user'),
+                                          relation_prefix='nova')
+
     global CONFIGS
     if openstack_upgrade_available('nova-common'):
         CONFIGS = do_openstack_upgrade()
@@ -152,6 +169,8 @@ def config_changed():
             for rid in relation_ids('cloud-compute')]
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
+    [cluster_joined(rid) for rid in relation_ids('cluster')]
+    update_nrpe_config()
 
 
 @hooks.hook('amqp-relation-joined')
@@ -175,12 +194,14 @@ def amqp_changed():
             CONFIGS.write(QUANTUM_CONF)
         if network_manager() == 'neutron':
             CONFIGS.write(NEUTRON_CONF)
+    [nova_cell_relation_joined(rid=rid)
+        for rid in relation_ids('cell')]
 
 
 def conditional_neutron_migration():
-    if relation_ids('neutron-api'):
-        log('Not running neutron database migration as neutron-api service'
-            'is present.')
+    if os_release('nova-common') <= 'icehouse':
+        log('Not running neutron database migration as migrations are handled'
+            'by the neutron-server process.')
     else:
         migrate_neutron_database()
         # neutron-api service may have appeared while the migration was
@@ -201,14 +222,31 @@ def db_joined():
         log(e, level=ERROR)
         raise Exception(e)
 
-    relation_set(nova_database=config('database'),
-                 nova_username=config('database-user'),
-                 nova_hostname=unit_get('private-address'))
     if network_manager() in ['quantum', 'neutron']:
-        # XXX: Renaming relations from quantum_* to neutron_* here.
-        relation_set(neutron_database=config('neutron-database'),
-                     neutron_username=config('neutron-database-user'),
-                     neutron_hostname=unit_get('private-address'))
+        config_neutron = True
+    else:
+        config_neutron = False
+
+    if config('prefer-ipv6'):
+        sync_db_with_multi_ipv6_addresses(config('database'),
+                                          config('database-user'),
+                                          relation_prefix='nova')
+
+        if config_neutron:
+            sync_db_with_multi_ipv6_addresses(config('neutron-database'),
+                                              config('neutron-database-user'),
+                                              relation_prefix='neutron')
+    else:
+        host = unit_get('private-address')
+        relation_set(nova_database=config('database'),
+                     nova_username=config('database-user'),
+                     nova_hostname=host)
+
+        if config_neutron:
+            # XXX: Renaming relations from quantum_* to neutron_* here.
+            relation_set(neutron_database=config('neutron-database'),
+                         neutron_username=config('neutron-database-user'),
+                         neutron_hostname=host)
 
 
 @hooks.hook('pgsql-nova-db-relation-joined')
@@ -256,7 +294,10 @@ def db_changed():
         migrate_nova_database()
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
-         for rid in relation_ids('cloud-compute')]
+            for rid in relation_ids('cloud-compute')]
+        log('Triggering remote cell restarts.')
+        [nova_cell_relation_joined(rid=rid, remote_restart=True)
+            for rid in relation_ids('cell')]
         conditional_neutron_migration()
 
 
@@ -303,8 +344,6 @@ def image_service_changed():
 
 @hooks.hook('identity-service-relation-joined')
 def identity_joined(rid=None):
-    if not eligible_leader(CLUSTER_RES):
-        return
     public_url = canonical_url(CONFIGS, PUBLIC)
     internal_url = canonical_url(CONFIGS, INTERNAL)
     admin_url = canonical_url(CONFIGS, ADMIN)
@@ -458,8 +497,6 @@ def console_settings():
 def compute_joined(rid=None, remote_restart=False):
     cons_settings = console_settings()
     relation_set(relation_id=rid, **cons_settings)
-    if not eligible_leader(CLUSTER_RES):
-        return
     rel_settings = {
         'network_manager': network_manager(),
         'volume_service': volume_service(),
@@ -544,9 +581,6 @@ def compute_departed():
 @hooks.hook('neutron-network-service-relation-joined',
             'quantum-network-service-relation-joined')
 def quantum_joined(rid=None):
-    if not eligible_leader(CLUSTER_RES):
-        return
-
     rel_settings = neutron_settings()
 
     # inform quantum about local keystone auth config
@@ -560,6 +594,23 @@ def quantum_joined(rid=None):
     relation_set(relation_id=rid, **rel_settings)
 
 
+@hooks.hook('cluster-relation-joined')
+def cluster_joined(relation_id=None):
+    for addr_type in ADDRESS_TYPES:
+        address = get_address_in_network(
+            config('os-{}-network'.format(addr_type))
+        )
+        if address:
+            relation_set(
+                relation_id=relation_id,
+                relation_settings={'{}-address'.format(addr_type): address}
+            )
+    if config('prefer-ipv6'):
+        private_addr = get_ipv6_addr(exc_list=[config('vip')])[0]
+        relation_set(relation_id=relation_id,
+                     relation_settings={'private-address': private_addr})
+
+
 @hooks.hook('cluster-relation-changed',
             'cluster-relation-departed')
 @service_guard(guard_map(), CONFIGS,
@@ -568,7 +619,7 @@ def quantum_joined(rid=None):
 def cluster_changed():
     CONFIGS.write_all()
     if relation_ids('cluster'):
-        peer_echo(includes='dbsync_state')
+        peer_echo(includes=['dbsync_state'])
         dbsync_state = peer_retrieve('dbsync_state')
         if dbsync_state == 'complete':
             enable_services()
@@ -581,24 +632,37 @@ def cluster_changed():
 
 @hooks.hook('ha-relation-joined')
 def ha_joined():
-    config = get_hacluster_config()
+    cluster_config = get_hacluster_config()
     resources = {
         'res_nova_haproxy': 'lsb:haproxy',
     }
     resource_params = {
         'res_nova_haproxy': 'op monitor interval="5s"'
     }
+
     vip_group = []
-    for vip in config['vip'].split():
-        iface = get_iface_for_address(vip)
+    for vip in cluster_config['vip'].split():
+        if is_ipv6(vip):
+            res_nova_vip = 'ocf:heartbeat:IPv6addr'
+            vip_params = 'ipv6addr'
+        else:
+            res_nova_vip = 'ocf:heartbeat:IPaddr2'
+            vip_params = 'ip'
+
+        iface = (get_iface_for_address(vip) or
+                 config('vip_iface'))
+        netmask = (get_netmask_for_address(vip) or
+                   config('vip_cidr'))
+
         if iface is not None:
             vip_key = 'res_nova_{}_vip'.format(iface)
-            resources[vip_key] = 'ocf:heartbeat:IPaddr2'
+            resources[vip_key] = res_nova_vip
             resource_params[vip_key] = (
-                'params ip="{vip}" cidr_netmask="{netmask}"'
-                ' nic="{iface}"'.format(vip=vip,
+                'params {ip}="{vip}" cidr_netmask="{netmask}"'
+                ' nic="{iface}"'.format(ip=vip_params,
+                                        vip=vip,
                                         iface=iface,
-                                        netmask=get_netmask_for_address(vip))
+                                        netmask=netmask)
             )
             vip_group.append(vip_key)
 
@@ -612,8 +676,8 @@ def ha_joined():
         'cl_nova_haproxy': 'res_nova_haproxy'
     }
     relation_set(init_services=init_services,
-                 corosync_bindiface=config['ha-bindiface'],
-                 corosync_mcastport=config['ha-mcastport'],
+                 corosync_bindiface=cluster_config['ha-bindiface'],
+                 corosync_mcastport=cluster_config['ha-mcastport'],
                  resources=resources,
                  resource_params=resource_params,
                  clones=clones)
@@ -633,9 +697,6 @@ def ha_changed():
         if network_manager() == 'neutron':
             CONFIGS.write(NEUTRON_CONF)
 
-    if not is_leader(CLUSTER_RES):
-        log('ha_changed: hacluster complete but we are not leader.')
-        return
     log('Cluster configured, notifying other services and updating '
         'keystone endpoint configuration')
     for rid in relation_ids('identity-service'):
@@ -665,6 +726,8 @@ def db_departed():
                active=config('service-guard'))
 def relation_broken():
     CONFIGS.write_all()
+    [nova_cell_relation_joined(rid=rid)
+        for rid in relation_ids('cell')]
 
 
 def configure_https():
@@ -721,6 +784,33 @@ def upgrade_charm():
     for r_id in relation_ids('cloud-compute'):
         for unit in related_units(r_id):
             compute_changed(r_id, unit)
+    update_nrpe_config()
+
+
+# remote_restart is defaulted to true as nova-cells may have started the
+# nova-cell process before the db migration was run so it will need a
+# kick
+@hooks.hook('cell-relation-joined')
+def nova_cell_relation_joined(rid=None, remote_restart=True):
+    rel_settings = {
+        'nova_url': "%s:8774/v2" % canonical_url(CONFIGS, INTERNAL)
+    }
+    if remote_restart:
+        rel_settings['restart_trigger'] = str(uuid.uuid4())
+    relation_set(relation_id=rid, **rel_settings)
+
+
+@hooks.hook('cell-relation-changed')
+@restart_on_change(restart_map())
+def nova_cell_relation_changed():
+    CONFIGS.write(NOVA_CONF)
+
+
+def get_cell_type():
+    cell_info = NovaCellContext()()
+    if 'cell_type' in cell_info:
+        return cell_info['cell_type']
+    return None
 
 
 @hooks.hook('neutron-api-relation-joined')
@@ -736,6 +826,8 @@ def neutron_api_relation_joined(rid=None, remote_restart=False):
     rel_settings = {
         'nova_url': canonical_url(CONFIGS, INTERNAL) + ":8774/v2"
     }
+    if get_cell_type():
+        rel_settings['cell_type'] = get_cell_type()
     if remote_restart:
         rel_settings['restart_trigger'] = str(uuid.uuid4())
     relation_set(relation_id=rid, **rel_settings)
@@ -765,6 +857,27 @@ def neutron_api_relation_broken():
         compute_joined(rid=rid)
     for rid in relation_ids('quantum-network-service'):
         quantum_joined(rid=rid)
+
+
+@hooks.hook('nrpe-external-master-relation-joined',
+            'nrpe-external-master-relation-changed')
+def update_nrpe_config():
+    # python-dbus is used by check_upstart_job
+    apt_install('python-dbus')
+    hostname = nrpe.get_nagios_hostname()
+    current_unit = nrpe.get_nagios_unit_name()
+    nrpe_setup = nrpe.NRPE(hostname=hostname)
+    nrpe.add_init_service_checks(nrpe_setup, services(), current_unit)
+    nrpe_setup.write()
+
+
+@hooks.hook('memcache-relation-joined',
+            'memcache-relation-departed',
+            'memcache-relation-changed',
+            'memcache-relation-broken')
+@restart_on_change(restart_map())
+def memcached_joined():
+    CONFIGS.write(NOVA_CONF)
 
 
 def main():
