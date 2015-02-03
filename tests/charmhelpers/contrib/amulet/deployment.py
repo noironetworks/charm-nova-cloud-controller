@@ -1,6 +1,22 @@
-import amulet
+# Copyright 2014-2015 Canonical Limited.
+#
+# This file is part of charm-helpers.
+#
+# charm-helpers is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License version 3 as
+# published by the Free Software Foundation.
+#
+# charm-helpers is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with charm-helpers.  If not, see <http://www.gnu.org/licenses/>.
 
+import amulet
 import os
+import six
 
 
 class AmuletDeployment(object):
@@ -52,12 +68,12 @@ class AmuletDeployment(object):
 
     def _add_relations(self, relations):
         """Add all of the relations for the services."""
-        for k, v in relations.iteritems():
+        for k, v in six.iteritems(relations):
             self.d.relate(k, v)
 
     def _configure_services(self, configs):
         """Configure all of the services."""
-        for service, config in configs.iteritems():
+        for service, config in six.iteritems(configs):
             self.d.configure(service, config)
 
     def _deploy(self):
