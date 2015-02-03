@@ -1,19 +1,33 @@
 from charmhelpers.core.hookenv import (
-    config, relation_ids, relation_set, log, ERROR,
-    unit_get, related_units, relation_get)
-
-from charmhelpers.fetch import apt_install, filter_installed_packages
-from charmhelpers.contrib.openstack import context, neutron, utils
-
+    config,
+    relation_ids,
+    relation_set,
+    log,
+    ERROR,
+    related_units,
+    relations_for_id,
+    relation_get,
+)
+from charmhelpers.fetch import (
+    apt_install,
+    filter_installed_packages,
+)
+from charmhelpers.contrib.openstack import (
+    context,
+    neutron,
+    utils,
+)
 from charmhelpers.contrib.hahelpers.cluster import (
     determine_apache_port,
     determine_api_port,
     https,
-    is_clustered
 )
-
 from charmhelpers.contrib.network.ip import (
-    get_ipv6_addr
+    format_ipv6_addr,
+)
+from charmhelpers.contrib.openstack.ip import (
+    resolve_address,
+    INTERNAL,
 )
 
 
@@ -118,18 +132,28 @@ class HAProxyContext(context.HAProxyContext):
 
         # determine which port api processes should bind to, depending
         # on existence of haproxy + apache frontends
-        compute_api = determine_api_port(api_port('nova-api-os-compute'))
-        ec2_api = determine_api_port(api_port('nova-api-ec2'))
-        s3_api = determine_api_port(api_port('nova-objectstore'))
-        nvol_api = determine_api_port(api_port('nova-api-os-volume'))
-        neutron_api = determine_api_port(api_port('neutron-server'))
+        compute_api = determine_api_port(api_port('nova-api-os-compute'),
+                                         singlenode_mode=True)
+        ec2_api = determine_api_port(api_port('nova-api-ec2'),
+                                     singlenode_mode=True)
+        s3_api = determine_api_port(api_port('nova-objectstore'),
+                                    singlenode_mode=True)
+        nvol_api = determine_api_port(api_port('nova-api-os-volume'),
+                                      singlenode_mode=True)
+        neutron_api = determine_api_port(api_port('neutron-server'),
+                                         singlenode_mode=True)
 
         # Apache ports
-        a_compute_api = determine_apache_port(api_port('nova-api-os-compute'))
-        a_ec2_api = determine_apache_port(api_port('nova-api-ec2'))
-        a_s3_api = determine_apache_port(api_port('nova-objectstore'))
-        a_nvol_api = determine_apache_port(api_port('nova-api-os-volume'))
-        a_neutron_api = determine_apache_port(api_port('neutron-server'))
+        a_compute_api = determine_apache_port(api_port('nova-api-os-compute'),
+                                              singlenode_mode=True)
+        a_ec2_api = determine_apache_port(api_port('nova-api-ec2'),
+                                          singlenode_mode=True)
+        a_s3_api = determine_apache_port(api_port('nova-objectstore'),
+                                         singlenode_mode=True)
+        a_nvol_api = determine_apache_port(api_port('nova-api-os-volume'),
+                                           singlenode_mode=True)
+        a_neutron_api = determine_apache_port(api_port('neutron-server'),
+                                              singlenode_mode=True)
 
         # to be set in nova.conf accordingly.
         listen_ports = {
@@ -169,30 +193,29 @@ class HAProxyContext(context.HAProxyContext):
         return ctxt
 
 
-def canonical_url(vip_setting='vip'):
-    '''
-    Returns the correct HTTP URL to this host given the state of HTTPS
+def canonical_url():
+    """Returns the correct HTTP URL to this host given the state of HTTPS
     configuration and hacluster.
-
-    :vip_setting:                str: Setting in charm config that specifies
-                                      VIP address.
-    '''
+    """
     scheme = 'http'
     if https():
         scheme = 'https'
 
-    if config('prefer-ipv6'):
-        if is_clustered():
-            addr = '[%s]' % config(vip_setting)
-        else:
-            addr = '[%s]' % get_ipv6_addr(exc_list=[config('vip')])[0]
-    else:
-        if is_clustered():
-            addr = config(vip_setting)
-        else:
-            addr = unit_get('private-address')
+    addr = resolve_address(INTERNAL)
+    return '%s://%s' % (scheme, format_ipv6_addr(addr) or addr)
 
-    return '%s://%s' % (scheme, addr)
+
+def use_local_neutron_api():
+    """If no neutron-api relation exists returns True.
+
+    If no neutron-api relation exists we assume that we are going to use
+    legacy-mode i.e. local neutron server.
+    """
+    for rid in relation_ids('neutron-api'):
+        for unit in related_units(rid):
+            return False
+
+    return True
 
 
 class NeutronCCContext(context.NeutronContext):
@@ -231,7 +254,10 @@ class NeutronCCContext(context.NeutronContext):
                     ','.join(_config['nvp-controllers'].split())
                 ctxt['nvp_controllers_list'] = \
                     _config['nvp-controllers'].split()
+
         ctxt['nova_url'] = "{}:8774/v2".format(canonical_url())
+        if use_local_neutron_api():
+            ctxt['neutron_url'] = "{}:9696".format(canonical_url())
 
         return ctxt
 
@@ -273,6 +299,8 @@ class NovaConfigContext(context.WorkerConfigContext):
         ctxt = super(NovaConfigContext, self).__call__()
         ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
         ctxt['ram_allocation_ratio'] = config('ram-allocation-ratio')
+        addr = resolve_address(INTERNAL)
+        ctxt['host_ip'] = format_ipv6_addr(addr) or addr
         return ctxt
 
 
@@ -280,4 +308,25 @@ class NovaIPv6Context(context.BindHostContext):
     def __call__(self):
         ctxt = super(NovaIPv6Context, self).__call__()
         ctxt['use_ipv6'] = config('prefer-ipv6')
+        return ctxt
+
+
+class InstanceConsoleContext(context.OSContextGenerator):
+    interfaces = []
+
+    def __call__(self):
+        ctxt = {}
+        servers = []
+        try:
+            for rid in relation_ids('memcache'):
+                for rel in relations_for_id(rid):
+                    priv_addr = rel['private-address']
+                    # Format it as IPv6 address if needed
+                    priv_addr = format_ipv6_addr(priv_addr) or priv_addr
+                    servers.append("%s:%s" % (priv_addr, rel['port']))
+        except Exception as ex:
+            log("Could not get memcache servers: %s" % (ex), level='WARNING')
+            servers = []
+
+        ctxt['memcached_servers'] = ','.join(servers)
         return ctxt

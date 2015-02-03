@@ -19,7 +19,7 @@ u = OpenStackAmuletUtils(ERROR)
 class NovaCCBasicDeployment(OpenStackAmuletDeployment):
     """Amulet tests on a basic nova cloud controller deployment."""
 
-    def __init__(self, series=None, openstack=None, source=None, stable=False):
+    def __init__(self, series=None, openstack=None, source=None, stable=True):
         """Deploy the entire test environment."""
         super(NovaCCBasicDeployment, self).__init__(series, openstack, source, stable)
         self._add_services()
@@ -430,12 +430,6 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                                                    'nova-cloud-controller:amqp')
         glance_relation = self.glance_sentry.relation('image-service',
                                           'nova-cloud-controller:image-service')
-        mysql_relation = self.mysql_sentry.relation('shared-db',
-                                              'nova-cloud-controller:shared-db')
-        db_uri = "mysql://{}:{}@{}/{}".format('nova',
-                                              mysql_relation['nova_password'],
-                                              mysql_relation['db_host'],
-                                              'nova')
         keystone_ep = self.keystone_demo.service_catalog.url_for(\
                                                       service_type='identity',
                                                       endpoint_type='publicURL')
@@ -460,22 +454,53 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                     'auth_strategy': 'keystone',
                     'compute_driver': 'libvirt.LibvirtDriver',
                     'keystone_ec2_url': keystone_ec2,
-                    'sql_connection': db_uri,
                     'rabbit_userid': 'nova',
                     'rabbit_virtual_host': 'openstack',
                     'rabbit_password': rabbitmq_relation['password'],
                     'rabbit_host': rabbitmq_relation['hostname'],
                     'glance_api_servers': glance_relation['glance-api-server'],
                     'network_manager': 'nova.network.manager.FlatDHCPManager',
-                    's3_listen_port': '3333',
-                    'osapi_compute_listen_port': '8774',
-                    'ec2_listen_port': '8773'}
+                    's3_listen_port': '3323',
+                    'osapi_compute_listen_port': '8764',
+                    'ec2_listen_port': '8763'}
+
+        # This has been moved to [database] for I and above
+        if self._get_openstack_release() < self.precise_icehouse:
+            mysql_relation = self.mysql_sentry.relation('shared-db',
+                                            'nova-cloud-controller:shared-db')
+            db_uri = "mysql://{}:{}@{}/{}".format('nova',
+                                              mysql_relation['nova_password'],
+                                              mysql_relation['db_host'],
+                                              'nova')
+            expected['sql_connection'] = db_uri
 
         ret = u.validate_config_data(unit, conf, 'DEFAULT', expected)
         if ret:
             message = "nova config error: {}".format(ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
+    def test_nova_database_config(self):
+        """Verify the data in the nova config file's database section."""
+        # NOTE(hopem): this is >= Icehouse only
+        if self._get_openstack_release() < self.precise_icehouse:
+            return
+
+        unit = self.nova_cc_sentry
+        conf = '/etc/nova/nova.conf'
+        mysql_relation = self.mysql_sentry.relation('shared-db',
+                                              'nova-cloud-controller:shared-db')
+        db_uri = "mysql://{}:{}@{}/{}".format('nova',
+                                              mysql_relation['nova_password'],
+                                              mysql_relation['db_host'],
+                                              'nova')
+
+        # For >= icehouse we move away from deprecated sql_connection
+        expected = {'connection': db_uri}
+
+        ret = u.validate_config_data(unit, conf, 'database', expected)
+        if ret:
+            message = "nova config error: {}".format(ret)
+            amulet.raise_status(amulet.FAIL, msg=message)
 
     def test_nova_keystone_authtoken_config(self):
         """Verify the data in the nova config file's keystone_authtoken
@@ -526,7 +551,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 found = True
                 if instance.status != 'ACTIVE':
                     msg = "cirros instance is not active"
-                    amulet.raise_status(amulet.FAIL, msg=message)
+                    amulet.raise_status(amulet.FAIL, msg=msg)
 
         if not found:
             message = "nova cirros instance does not exist"
