@@ -225,7 +225,12 @@ def additional_install_locations(plugin):
     package upgrade.
     '''
     if plugin == 'Calico':
-        add_source('ppa:cory-benfield/project-calico')
+        calico_source = 'ppa:cory-benfield/project-calico'
+
+        if config('calico-origin') != 'default':
+            calico_source = config('calico-origin')
+
+        add_source(calico_source)
 
         apt_update()
         apt_upgrade()
