@@ -173,6 +173,7 @@ def neutron_plugins():
             'server_packages': ['neutron-server',
                                 'neutron-plugin-nuage'],
             'server_services': ['neutron-server']
+        },
         'Calico': {
             'config': '/etc/neutron/plugins/ml2/ml2_conf.ini',
             'driver': 'neutron.plugins.ml2.plugin.Ml2Plugin',
