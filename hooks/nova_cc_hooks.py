@@ -634,9 +634,11 @@ def ha_joined():
     cluster_config = get_hacluster_config()
     resources = {
         'res_nova_haproxy': 'lsb:haproxy',
+        'res_nova_consoleauth': 'upstart:nova-consoleauth'
     }
     resource_params = {
-        'res_nova_haproxy': 'op monitor interval="5s"'
+        'res_nova_haproxy': 'op monitor interval="5s"',
+        'res_nova_consoleauth': 'op monitor interval="5s"'
     }
 
     vip_group = []
@@ -669,17 +671,22 @@ def ha_joined():
         relation_set(groups={'grp_nova_vips': ' '.join(vip_group)})
 
     init_services = {
-        'res_nova_haproxy': 'haproxy'
+        'res_nova_haproxy': 'haproxy',
+        'res_nova_consoleauth': 'nova-consoleauth'
     }
     clones = {
         'cl_nova_haproxy': 'res_nova_haproxy'
+    }
+    colocations = {
+        'vip_consoleauth': 'inf: res_nova_consoleauth grp_nova_vips'
     }
     relation_set(init_services=init_services,
                  corosync_bindiface=cluster_config['ha-bindiface'],
                  corosync_mcastport=cluster_config['ha-mcastport'],
                  resources=resources,
                  resource_params=resource_params,
-                 clones=clones)
+                 clones=clones,
+                 colocations=colocations)
 
 
 @hooks.hook('ha-relation-changed')
