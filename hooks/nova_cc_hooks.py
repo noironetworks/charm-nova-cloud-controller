@@ -182,11 +182,12 @@ def config_changed():
         resource_params = {}
         resource_params['res_nova_consoleauth'] = 'op monitor interval="5s"'
 
-        relation_set(init_services=init_services,
-                     resources=resources,
-                     resource_params=resource_params,
-                     colocations=colocations)
-
+        for rid in relation_ids('ha'):
+            relation_set(rid,
+                         init_services=init_services,
+                         resources=resources,
+                         resource_params=resource_params,
+                         colocations=colocations)
 
 
 @hooks.hook('amqp-relation-joined')
