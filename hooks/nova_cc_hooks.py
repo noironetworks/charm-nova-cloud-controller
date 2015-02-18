@@ -171,6 +171,23 @@ def config_changed():
     [cluster_joined(rid) for rid in relation_ids('cluster')]
     update_nrpe_config()
 
+    if config('single-nova-consoleauth') and console_attributes('protocol'):
+        colocations={}
+        colocations['vip_consoleauth'] = ('inf: res_nova_consoleauth '
+                                          'grp_nova_vips')
+        init_services = {}
+        init_services['res_nova_consoleauth'] = 'nova-consoleauth'
+        resources = {}
+        resources['res_nova_consoleauth'] = 'upstart:nova-consoleauth'
+        resource_params = {}
+        resource_params['res_nova_consoleauth'] = 'op monitor interval="5s"'
+
+        relation_set(init_services=init_services,
+                     resources=resources,
+                     resource_params=resource_params,
+                     colocations=colocations)
+
+
 
 @hooks.hook('amqp-relation-joined')
 def amqp_joined(relation_id=None):
@@ -634,11 +651,9 @@ def ha_joined():
     cluster_config = get_hacluster_config()
     resources = {
         'res_nova_haproxy': 'lsb:haproxy',
-        'res_nova_consoleauth': 'upstart:nova-consoleauth'
     }
     resource_params = {
         'res_nova_haproxy': 'op monitor interval="5s"',
-        'res_nova_consoleauth': 'op monitor interval="5s"'
     }
 
     vip_group = []
@@ -671,15 +686,19 @@ def ha_joined():
         relation_set(groups={'grp_nova_vips': ' '.join(vip_group)})
 
     init_services = {
-        'res_nova_haproxy': 'haproxy',
-        'res_nova_consoleauth': 'nova-consoleauth'
+        'res_nova_haproxy': 'haproxy'
     }
     clones = {
         'cl_nova_haproxy': 'res_nova_haproxy'
     }
-    colocations = {
-        'vip_consoleauth': 'inf: res_nova_consoleauth grp_nova_vips'
-    }
+
+    if config('single-nova-consoleauth') and console_attributes('protocol'):
+        colocations['vip_consoleauth'] = ('inf: res_nova_consoleauth '
+                                          'grp_nova_vips')
+        init_services['res_nova_consoleauth'] = 'nova-consoleauth'
+        resources['res_nova_consoleauth'] = 'upstart:nova-consoleauth'
+        resource_params['res_nova_consoleauth'] = 'op monitor interval="5s"'
+
     relation_set(init_services=init_services,
                  corosync_bindiface=cluster_config['ha-bindiface'],
                  corosync_mcastport=cluster_config['ha-mcastport'],
