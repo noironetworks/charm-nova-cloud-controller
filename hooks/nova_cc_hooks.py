@@ -691,6 +691,7 @@ def ha_joined():
     clones = {
         'cl_nova_haproxy': 'res_nova_haproxy'
     }
+    colocations = {}
 
     if config('single-nova-consoleauth') and console_attributes('protocol'):
         colocations['vip_consoleauth'] = ('inf: res_nova_consoleauth '
