@@ -611,7 +611,8 @@ class NovaCCHooksTests(CharmTestCase):
             'by the neutron-server process.'
         )
 
-    def test_ha_relation_joined_no_bound_ip(self):
+    @patch('nova_cc_utils.config')
+    def test_ha_relation_joined_no_bound_ip(self, config):
         self.get_hacluster_config.return_value = {
             'ha-bindiface': 'em0',
             'ha-mcastport': '8080',
@@ -619,6 +620,7 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.test_config.set('vip_iface', 'eth120')
         self.test_config.set('vip_cidr', '21')
+        config.return_value  = None
         self.get_iface_for_address.return_value = None
         self.get_netmask_for_address.return_value = None
         hooks.ha_joined()
@@ -632,6 +634,7 @@ class NovaCCHooksTests(CharmTestCase):
                 'res_nova_eth120_vip': 'params ip="10.10.10.10"'
                 ' cidr_netmask="21" nic="eth120"',
                 'res_nova_haproxy': 'op monitor interval="5s"'},
+            'colocations': {},
             'clones': {'cl_nova_haproxy': 'res_nova_haproxy'}
         }
         self.relation_set.assert_has_calls([
