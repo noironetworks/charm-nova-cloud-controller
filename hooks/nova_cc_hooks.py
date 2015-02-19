@@ -172,15 +172,18 @@ def config_changed():
     update_nrpe_config()
 
     if config('single-nova-consoleauth') and console_attributes('protocol'):
-        colocations={}
-        colocations['vip_consoleauth'] = ('inf: res_nova_consoleauth '
-                                          'grp_nova_vips')
-        init_services = {}
-        init_services['res_nova_consoleauth'] = 'nova-consoleauth'
-        resources = {}
-        resources['res_nova_consoleauth'] = 'upstart:nova-consoleauth'
-        resource_params = {}
-        resource_params['res_nova_consoleauth'] = 'op monitor interval="5s"'
+        colocations={
+            'vip_consoleauth': 'inf: res_nova_consoleauth grp_nova_vips'
+        }
+        init_services = {
+            'res_nova_consoleauth': 'nova-consoleauth'
+        }
+        resources = {
+            'res_nova_consoleauth': 'upstart:nova-consoleauth'
+        }
+        resource_params = {
+            'res_nova_consoleauth': 'op monitor interval="5s"'
+        }
 
         for rid in relation_ids('ha'):
             relation_set(rid,
