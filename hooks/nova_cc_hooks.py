@@ -172,7 +172,7 @@ def config_changed():
     update_nrpe_config()
 
     if config('single-nova-consoleauth') and console_attributes('protocol'):
-        colocations={
+        colocations = {
             'vip_consoleauth': 'inf: res_nova_consoleauth grp_nova_vips'
         }
         init_services = {

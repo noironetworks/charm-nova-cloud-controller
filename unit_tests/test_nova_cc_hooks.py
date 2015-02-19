@@ -620,7 +620,7 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.test_config.set('vip_iface', 'eth120')
         self.test_config.set('vip_cidr', '21')
-        config.return_value  = None
+        config.return_value = None
         self.get_iface_for_address.return_value = None
         self.get_netmask_for_address.return_value = None
         hooks.ha_joined()
@@ -652,7 +652,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.test_config.set('vip_iface', 'eth120')
         self.test_config.set('vip_cidr', '21')
         self.test_config.set('single-nova-consoleauth', False)
-        config.return_value  = 'novnc'
+        config.return_value = 'novnc'
         self.get_iface_for_address.return_value = None
         self.get_netmask_for_address.return_value = None
         hooks.ha_joined()
@@ -683,7 +683,7 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.test_config.set('vip_iface', 'eth120')
         self.test_config.set('vip_cidr', '21')
-        config.return_value  = 'novnc'
+        config.return_value = 'novnc'
         self.get_iface_for_address.return_value = None
         self.get_netmask_for_address.return_value = None
         hooks.ha_joined()
@@ -713,7 +713,7 @@ class NovaCCHooksTests(CharmTestCase):
     @patch('nova_cc_hooks.configure_https')
     @patch('nova_cc_utils.config')
     def test_config_changed_single_consoleauth(self, config, *args):
-        config.return_value  = 'novnc'
+        config.return_value = 'novnc'
         rids = {'ha': ['ha:1']}
 
         def f(r):
