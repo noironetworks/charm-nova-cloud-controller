@@ -179,7 +179,7 @@ def config_changed():
             'res_nova_consoleauth': 'nova-consoleauth'
         }
         resources = {
-            'res_nova_consoleauth': 'upstart:nova-consoleauth'
+            'res_nova_consoleauth': 'ocf:openstack:nova-consoleauth'
         }
         resource_params = {
             'res_nova_consoleauth': 'op monitor interval="5s"'
@@ -701,7 +701,7 @@ def ha_joined():
         colocations['vip_consoleauth'] = ('inf: res_nova_consoleauth '
                                           'grp_nova_vips')
         init_services['res_nova_consoleauth'] = 'nova-consoleauth'
-        resources['res_nova_consoleauth'] = 'upstart:nova-consoleauth'
+        resources['res_nova_consoleauth'] = 'ocf:openstack:nova-consoleauth'
         resource_params['res_nova_consoleauth'] = 'op monitor interval="5s"'
 
     relation_set(init_services=init_services,
