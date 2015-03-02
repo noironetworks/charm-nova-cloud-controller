@@ -694,7 +694,8 @@ class NovaCCHooksTests(CharmTestCase):
                               'res_nova_consoleauth': 'nova-consoleauth'},
             'resources': {'res_nova_eth120_vip': 'ocf:heartbeat:IPaddr2',
                           'res_nova_haproxy': 'lsb:haproxy',
-                          'res_nova_consoleauth': 'upstart:nova-consoleauth'},
+                          'res_nova_consoleauth': \
+                          'ocf:openstack:nova-consoleauth'},
             'resource_params': {
                 'res_nova_eth120_vip': 'params ip="10.10.10.10"'
                 ' cidr_netmask="21" nic="eth120"',
@@ -723,7 +724,8 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.config_changed()
         args = {
             'init_services': {'res_nova_consoleauth': 'nova-consoleauth'},
-            'resources': {'res_nova_consoleauth': 'upstart:nova-consoleauth'},
+            'resources': {'res_nova_consoleauth': \
+                          'ocf:openstack:nova-consoleauth'},
             'resource_params': {
                 'res_nova_consoleauth': 'op monitor interval="5s"'},
             'colocations': {
