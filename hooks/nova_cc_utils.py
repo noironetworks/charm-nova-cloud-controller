@@ -10,7 +10,7 @@ from charmhelpers.contrib.openstack import context, templating
 from charmhelpers.contrib.openstack.neutron import (
     network_manager, neutron_plugin_attribute)
 
-from charmhelpers.contrib.hahelpers.cluster import eligible_leader
+from charmhelpers.contrib.hahelpers.cluster import is_elected_leader
 
 from charmhelpers.contrib.peerstorage import peer_store
 
@@ -535,7 +535,7 @@ def _do_openstack_upgrade(new_src):
         # NOTE(jamespage) default plugin switch to ml2@icehouse
         ml2_migration()
 
-    if eligible_leader(CLUSTER_RES):
+    if is_elected_leader(CLUSTER_RES):
         migrate_nova_database()
     [service_start(s) for s in services()]
 
