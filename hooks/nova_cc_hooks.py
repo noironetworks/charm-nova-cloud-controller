@@ -95,7 +95,7 @@ from nova_cc_utils import (
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
-    eligible_leader,
+    is_elected_leader,
     get_hacluster_config,
 )
 
@@ -282,7 +282,7 @@ def db_changed():
         return
     CONFIGS.write_all()
 
-    if eligible_leader(CLUSTER_RES):
+    if is_elected_leader(CLUSTER_RES):
         # Bugs 1353135 & 1187508. Dbs can appear to be ready before the units
         # acl entry has been added. So, if the db supports passing a list of
         # permitted units then check if we're in the list.
@@ -310,7 +310,7 @@ def postgresql_nova_db_changed():
         return
     CONFIGS.write_all()
 
-    if eligible_leader(CLUSTER_RES):
+    if is_elected_leader(CLUSTER_RES):
         migrate_nova_database()
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
