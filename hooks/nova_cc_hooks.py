@@ -191,6 +191,10 @@ def config_changed():
                          resources=resources,
                          resource_params=resource_params,
                          colocations=colocations)
+    elif not config('single-nova-consoleauth') and console_attributes('protocol'):
+        del_res = ['vip_consoleauth', 'res_nova_consoleauth']
+        for rid in relation_ids('ha'):
+            relation_set(rid, delete_resources=del_res)
 
 
 @hooks.hook('amqp-relation-joined')
