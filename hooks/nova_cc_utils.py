@@ -218,26 +218,6 @@ CONSOLE_CONFIG = {
 }
 
 
-def additional_install_locations(plugin):
-    '''
-    Add any required additional install locations for the charm, based
-    on the Neutron plugin being used. This will also force an immediate
-    package upgrade.
-    '''
-    if plugin == 'Calico':
-        calico_source = 'ppa:cory-benfield/project-calico'
-
-        if config('calico-origin') != 'default':
-            calico_source = config('calico-origin')
-
-        add_source(calico_source)
-
-        apt_update()
-        apt_upgrade()
-
-    return
-
-
 def resource_map():
     '''
     Dynamically generate a map of resources that will be managed for a single
