@@ -53,6 +53,10 @@ from charmhelpers.contrib.network.ip import (
     is_ipv6
 )
 
+from charmhelpers.core.decorators import (
+    retry_on_exception,
+)
+
 import nova_cc_context
 
 TEMPLATES = 'templates/'
@@ -566,6 +570,9 @@ def volume_service():
     return 'cinder'
 
 
+# NOTE(jamespage): Retry deals with sync issues during one-shot HA deploys.
+#                  mysql might be restarting or suchlike.
+@retry_on_exception(5, base_delay=3, exc_type=subprocess.CalledProcessError)
 def migrate_nova_database():
     '''Runs nova-manage to initialize a new database or migrate existing'''
     log('Migrating the nova database.', level=INFO)
@@ -579,6 +586,9 @@ def migrate_nova_database():
     cmd_all_services('start')
 
 
+# NOTE(jamespage): Retry deals with sync issues during one-shot HA deploys.
+#                  mysql might be restarting or suchlike.
+@retry_on_exception(5, base_delay=3, exc_type=subprocess.CalledProcessError)
 def migrate_neutron_database():
     '''Runs neutron-db-manage to init a new database or migrate existing'''
     log('Migrating the neutron database.', level=INFO)
