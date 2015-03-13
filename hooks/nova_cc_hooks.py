@@ -611,7 +611,8 @@ def cluster_joined(relation_id=None):
 
 
 @hooks.hook('cluster-relation-changed',
-            'cluster-relation-departed')
+            'cluster-relation-departed',
+            'leader-settings-changed')
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 @restart_on_change(restart_map(), stopstart=True)
