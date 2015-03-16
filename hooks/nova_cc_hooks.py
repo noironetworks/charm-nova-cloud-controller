@@ -863,7 +863,7 @@ def neutron_api_relation_broken():
 
 
 @hooks.hook('zeromq-configuration-relation-joined')
-@os_requires_version('juno', 'nova-common')
+@os_requires_version('kilo', 'nova-common')
 def zeromq_configuration_relation_joined(relid=None):
     relation_set(relation_id=relid,
                  topics=" ".join(get_topics()),
