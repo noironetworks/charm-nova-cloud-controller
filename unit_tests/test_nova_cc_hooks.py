@@ -723,6 +723,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.relation_ids.side_effect = f
         hooks.config_changed()
         args = {
+            'delete_resources': [],
             'init_services': {'res_nova_consoleauth': 'nova-consoleauth'},
             'resources': {'res_nova_consoleauth':
                           'ocf:openstack:nova-consoleauth'},
