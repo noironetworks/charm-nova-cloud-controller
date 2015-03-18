@@ -120,6 +120,9 @@ from charmhelpers.contrib.charmsupport import nrpe
 
 hooks = Hooks()
 CONFIGS = register_configs()
+COLO_CONSOLEAUTH = 'inf: res_nova_consoleauth grp_nova_vips'
+AGENT_CONSOLEAUTH = 'ocf:openstack:nova-consoleauth'
+AGENT_CA_PARAMS = 'op monitor interval="5s"'
 
 
 @hooks.hook()
@@ -171,30 +174,59 @@ def config_changed():
     [cluster_joined(rid) for rid in relation_ids('cluster')]
     update_nrpe_config()
 
+    relids = relation_ids('ha')
+    if len(relids) != 1:
+        log('Related to {} ha services'.format(len(relids)), level='DEBUG')
+        ha_relid = None
+        data = {}
+    else:
+        ha_relid = relids[0]
+        data = relation_get(rid=ha_relid) or {}
+
     if config('single-nova-consoleauth') and console_attributes('protocol'):
-        colocations = {
-            'vip_consoleauth': 'inf: res_nova_consoleauth grp_nova_vips'
-        }
-        init_services = {
-            'res_nova_consoleauth': 'nova-consoleauth'
-        }
-        resources = {
-            'res_nova_consoleauth': 'ocf:openstack:nova-consoleauth'
-        }
-        resource_params = {
-            'res_nova_consoleauth': 'op monitor interval="5s"'
-        }
+        data.setdefault('delete_resources', [])
+        for item in ['vip_consoleauth', 'res_nova_consoleauth']:
+            if item in data['delete_resources']:
+                data['delete_resources'].remove(item)
+
+        # the new pcmkr resources have to be added to the existing ones
+        data.setdefault('colocations', {})
+        data['colocations']['vip_consoleauth'] = COLO_CONSOLEAUTH
+
+        data.setdefault('init_services', {})
+        data['init_services']['res_nova_consoleauth'] = 'nova-consoleauth'
+
+        data.setdefault('resources', {})
+        data['resources']['res_nova_consoleauth'] = AGENT_CONSOLEAUTH
+
+        data.setdefault('resource_params', {})
+        data['resource_params']['res_nova_consoleauth'] = AGENT_CA_PARAMS
 
         for rid in relation_ids('ha'):
             relation_set(rid,
-                         init_services=init_services,
-                         resources=resources,
-                         resource_params=resource_params,
-                         colocations=colocations)
-    elif not config('single-nova-consoleauth') and console_attributes('protocol'):
-        del_res = ['vip_consoleauth', 'res_nova_consoleauth']
+                         **data)
+    elif (not config('single-nova-consoleauth')
+          and console_attributes('protocol')):
+        data.setdefault('delete_resources', [])
+        for item in ['vip_consoleauth', 'res_nova_consoleauth']:
+            if item not in data['delete_resources']:
+                data['delete_resources'].append(item)
+
+        # remove them from the rel, so they aren't recreated
+        data.setdefault('colocations', {})
+        data['colocations'].pop('vip_consoleauth', None)
+
+        data.setdefault('init_services', {})
+        data['init_services'].pop('res_nova_consoleauth', None)
+
+        data.setdefault('resources', {})
+        data['resources'].pop('res_nova_consoleauth', None)
+
+        data.setdefault('resource_params', {})
+        data['resource_params'].pop('res_nova_consoleauth', None)
+
         for rid in relation_ids('ha'):
-            relation_set(rid, delete_resources=del_res)
+            relation_set(rid, **data)
 
 
 @hooks.hook('amqp-relation-joined')
@@ -702,11 +734,10 @@ def ha_joined():
     colocations = {}
 
     if config('single-nova-consoleauth') and console_attributes('protocol'):
-        colocations['vip_consoleauth'] = ('inf: res_nova_consoleauth '
-                                          'grp_nova_vips')
+        colocations['vip_consoleauth'] = COLO_CONSOLEAUTH
         init_services['res_nova_consoleauth'] = 'nova-consoleauth'
-        resources['res_nova_consoleauth'] = 'ocf:openstack:nova-consoleauth'
-        resource_params['res_nova_consoleauth'] = 'op monitor interval="5s"'
+        resources['res_nova_consoleauth'] = AGENT_CONSOLEAUTH
+        resource_params['res_nova_consoleauth'] = AGENT_CA_PARAMS
 
     relation_set(init_services=init_services,
                  corosync_bindiface=cluster_config['ha-bindiface'],
