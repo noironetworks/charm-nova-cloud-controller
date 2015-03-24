@@ -849,7 +849,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
     if os_rel >= 'kilo':
         # NOTE(jamespage) drop endpoints for ec2 and s3
         #  ec2 is deprecated
-        #  s3 is generate insecure and should die in flames
+        #  s3 is insecure and should die in flames
         endpoints = {
             'ec2_service': None,
             'ec2_region': None,
