@@ -175,54 +175,46 @@ def config_changed():
     update_nrpe_config()
 
     relids = relation_ids('ha')
+    data = {}
     if len(relids) != 1:
         log('Related to {} ha services'.format(len(relids)), level='DEBUG')
         ha_relid = None
-        data = {}
     else:
         ha_relid = relids[0]
         data = relation_get(rid=ha_relid) or {}
 
+    for key in ['delete_resources', 'colocations', 'init_services',
+                'resources', 'resource_params']:
+        if key not in data:
+            if key != 'delete_resources':
+                data[key] = {}
+            else:
+                data[key] = []
+
     if config('single-nova-consoleauth') and console_attributes('protocol'):
-        data.setdefault('delete_resources', [])
         for item in ['vip_consoleauth', 'res_nova_consoleauth']:
             if item in data['delete_resources']:
                 data['delete_resources'].remove(item)
 
         # the new pcmkr resources have to be added to the existing ones
-        data.setdefault('colocations', {})
         data['colocations']['vip_consoleauth'] = COLO_CONSOLEAUTH
-
-        data.setdefault('init_services', {})
         data['init_services']['res_nova_consoleauth'] = 'nova-consoleauth'
-
-        data.setdefault('resources', {})
         data['resources']['res_nova_consoleauth'] = AGENT_CONSOLEAUTH
-
-        data.setdefault('resource_params', {})
         data['resource_params']['res_nova_consoleauth'] = AGENT_CA_PARAMS
 
         for rid in relation_ids('ha'):
-            relation_set(rid,
-                         **data)
+            relation_set(rid, **data)
+
     elif (not config('single-nova-consoleauth')
           and console_attributes('protocol')):
-        data.setdefault('delete_resources', [])
         for item in ['vip_consoleauth', 'res_nova_consoleauth']:
             if item not in data['delete_resources']:
                 data['delete_resources'].append(item)
 
         # remove them from the rel, so they aren't recreated
-        data.setdefault('colocations', {})
         data['colocations'].pop('vip_consoleauth', None)
-
-        data.setdefault('init_services', {})
         data['init_services'].pop('res_nova_consoleauth', None)
-
-        data.setdefault('resources', {})
         data['resources'].pop('res_nova_consoleauth', None)
-
-        data.setdefault('resource_params', {})
         data['resource_params'].pop('res_nova_consoleauth', None)
 
         for rid in relation_ids('ha'):
