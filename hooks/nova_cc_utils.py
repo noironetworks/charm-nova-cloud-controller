@@ -850,7 +850,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
         # NOTE(jamespage) drop endpoints for ec2 and s3
         #  ec2 is deprecated
         #  s3 is insecure and should die in flames
-        endpoints = {
+        endpoints.update({
             'ec2_service': None,
             'ec2_region': None,
             'ec2_public_url': None,
@@ -861,7 +861,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
             's3_public_url': None,
             's3_admin_url': None,
             's3_internal_url': None,
-        }
+        })
 
     return endpoints
 
