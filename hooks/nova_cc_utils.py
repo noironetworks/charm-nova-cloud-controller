@@ -128,7 +128,9 @@ BASE_RESOURCE_MAP = OrderedDict([
                      context.SyslogContext(),
                      context.LogLevelContext(),
                      nova_cc_context.HAProxyContext(),
-                     nova_cc_context.IdentityServiceContext(),
+                     nova_cc_context.IdentityServiceContext(
+                         service='nova',
+                         service_user='nova'),
                      nova_cc_context.VolumeServiceContext(),
                      nova_cc_context.NovaIPv6Context(),
                      nova_cc_context.NeutronCCContext(),
@@ -149,7 +151,9 @@ BASE_RESOURCE_MAP = OrderedDict([
                          ssl_dir=QUANTUM_CONF_DIR),
                      nova_cc_context.NeutronPostgresqlDBContext(),
                      nova_cc_context.HAProxyContext(),
-                     nova_cc_context.IdentityServiceContext(),
+                     nova_cc_context.IdentityServiceContext(
+                         service='neutron',
+                         service_user='neutron'),
                      nova_cc_context.NeutronCCContext(),
                      context.SyslogContext()],
     }),
@@ -170,7 +174,9 @@ BASE_RESOURCE_MAP = OrderedDict([
                          relation_prefix='neutron',
                          ssl_dir=NEUTRON_CONF_DIR),
                      nova_cc_context.NeutronPostgresqlDBContext(),
-                     nova_cc_context.IdentityServiceContext(),
+                     nova_cc_context.IdentityServiceContext(
+                         service='neutron',
+                         service_user='neutron'),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.HAProxyContext(),
                      context.SyslogContext(),
