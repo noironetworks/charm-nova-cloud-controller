@@ -281,7 +281,6 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             'auth_port': '35357',
             'auth_protocol': 'http',
             'private-address': u.valid_ip,
-            'https_keystone': 'False',
             'auth_host': u.valid_ip,
             'service_username': 's3_ec2_nova',
             'service_tenant_id': u.not_null,
