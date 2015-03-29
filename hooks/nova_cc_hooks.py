@@ -5,7 +5,12 @@ import shutil
 import sys
 import uuid
 
-from subprocess import check_call
+from subprocess import (
+    call,
+    check_call,
+    CalledProcessError,
+)
+
 from urlparse import urlparse
 
 from charmhelpers.core.hookenv import (
@@ -743,6 +748,13 @@ def configure_https():
     else:
         cmd = ['a2dissite', 'openstack_https_frontend']
         check_call(cmd)
+
+    # TODO: improve this by checking if local CN certs are available
+    # first then checking reload status (see LP #1433114).
+    try:
+        check_call(['service', 'apache2', 'reload'])
+    except CalledProcessError:
+        call(['service', 'apache2', 'restart'])
 
     for rid in relation_ids('identity-service'):
         identity_joined(rid=rid)
