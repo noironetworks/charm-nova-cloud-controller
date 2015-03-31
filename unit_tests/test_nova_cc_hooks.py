@@ -49,6 +49,7 @@ TO_PATCH = [
     'ssh_known_hosts_lines',
     'ssh_authorized_keys_lines',
     'save_script_rc',
+    'service_reload',
     'service_restart',
     'service_running',
     'service_stop',
