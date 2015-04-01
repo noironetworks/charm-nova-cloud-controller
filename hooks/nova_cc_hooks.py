@@ -46,6 +46,7 @@ from charmhelpers.contrib.openstack.utils import (
     configure_installation_source,
     openstack_upgrade_available,
     os_release,
+    os_requires_version,
     sync_db_with_multi_ipv6_addresses
 )
 
@@ -79,6 +80,7 @@ from nova_cc_utils import (
     migrate_nova_database,
     neutron_plugin,
     save_script_rc,
+    services,
     ssh_compute_add,
     ssh_compute_remove,
     ssh_known_hosts_lines,
@@ -94,8 +96,8 @@ from nova_cc_utils import (
     console_attributes,
     service_guard,
     guard_map,
-    services,
-    setup_ipv6
+    get_topics,
+    setup_ipv6,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -172,6 +174,8 @@ def config_changed():
             for rid in relation_ids('cloud-compute')]
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
+    for rid in relation_ids('zeromq-configuration'):
+        zeromq_configuration_relation_joined(rid)
     [cluster_joined(rid) for rid in relation_ids('cluster')]
     update_nrpe_config()
 
@@ -866,6 +870,14 @@ def neutron_api_relation_broken():
         quantum_joined(rid=rid)
 
 
+@hooks.hook('zeromq-configuration-relation-joined')
+@os_requires_version('kilo', 'nova-common')
+def zeromq_configuration_relation_joined(relid=None):
+    relation_set(relation_id=relid,
+                 topics=" ".join(get_topics()),
+                 users="nova")
+
+
 @hooks.hook('nrpe-external-master-relation-joined',
             'nrpe-external-master-relation-changed')
 def update_nrpe_config():
@@ -886,6 +898,12 @@ def update_nrpe_config():
             'memcache-relation-broken')
 @restart_on_change(restart_map())
 def memcached_joined():
+    CONFIGS.write(NOVA_CONF)
+
+
+@hooks.hook('zeromq-configuration-relation-changed')
+@restart_on_change(restart_map(), stopstart=True)
+def zeromq_configuration_relation_changed():
     CONFIGS.write(NOVA_CONF)
 
 
