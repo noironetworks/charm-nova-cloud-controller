@@ -1,3 +1,5 @@
+import os
+
 from charmhelpers.core.hookenv import (
     config,
     relation_ids,
@@ -329,4 +331,22 @@ class InstanceConsoleContext(context.OSContextGenerator):
             servers = []
 
         ctxt['memcached_servers'] = ','.join(servers)
+
+        # Configure nova-novncproxy https if nova-api is using https.
+        if https():
+            cn = resolve_address(endpoint_type=INTERNAL)
+            if cn:
+                cert_filename = 'cert_{}'.format(cn)
+                key_filename = 'key_{}'.format(cn)
+            else:
+                cert_filename = 'cert'
+                key_filename = 'key'
+
+            ssl_dir = '/etc/apache2/ssl/nova'
+            cert = os.path.join(ssl_dir, cert_filename)
+            key = os.path.join(ssl_dir, key_filename)
+            if os.path.exists(cert) and os.path.exists(key):
+                ctxt['ssl_cert'] = cert
+                ctxt['ssl_key'] = key
+
         return ctxt
