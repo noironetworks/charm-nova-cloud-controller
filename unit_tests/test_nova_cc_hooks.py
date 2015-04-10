@@ -49,6 +49,7 @@ TO_PATCH = [
     'ssh_known_hosts_lines',
     'ssh_authorized_keys_lines',
     'save_script_rc',
+    'service_reload',
     'service_restart',
     'service_running',
     'service_stop',
@@ -119,10 +120,12 @@ class NovaCCHooksTests(CharmTestCase):
                                          identity_joined, cluster_joined):
         self.openstack_upgrade_available.return_value = True
         self.relation_ids.return_value = ['generic_rid']
+        _zmq_joined = self.patch('zeromq_configuration_relation_joined')
         hooks.config_changed()
         self.assertTrue(self.do_openstack_upgrade.called)
         self.assertTrue(neutron_api_joined.called)
         self.assertTrue(identity_joined.called)
+        self.assertTrue(_zmq_joined.called)
         self.assertTrue(cluster_joined.called)
         self.assertTrue(self.save_script_rc.called)
 
