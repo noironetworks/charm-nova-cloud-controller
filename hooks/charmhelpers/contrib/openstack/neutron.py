@@ -161,20 +161,6 @@ def neutron_plugins():
                                 'neutron-plugin-cisco'],
             'server_services': ['neutron-server']
         },
-        'vsp': {
-            'config': '/etc/neutron/plugins/nuage/nuage_plugin.ini',
-            'driver': 'neutron.plugins.nuage.plugin.NuagePlugin',
-            'contexts': [
-                context.SharedDBContext(user=config('neutron-database-user'),
-                                        database=config('neutron-database'),
-                                        relation_prefix='neutron',
-                                        ssl_dir=NEUTRON_CONF_DIR)],
-            'services': [],
-            'packages': [],
-            'server_packages': ['neutron-server',
-                                'neutron-plugin-nuage'],
-            'server_services': ['neutron-server']
-        },
         'Calico': {
             'config': '/etc/neutron/plugins/ml2/ml2_conf.ini',
             'driver': 'neutron.plugins.ml2.plugin.Ml2Plugin',
@@ -193,6 +179,19 @@ def neutron_plugins():
                           'neutron-dhcp-agent',
                           'nova-api-metadata']],
             'server_packages': ['neutron-server', 'calico-control'],
+            'server_services': ['neutron-server']
+        },
+        'vsp': {
+            'config': '/etc/neutron/plugins/nuage/nuage_plugin.ini',
+            'driver': 'neutron.plugins.nuage.plugin.NuagePlugin',
+            'contexts': [
+                context.SharedDBContext(user=config('neutron-database-user'),
+                                        database=config('neutron-database'),
+                                        relation_prefix='neutron',
+                                        ssl_dir=NEUTRON_CONF_DIR)],
+            'services': [],
+            'packages': [],
+            'server_packages': ['neutron-server', 'neutron-plugin-nuage'],
             'server_services': ['neutron-server']
         }
     }
