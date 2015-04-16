@@ -101,6 +101,7 @@ LATE_GIT_PACKAGES = [
 # ubuntu packages that should not be installed when deploying from git
 GIT_PACKAGE_BLACKLIST = [
     'neutron-server',
+    'neutron-plugin-ml2',
     'nova-api-ec2',
     'nova-api-os-compute',
     'nova-api-os-volume',
