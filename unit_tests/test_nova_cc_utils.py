@@ -869,13 +869,21 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_git_pre_install(self, check_call, adduser, add_group,
                              add_user_to_group, mkdir):
         utils.git_pre_install()
-        adduser.assert_called_with('nova', shell='/bin/bash',
-                                   system_user=True)
+        expected = [
+            call('nova', shell='/bin/bash', system_user=True),
+            call('neutron', shell='/bin/bash', system_user=True),
+        ]
+        self.assertEquals(adduser.call_args_list, expected)
         check_call.assert_called_with(['usermod', '--home', '/var/lib/nova',
                                        'nova'])
-        add_group.assert_called_with('nova', system_group=True)
+        expected = [
+            call('nova', system_group=True),
+            call('neutron', system_group=True),
+        ]
+        self.assertEquals(add_group.call_args_list, expected)
         expected = [
             call('nova', 'nova'),
+            call('neutron', 'neutron'),
         ]
         self.assertEquals(add_user_to_group.call_args_list, expected)
         expected = [
@@ -903,7 +911,17 @@ class NovaCCUtilsTests(CharmTestCase):
                  group='nova', perms=0755, force=False),
             call('/var/lib/nova/tmp', owner='nova',
                  group='nova', perms=0755, force=False),
+            call('/var/lib/neutron', owner='nova',
+                 group='nova', perms=0755, force=False),
+            call('/var/lib/neutron/lock', owner='nova',
+                 group='nova', perms=0755, force=False),
             call('/var/log/nova', owner='nova',
+                 group='nova', perms=0755, force=False),
+            call('/etc/neutron', owner='nova',
+                 group='nova', perms=0755, force=False),
+            call('/etc/neutron/plugins', owner='nova',
+                 group='nova', perms=0755, force=False),
+            call('/etc/neutron/plugins/ml2', owner='nova',
                  group='nova', perms=0755, force=False),
         ]
         self.assertEquals(mkdir.call_args_list, expected)

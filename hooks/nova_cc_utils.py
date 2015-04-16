@@ -1054,13 +1054,22 @@ def git_pre_install():
         '/var/lib/nova/keys',
         '/var/lib/nova/networks',
         '/var/lib/nova/tmp',
+        '/var/lib/neutron',
+        '/var/lib/neutron/lock',
         '/var/log/nova',
+        '/etc/neutron',
+        '/etc/neutron/plugins',
+        '/etc/neutron/plugins/ml2',
     ]
 
     adduser('nova', shell='/bin/bash', system_user=True)
     subprocess.check_call(['usermod', '--home', '/var/lib/nova', 'nova'])
     add_group('nova', system_group=True)
     add_user_to_group('nova', 'nova')
+
+    adduser('neutron', shell='/bin/bash', system_user=True)
+    add_group('neutron', system_group=True)
+    add_user_to_group('neutron', 'neutron')
 
     for d in dirs:
         mkdir(d, owner='nova', group='nova', perms=0755, force=False)
