@@ -9,7 +9,9 @@ import mock
 from charmhelpers.core import hookenv
 _conf = hookenv.config
 hookenv.config = mock.MagicMock()
-import nova_cc_utils as _utils  # noqa
+import nova_cc_utils as _utils
+# this assert is a double check + to avoid pep8 warning
+assert _utils.config == hookenv.config
 hookenv.config = _conf
 #####
 

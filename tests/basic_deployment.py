@@ -1,8 +1,6 @@
 #!/usr/bin/python
 
 import amulet
-import os
-import yaml
 
 from charmhelpers.contrib.openstack.amulet.deployment import (
     OpenStackAmuletDeployment
@@ -21,11 +19,9 @@ u = OpenStackAmuletUtils(DEBUG)
 class NovaCCBasicDeployment(OpenStackAmuletDeployment):
     """Amulet tests on a basic nova cloud controller deployment."""
 
-    def __init__(self, series=None, openstack=None, source=None, git=False,
-                 stable=False):
+    def __init__(self, series=None, openstack=None, source=None, stable=False):
         """Deploy the entire test environment."""
         super(NovaCCBasicDeployment, self).__init__(series, openstack, source, stable)
-        self.git = git
         self._add_services()
         self._add_relations()
         self._configure_services()
@@ -66,28 +62,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
 
     def _configure_services(self):
         """Configure all of the services."""
-        nova_cc_config = {}
-        if self.git:
-            branch = 'stable/' + self._get_openstack_release_string()
-            amulet_http_proxy = os.environ.get('AMULET_HTTP_PROXY')
-            openstack_origin_git = {
-                'repositories': [
-                    {'name': 'requirements',
-                     'repository': 'git://git.openstack.org/openstack/requirements',
-                     'branch': branch},
-                    {'name': 'nova',
-                     'repository': 'git://git.openstack.org/openstack/nova',
-                     'branch': branch},
-                ],
-                'directory': '/mnt/openstack-git',
-                'http_proxy': amulet_http_proxy,
-                'https_proxy': amulet_http_proxy,
-            }
-            nova_cc_config['openstack-origin-git'] = yaml.dump(openstack_origin_git)
         keystone_config = {'admin-password': 'openstack',
                            'admin-token': 'ubuntutesting'}
-        configs = {'nova-cloud-controller': nova_cc_config,
-                   'keystone': keystone_config}
+        configs = {'keystone': keystone_config}
         super(NovaCCBasicDeployment, self)._configure_services(configs)
 
     def _initialize_tests(self):
