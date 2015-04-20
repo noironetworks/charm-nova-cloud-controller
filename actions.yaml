@@ -1,2 +1,0 @@
-git-reinstall:
-    description: Reinstall nova-cloud-controller from the openstack-origin-git repositories.
