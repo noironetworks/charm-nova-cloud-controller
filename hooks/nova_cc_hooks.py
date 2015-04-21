@@ -296,7 +296,6 @@ def db_changed():
         # permitted units then check if we're in the list.
         allowed_units = relation_get('nova_allowed_units')
         if allowed_units and local_unit() in allowed_units.split():
-            log('Allowed_units list provided and this unit not present')
             migrate_nova_database()
             log('Triggering remote cloud-compute restarts.')
             [compute_joined(rid=rid, remote_restart=True)
