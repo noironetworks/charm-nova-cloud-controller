@@ -209,6 +209,9 @@ def conditional_neutron_migration():
     if os_release('nova-common') <= 'icehouse':
         log('Not running neutron database migration as migrations are handled'
             'by the neutron-server process.')
+    elif os_release('nova-common') >= 'kilo':
+        log('Not running neutron database migration as migrations are by'
+            'by neutron-api charm.')
     else:
         migrate_neutron_database()
         # neutron-api service may have appeared while the migration was
