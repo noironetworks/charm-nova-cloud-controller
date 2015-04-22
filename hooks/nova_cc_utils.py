@@ -1080,6 +1080,8 @@ def git_pre_install():
 
 def git_post_install(projects_yaml):
     """Perform post-install setup."""
+    os_rel = os_release('nova-common')
+
     src_etc = os.path.join(git_src_dir(projects_yaml, 'nova'), 'etc/nova')
     configs = [
         {'src': src_etc,
@@ -1187,6 +1189,15 @@ def git_post_install(projects_yaml):
         'executable_name': '/usr/local/bin/nova-scheduler',
         'config_files': [nova_conf],
     }
+    nova_serialproxy_context = {
+        'service_description': 'Nova serial proxy',
+        'service_name': nova_cc,
+        'user_name': nova_user,
+        'start_dir': start_dir,
+        'process_name': 'nova-serialproxy',
+        'executable_name': '/usr/local/bin/nova-serialproxy',
+        'config_files': [nova_conf],
+    }
     nova_spiceproxy_context = {
         'service_description': 'Nova spice proxy',
         'service_name': nova_cc,
@@ -1239,6 +1250,10 @@ def git_post_install(projects_yaml):
     render('git.upstart', '/etc/init/nova-scheduler.conf',
            nova_scheduler_context, perms=0o644,
            templates_dir=templates_dir)
+    if os_rel >= 'juno':
+        render('git.upstart', '/etc/init/nova-serialproxy.conf',
+               nova_serialproxy_context, perms=0o644,
+               templates_dir=templates_dir)
     render('git.upstart', '/etc/init/nova-spiceproxy.conf',
            nova_spiceproxy_context, perms=0o644,
            templates_dir=templates_dir)
