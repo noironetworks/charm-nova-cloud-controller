@@ -530,7 +530,7 @@ def _do_openstack_upgrade(new_src):
         configs.write_all()
         neutron_db_manage(['upgrade', 'head'])
     else:
-        if new_os_rel < kilo:
+        if new_os_rel < 'kilo':
             neutron_db_manage(['stamp', cur_os_rel])
             migrate_neutron_database()
         # NOTE(jamespage) upgrade with existing config files as the
