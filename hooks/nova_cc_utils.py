@@ -508,8 +508,8 @@ def disable_policy_rcd():
     os.unlink('/usr/sbin/policy-rc.d')
 
 
-QUANTUM_DB_MANAGE = "/usr/bin/quantum-db-manage"
-NEUTRON_DB_MANAGE = "/usr/bin/neutron-db-manage"
+QUANTUM_DB_MANAGE = "quantum-db-manage"
+NEUTRON_DB_MANAGE = "neutron-db-manage"
 
 
 def reset_os_release():
