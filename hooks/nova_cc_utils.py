@@ -89,6 +89,7 @@ BASE_GIT_PACKAGES = [
     'libssl-dev',
     'libxslt1-dev',
     'libyaml-dev',
+    'neutron-common',  # NOTE(coreycb): work-around for python-six conflict
     'python-dev',
     'python-pip',
     'python-setuptools',
