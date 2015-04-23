@@ -85,10 +85,7 @@ BASE_PACKAGES = [
 
 BASE_GIT_PACKAGES = [
     'libxml2-dev',
-    'libffi-dev',
-    'libssl-dev',
     'libxslt1-dev',
-    'libyaml-dev',
     'neutron-common',  # NOTE(coreycb): work-around for python-six conflict
     'python-dev',
     'python-pip',
