@@ -74,9 +74,6 @@ CLUSTER_RES = 'grp_nova_vips'
 BASE_PACKAGES = [
     'apache2',
     'haproxy',
-    'libffi-dev',
-    'libssl-dev',
-    'libyaml-dev',
     'python-keystoneclient',
     'python-mysqldb',
     'python-psycopg2',
@@ -88,7 +85,10 @@ BASE_PACKAGES = [
 
 BASE_GIT_PACKAGES = [
     'libxml2-dev',
+    'libffi-dev',
+    'libssl-dev',
     'libxslt1-dev',
+    'libyaml-dev',
     'python-dev',
     'python-pip',
     'python-setuptools',
