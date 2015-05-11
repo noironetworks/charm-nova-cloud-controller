@@ -120,10 +120,12 @@ class NovaCCHooksTests(CharmTestCase):
                                          identity_joined, cluster_joined):
         self.openstack_upgrade_available.return_value = True
         self.relation_ids.return_value = ['generic_rid']
+        _zmq_joined = self.patch('zeromq_configuration_relation_joined')
         hooks.config_changed()
         self.assertTrue(self.do_openstack_upgrade.called)
         self.assertTrue(neutron_api_joined.called)
         self.assertTrue(identity_joined.called)
+        self.assertTrue(_zmq_joined.called)
         self.assertTrue(cluster_joined.called)
         self.assertTrue(self.save_script_rc.called)
 
@@ -346,10 +348,11 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'conditional_neutron_migration')
     @patch.object(hooks, 'CONFIGS')
     def test_db_changed(self, configs, cond_neutron_mig):
+        'No database migration is attempted when ACL list is not present'
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
-        self.migrate_nova_database.assert_called_with()
-        cond_neutron_mig.assert_called_with()
+        self.assertFalse(self.migrate_nova_database.called)
+        self.assertFalse(cond_neutron_mig.called)
 
     @patch.object(hooks, 'CONFIGS')
     def test_db_changed_allowed(self, configs):
@@ -595,21 +598,28 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.assertEqual(_con_sets, console_settings)
 
-    def test_conditional_neutron_migration_noapi_rel(self):
+    def test_conditional_neutron_migration(self):
         self.os_release.return_value = 'juno'
-        self.relation_ids.return_value = []
         self.services.return_value = ['neutron-server']
         hooks.conditional_neutron_migration()
         self.migrate_neutron_database.assert_called_with()
         self.service_restart.assert_called_with('neutron-server')
 
-    def test_conditional_neutron_migration_noapi_rel_juno(self):
+    def test_conditional_neutron_migration_juno(self):
         self.os_release.return_value = 'icehouse'
-        self.relation_ids.return_value = []
         hooks.conditional_neutron_migration()
         self.log.assert_called_with(
             'Not running neutron database migration as migrations are handled'
-            'by the neutron-server process.'
+            ' by the neutron-server process.'
+        )
+
+    def test_conditional_neutron_migration_kilo(self):
+        self.os_release.return_value = 'kilo'
+        self.relation_ids.return_value = []
+        hooks.conditional_neutron_migration()
+        self.log.assert_called_with(
+            'Not running neutron database migration as migrations are by the '
+            'neutron-api charm.'
         )
 
     def test_ha_relation_joined_no_bound_ip(self):

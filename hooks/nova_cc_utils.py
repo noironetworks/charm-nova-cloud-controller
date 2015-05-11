@@ -132,6 +132,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                          service='nova',
                          service_user='nova'),
                      nova_cc_context.VolumeServiceContext(),
+                     context.ZeroMQContext(),
+                     context.NotificationDriverContext(),
                      nova_cc_context.NovaIPv6Context(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.NovaConfigContext(),
@@ -532,11 +534,12 @@ def _do_openstack_upgrade(new_src):
         configs.write_all()
         neutron_db_manage(['upgrade', 'head'])
     else:
+        if new_os_rel < 'kilo':
+            neutron_db_manage(['stamp', cur_os_rel])
+            migrate_neutron_database()
         # NOTE(jamespage) upgrade with existing config files as the
         # havana->icehouse migration enables new service_plugins which
         # create issues with db upgrades
-        neutron_db_manage(['stamp', cur_os_rel])
-        migrate_neutron_database()
         reset_os_release()
         configs = register_configs(release=new_os_rel)
         configs.write_all()
@@ -936,6 +939,13 @@ def service_guard(guard_map, contexts, active=False):
                 f(*args)
         return wrapped_f
     return wrap
+
+
+def get_topics():
+    topics = ['scheduler', 'conductor']
+    if 'nova-consoleauth' in services():
+        topics.append('consoleauth')
+    return topics
 
 
 def cmd_all_services(cmd):
