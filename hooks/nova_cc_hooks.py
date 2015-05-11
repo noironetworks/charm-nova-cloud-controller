@@ -46,6 +46,7 @@ from charmhelpers.contrib.openstack.utils import (
     configure_installation_source,
     openstack_upgrade_available,
     os_release,
+    os_requires_version,
     sync_db_with_multi_ipv6_addresses
 )
 
@@ -79,6 +80,7 @@ from nova_cc_utils import (
     migrate_nova_database,
     neutron_plugin,
     save_script_rc,
+    services,
     ssh_compute_add,
     ssh_compute_remove,
     ssh_known_hosts_lines,
@@ -94,8 +96,8 @@ from nova_cc_utils import (
     console_attributes,
     service_guard,
     guard_map,
-    services,
-    setup_ipv6
+    get_topics,
+    setup_ipv6,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -172,6 +174,8 @@ def config_changed():
             for rid in relation_ids('cloud-compute')]
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
+    for rid in relation_ids('zeromq-configuration'):
+        zeromq_configuration_relation_joined(rid)
     [cluster_joined(rid) for rid in relation_ids('cluster')]
     update_nrpe_config()
 
@@ -203,8 +207,11 @@ def amqp_changed():
 
 def conditional_neutron_migration():
     if os_release('nova-common') <= 'icehouse':
-        log('Not running neutron database migration as migrations are handled'
+        log('Not running neutron database migration as migrations are handled '
             'by the neutron-server process.')
+    elif os_release('nova-common') >= 'kilo':
+        log('Not running neutron database migration as migrations are by '
+            'the neutron-api charm.')
     else:
         migrate_neutron_database()
         # neutron-api service may have appeared while the migration was
@@ -291,17 +298,18 @@ def db_changed():
         # acl entry has been added. So, if the db supports passing a list of
         # permitted units then check if we're in the list.
         allowed_units = relation_get('nova_allowed_units')
-        if allowed_units and local_unit() not in allowed_units.split():
-            log('Allowed_units list provided and this unit not present')
-            return
-        migrate_nova_database()
-        log('Triggering remote cloud-compute restarts.')
-        [compute_joined(rid=rid, remote_restart=True)
-            for rid in relation_ids('cloud-compute')]
-        log('Triggering remote cell restarts.')
-        [nova_cell_relation_joined(rid=rid, remote_restart=True)
-            for rid in relation_ids('cell')]
-        conditional_neutron_migration()
+        if allowed_units and local_unit() in allowed_units.split():
+            migrate_nova_database()
+            log('Triggering remote cloud-compute restarts.')
+            [compute_joined(rid=rid, remote_restart=True)
+                for rid in relation_ids('cloud-compute')]
+            log('Triggering remote cell restarts.')
+            [nova_cell_relation_joined(rid=rid, remote_restart=True)
+                for rid in relation_ids('cell')]
+            conditional_neutron_migration()
+        else:
+            log('allowed_units either not presented, or local unit '
+                'not in acl list: %s' % repr(allowed_units))
 
 
 @hooks.hook('pgsql-nova-db-relation-changed')
@@ -867,6 +875,14 @@ def neutron_api_relation_broken():
         quantum_joined(rid=rid)
 
 
+@hooks.hook('zeromq-configuration-relation-joined')
+@os_requires_version('kilo', 'nova-common')
+def zeromq_configuration_relation_joined(relid=None):
+    relation_set(relation_id=relid,
+                 topics=" ".join(get_topics()),
+                 users="nova")
+
+
 @hooks.hook('nrpe-external-master-relation-joined',
             'nrpe-external-master-relation-changed')
 def update_nrpe_config():
@@ -887,6 +903,12 @@ def update_nrpe_config():
             'memcache-relation-broken')
 @restart_on_change(restart_map())
 def memcached_joined():
+    CONFIGS.write(NOVA_CONF)
+
+
+@hooks.hook('zeromq-configuration-relation-changed')
+@restart_on_change(restart_map(), stopstart=True)
+def zeromq_configuration_relation_changed():
     CONFIGS.write(NOVA_CONF)
 
 
