@@ -698,7 +698,7 @@ class NovaCCUtilsTests(CharmTestCase):
         get_step_upgrade_source.return_value = None
         self.os_release.return_value = 'juno'
         self.get_os_codename_install_source.return_value = 'kilo'
-        self.eligible_leader.return_value = True
+        self.is_elected_leader.return_value = True
         self.relation_ids.return_value = []
         utils.do_openstack_upgrade()
         self.assertEquals(self.neutron_db_manage.call_count, 0)
