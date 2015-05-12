@@ -968,6 +968,7 @@ class NovaCCUtilsTests(CharmTestCase):
         ]
         copytree.assert_has_calls(expected)
         expected = [
+            call('joined-string', '/usr/local/bin/nova-manage'),
             call('joined-string', '/usr/local/bin/nova-rootwrap'),
         ]
 

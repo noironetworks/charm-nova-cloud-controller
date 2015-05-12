@@ -1095,7 +1095,11 @@ def git_post_install(projects_yaml):
             shutil.rmtree(c['dest'])
         shutil.copytree(c['src'], c['dest'])
 
+    # NOTE(coreycb): Need to find better solution than bin symlinks.
     symlinks = [
+        {'src': os.path.join(git_pip_venv_dir(projects_yaml),
+                             'bin/nova-manage'),
+         'link': '/usr/local/bin/nova-manage'},
         {'src': os.path.join(git_pip_venv_dir(projects_yaml),
                              'bin/nova-rootwrap'),
          'link': '/usr/local/bin/nova-rootwrap'},
