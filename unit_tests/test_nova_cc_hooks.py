@@ -403,10 +403,11 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'conditional_neutron_migration')
     @patch.object(hooks, 'CONFIGS')
     def test_db_changed(self, configs, cond_neutron_mig):
+        'No database migration is attempted when ACL list is not present'
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
-        self.migrate_nova_database.assert_called_with()
-        cond_neutron_mig.assert_called_with()
+        self.assertFalse(self.migrate_nova_database.called)
+        self.assertFalse(cond_neutron_mig.called)
 
     @patch.object(hooks, 'CONFIGS')
     def test_db_changed_allowed(self, configs):

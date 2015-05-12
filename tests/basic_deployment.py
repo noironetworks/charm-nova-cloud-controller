@@ -73,10 +73,10 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             openstack_origin_git = {
                 'repositories': [
                     {'name': 'requirements',
-                     'repository': 'git://git.openstack.org/openstack/requirements',
+                     'repository': 'git://github.com/openstack/requirements',
                      'branch': branch},
                     {'name': 'nova',
-                     'repository': 'git://git.openstack.org/openstack/nova',
+                     'repository': 'git://github.com/openstack/nova',
                      'branch': branch},
                 ],
                 'directory': '/mnt/openstack-git',
