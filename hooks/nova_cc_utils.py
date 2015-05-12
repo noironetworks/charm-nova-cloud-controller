@@ -23,6 +23,7 @@ from charmhelpers.contrib.openstack.utils import (
     git_install_requested,
     git_clone_and_install,
     git_src_dir,
+    git_pip_venv_dir,
     is_ip,
     os_release,
     save_script_rc as _save_script_rc)
@@ -84,9 +85,10 @@ BASE_PACKAGES = [
 ]
 
 BASE_GIT_PACKAGES = [
+    'libffi-dev',
+    'libssl-dev',
     'libxml2-dev',
     'libxslt1-dev',
-    'neutron-common',  # NOTE(coreycb): work-around for python-six conflict
     'python-dev',
     'python-pip',
     'python-setuptools',
@@ -101,6 +103,7 @@ LATE_GIT_PACKAGES = [
 
 # ubuntu packages that should not be installed when deploying from git
 GIT_PACKAGE_BLACKLIST = [
+    'neutron-common',
     'neutron-server',
     'neutron-plugin-ml2',
     'nova-api-ec2',
@@ -1092,11 +1095,23 @@ def git_post_install(projects_yaml):
             shutil.rmtree(c['dest'])
         shutil.copytree(c['src'], c['dest'])
 
+    symlinks = [
+        {'src': os.path.join(git_pip_venv_dir(projects_yaml),
+                             'bin/nova-rootwrap'),
+         'link': '/usr/local/bin/nova-rootwrap'},
+    ]
+
+    for s in symlinks:
+        if os.path.lexists(s['link']):
+            os.remove(s['link'])
+        os.symlink(s['src'], s['link'])
+
     render('git/nova_sudoers', '/etc/sudoers.d/nova_sudoers', {}, perms=0o440)
 
     nova_cc = 'nova-cloud-controller'
     nova_user = 'nova'
     start_dir = '/var/lib/nova'
+    bin_dir = os.path.join(git_pip_venv_dir(projects_yaml), 'bin')
     nova_conf = '/etc/nova/nova.conf'
     nova_ec2_api_context = {
         'service_description': 'Nova EC2 API server',
@@ -1104,7 +1119,7 @@ def git_post_install(projects_yaml):
         'user_name': nova_user,
         'start_dir': start_dir,
         'process_name': 'nova-api-ec2',
-        'executable_name': '/usr/local/bin/nova-api-ec2',
+        'executable_name': os.path.join(bin_dir, 'nova-api-ec2'),
         'config_files': [nova_conf],
     }
     nova_api_os_compute_context = {
@@ -1113,7 +1128,7 @@ def git_post_install(projects_yaml):
         'user_name': nova_user,
         'start_dir': start_dir,
         'process_name': 'nova-api-os-compute',
-        'executable_name': '/usr/local/bin/nova-api-os-compute',
+        'executable_name': os.path.join(bin_dir, 'nova-api-os-compute'),
         'config_files': [nova_conf],
     }
     nova_cells_context = {
@@ -1122,7 +1137,7 @@ def git_post_install(projects_yaml):
         'user_name': nova_user,
         'start_dir': start_dir,
         'process_name': 'nova-cells',
-        'executable_name': '/usr/local/bin/nova-cells',
+        'executable_name': os.path.join(bin_dir, 'nova-cells'),
         'config_files': [nova_conf],
     }
     nova_cert_context = {
@@ -1131,7 +1146,7 @@ def git_post_install(projects_yaml):
         'user_name': nova_user,
         'start_dir': start_dir,
         'process_name': 'nova-cert',
-        'executable_name': '/usr/local/bin/nova-cert',
+        'executable_name': os.path.join(bin_dir, 'nova-cert'),
         'config_files': [nova_conf],
     }
     nova_conductor_context = {
@@ -1140,7 +1155,7 @@ def git_post_install(projects_yaml):
         'user_name': nova_user,
         'start_dir': start_dir,
         'process_name': 'nova-conductor',
-        'executable_name': '/usr/local/bin/nova-conductor',
+        'executable_name': os.path.join(bin_dir, 'nova-conductor'),
         'config_files': [nova_conf],
     }
     nova_consoleauth_context = {
@@ -1149,7 +1164,7 @@ def git_post_install(projects_yaml):
         'user_name': nova_user,
         'start_dir': start_dir,
         'process_name': 'nova-consoleauth',
-        'executable_name': '/usr/local/bin/nova-consoleauth',
+        'executable_name': os.path.join(bin_dir, 'nova-consoleauth'),
         'config_files': [nova_conf],
     }
     nova_console_context = {
@@ -1158,7 +1173,7 @@ def git_post_install(projects_yaml):
         'user_name': nova_user,
         'start_dir': start_dir,
         'process_name': 'nova-console',
-        'executable_name': '/usr/local/bin/nova-console',
+        'executable_name': os.path.join(bin_dir, 'nova-console'),
         'config_files': [nova_conf],
     }
     nova_novncproxy_context = {
@@ -1167,7 +1182,7 @@ def git_post_install(projects_yaml):
         'user_name': nova_user,
         'start_dir': start_dir,
         'process_name': 'nova-novncproxy',
-        'executable_name': '/usr/local/bin/nova-novncproxy',
+        'executable_name': os.path.join(bin_dir, 'nova-novncproxy'),
         'config_files': [nova_conf],
     }
     nova_objectstore_context = {
@@ -1176,7 +1191,7 @@ def git_post_install(projects_yaml):
         'user_name': nova_user,
         'start_dir': start_dir,
         'process_name': 'nova-objectstore',
-        'executable_name': '/usr/local/bin/nova-objectstore',
+        'executable_name': os.path.join(bin_dir, 'nova-objectstore'),
         'config_files': [nova_conf],
     }
     nova_scheduler_context = {
@@ -1185,7 +1200,7 @@ def git_post_install(projects_yaml):
         'user_name': nova_user,
         'start_dir': start_dir,
         'process_name': 'nova-scheduler',
-        'executable_name': '/usr/local/bin/nova-scheduler',
+        'executable_name': os.path.join(bin_dir, 'nova-scheduler'),
         'config_files': [nova_conf],
     }
     nova_serialproxy_context = {
@@ -1194,7 +1209,7 @@ def git_post_install(projects_yaml):
         'user_name': nova_user,
         'start_dir': start_dir,
         'process_name': 'nova-serialproxy',
-        'executable_name': '/usr/local/bin/nova-serialproxy',
+        'executable_name': os.path.join(bin_dir, 'nova-serialproxy'),
         'config_files': [nova_conf],
     }
     nova_spiceproxy_context = {
@@ -1203,7 +1218,7 @@ def git_post_install(projects_yaml):
         'user_name': nova_user,
         'start_dir': start_dir,
         'process_name': 'nova-spicehtml5proxy',
-        'executable_name': '/usr/local/bin/nova-spicehtml5proxy',
+        'executable_name': os.path.join(bin_dir, 'nova-spicehtml5proxy'),
         'config_files': [nova_conf],
     }
     nova_xvpvncproxy_context = {
@@ -1212,7 +1227,7 @@ def git_post_install(projects_yaml):
         'user_name': nova_user,
         'start_dir': start_dir,
         'process_name': 'nova-xvpvncproxy',
-        'executable_name': '/usr/local/bin/nova-xvpvncproxy',
+        'executable_name': os.path.join(bin_dir, 'nova-xvpvncproxy'),
         'config_files': [nova_conf],
     }
 

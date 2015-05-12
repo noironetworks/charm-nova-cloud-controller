@@ -951,19 +951,25 @@ class NovaCCUtilsTests(CharmTestCase):
 
     @patch.object(utils, 'git_src_dir')
     @patch.object(utils, 'render')
+    @patch.object(utils, 'git_pip_venv_dir')
     @patch('os.path.join')
     @patch('os.path.exists')
+    @patch('os.symlink')
     @patch('shutil.copytree')
     @patch('shutil.rmtree')
-    def test_git_post_install(self, rmtree, copytree, exists, join, render,
-                              git_src_dir):
+    def test_git_post_install(self, rmtree, copytree, symlink,
+                              exists, join, venv, render, git_src_dir):
         projects_yaml = openstack_origin_git
         join.return_value = 'joined-string'
+        venv.return_value = '/mnt/openstack-git/venv'
         utils.git_post_install(projects_yaml)
         expected = [
             call('joined-string', '/etc/nova'),
         ]
         copytree.assert_has_calls(expected)
+        expected = [
+            call('joined-string', '/usr/local/bin/nova-rootwrap'),
+        ]
 
         nova_cc = 'nova-cloud-controller'
         nova_user = 'nova'
@@ -975,7 +981,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'user_name': nova_user,
             'start_dir': start_dir,
             'process_name': 'nova-api-ec2',
-            'executable_name': '/usr/local/bin/nova-api-ec2',
+            'executable_name': 'joined-string',
             'config_files': [nova_conf],
         }
         nova_api_os_compute_context = {
@@ -984,7 +990,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'user_name': nova_user,
             'start_dir': start_dir,
             'process_name': 'nova-api-os-compute',
-            'executable_name': '/usr/local/bin/nova-api-os-compute',
+            'executable_name': 'joined-string',
             'config_files': [nova_conf],
         }
         nova_cells_context = {
@@ -993,7 +999,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'user_name': nova_user,
             'start_dir': start_dir,
             'process_name': 'nova-cells',
-            'executable_name': '/usr/local/bin/nova-cells',
+            'executable_name': 'joined-string',
             'config_files': [nova_conf],
         }
         nova_cert_context = {
@@ -1002,7 +1008,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'user_name': nova_user,
             'start_dir': start_dir,
             'process_name': 'nova-cert',
-            'executable_name': '/usr/local/bin/nova-cert',
+            'executable_name': 'joined-string',
             'config_files': [nova_conf],
         }
         nova_conductor_context = {
@@ -1011,7 +1017,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'user_name': nova_user,
             'start_dir': start_dir,
             'process_name': 'nova-conductor',
-            'executable_name': '/usr/local/bin/nova-conductor',
+            'executable_name': 'joined-string',
             'config_files': [nova_conf],
         }
         nova_consoleauth_context = {
@@ -1020,7 +1026,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'user_name': nova_user,
             'start_dir': start_dir,
             'process_name': 'nova-consoleauth',
-            'executable_name': '/usr/local/bin/nova-consoleauth',
+            'executable_name': 'joined-string',
             'config_files': [nova_conf],
         }
         nova_console_context = {
@@ -1029,7 +1035,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'user_name': nova_user,
             'start_dir': start_dir,
             'process_name': 'nova-console',
-            'executable_name': '/usr/local/bin/nova-console',
+            'executable_name': 'joined-string',
             'config_files': [nova_conf],
         }
         nova_novncproxy_context = {
@@ -1038,7 +1044,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'user_name': nova_user,
             'start_dir': start_dir,
             'process_name': 'nova-novncproxy',
-            'executable_name': '/usr/local/bin/nova-novncproxy',
+            'executable_name': 'joined-string',
             'config_files': [nova_conf],
         }
         nova_objectstore_context = {
@@ -1047,7 +1053,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'user_name': nova_user,
             'start_dir': start_dir,
             'process_name': 'nova-objectstore',
-            'executable_name': '/usr/local/bin/nova-objectstore',
+            'executable_name': 'joined-string',
             'config_files': [nova_conf],
         }
         nova_scheduler_context = {
@@ -1056,7 +1062,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'user_name': nova_user,
             'start_dir': start_dir,
             'process_name': 'nova-scheduler',
-            'executable_name': '/usr/local/bin/nova-scheduler',
+            'executable_name': 'joined-string',
             'config_files': [nova_conf],
         }
         nova_spiceproxy_context = {
@@ -1065,7 +1071,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'user_name': nova_user,
             'start_dir': start_dir,
             'process_name': 'nova-spicehtml5proxy',
-            'executable_name': '/usr/local/bin/nova-spicehtml5proxy',
+            'executable_name': 'joined-string',
             'config_files': [nova_conf],
         }
         nova_xvpvncproxy_context = {
@@ -1074,7 +1080,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'user_name': nova_user,
             'start_dir': start_dir,
             'process_name': 'nova-xvpvncproxy',
-            'executable_name': '/usr/local/bin/nova-xvpvncproxy',
+            'executable_name': 'joined-string',
             'config_files': [nova_conf],
         }
         expected = [
