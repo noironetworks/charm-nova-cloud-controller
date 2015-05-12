@@ -952,13 +952,15 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch.object(utils, 'git_src_dir')
     @patch.object(utils, 'render')
     @patch.object(utils, 'git_pip_venv_dir')
+    @patch.object(utils, 'pip_install')
     @patch('os.path.join')
     @patch('os.path.exists')
     @patch('os.symlink')
     @patch('shutil.copytree')
     @patch('shutil.rmtree')
     def test_git_post_install(self, rmtree, copytree, symlink,
-                              exists, join, venv, render, git_src_dir):
+                              exists, join, pip_install, venv, render,
+                              git_src_dir):
         projects_yaml = openstack_origin_git
         join.return_value = 'joined-string'
         venv.return_value = '/mnt/openstack-git/venv'

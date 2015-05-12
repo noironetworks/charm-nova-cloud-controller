@@ -15,6 +15,10 @@ from charmhelpers.contrib.hahelpers.cluster import eligible_leader
 
 from charmhelpers.contrib.peerstorage import peer_store
 
+from charmhelpers.contrib.python.packages import (
+    pip_install,
+)
+
 from charmhelpers.contrib.openstack.utils import (
     configure_installation_source,
     get_host_ip,
@@ -24,6 +28,7 @@ from charmhelpers.contrib.openstack.utils import (
     git_clone_and_install,
     git_src_dir,
     git_pip_venv_dir,
+    git_yaml_value,
     is_ip,
     os_release,
     save_script_rc as _save_script_rc)
@@ -1082,7 +1087,13 @@ def git_pre_install():
 
 def git_post_install(projects_yaml):
     """Perform post-install setup."""
-    os_rel = os_release('nova-common')
+    http_proxy = git_yaml_value(projects_yaml, 'http_proxy')
+    if http_proxy:
+        pip_install('mysql-python', proxy=http_proxy,
+                    venv=git_pip_venv_dir(projects_yaml))
+    else:
+        pip_install('mysql-python',
+                    venv=git_pip_venv_dir(projects_yaml))
 
     src_etc = os.path.join(git_src_dir(projects_yaml, 'nova'), 'etc/nova')
     configs = [
@@ -1238,6 +1249,7 @@ def git_post_install(projects_yaml):
     # NOTE(coreycb): Needs systemd support
     templates_dir = 'hooks/charmhelpers/contrib/openstack/templates'
     templates_dir = os.path.join(charm_dir(), templates_dir)
+    os_rel = os_release('nova-common')
     render('git.upstart', '/etc/init/nova-api-ec2.conf',
            nova_ec2_api_context, perms=0o644,
            templates_dir=templates_dir)
