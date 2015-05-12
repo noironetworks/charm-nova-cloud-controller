@@ -652,21 +652,28 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.assertEqual(_con_sets, console_settings)
 
-    def test_conditional_neutron_migration_noapi_rel(self):
+    def test_conditional_neutron_migration(self):
         self.os_release.return_value = 'juno'
-        self.relation_ids.return_value = []
         self.services.return_value = ['neutron-server']
         hooks.conditional_neutron_migration()
         self.migrate_neutron_database.assert_called_with()
         self.service_restart.assert_called_with('neutron-server')
 
-    def test_conditional_neutron_migration_noapi_rel_juno(self):
+    def test_conditional_neutron_migration_juno(self):
         self.os_release.return_value = 'icehouse'
-        self.relation_ids.return_value = []
         hooks.conditional_neutron_migration()
         self.log.assert_called_with(
             'Not running neutron database migration as migrations are handled'
-            'by the neutron-server process.'
+            ' by the neutron-server process.'
+        )
+
+    def test_conditional_neutron_migration_kilo(self):
+        self.os_release.return_value = 'kilo'
+        self.relation_ids.return_value = []
+        hooks.conditional_neutron_migration()
+        self.log.assert_called_with(
+            'Not running neutron database migration as migrations are by the '
+            'neutron-api charm.'
         )
 
     def test_ha_relation_joined_no_bound_ip(self):
