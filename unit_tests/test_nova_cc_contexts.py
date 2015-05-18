@@ -47,6 +47,8 @@ class NovaComputeContextTests(CharmTestCase):
         self.config.side_effect = self.test_config.get
         self.log.side_effect = fake_log
 
+    @mock.patch.object(context, 'resolve_address',
+                       lambda *args, **kwargs: None)
     @mock.patch.object(utils, 'os_release')
     @mock.patch('charmhelpers.contrib.network.ip.log')
     def test_instance_console_context_without_memcache(self, os_release, log_):
@@ -57,6 +59,8 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual({'memcached_servers': ''},
                          instance_console())
 
+    @mock.patch.object(context, 'resolve_address',
+                       lambda *args, **kwargs: None)
     @mock.patch.object(utils, 'os_release')
     @mock.patch('charmhelpers.contrib.network.ip.log')
     def test_instance_console_context_with_memcache(self, os_release, log_):
@@ -64,6 +68,8 @@ class NovaComputeContextTests(CharmTestCase):
                                                           '127.0.1.1',
                                                           '127.0.1.1')
 
+    @mock.patch.object(context, 'resolve_address',
+                       lambda *args, **kwargs: None)
     @mock.patch.object(utils, 'os_release')
     @mock.patch('charmhelpers.contrib.network.ip.log')
     def test_instance_console_context_with_memcache_ipv6(self, os_release,
