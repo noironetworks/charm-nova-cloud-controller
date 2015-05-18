@@ -13,13 +13,13 @@ from charmhelpers.contrib.openstack.amulet.utils import (
 )
 
 # Use DEBUG to turn on debug logging
-u = OpenStackAmuletUtils(ERROR)
+u = OpenStackAmuletUtils(DEBUG)
 
 
 class NovaCCBasicDeployment(OpenStackAmuletDeployment):
     """Amulet tests on a basic nova cloud controller deployment."""
 
-    def __init__(self, series=None, openstack=None, source=None, stable=True):
+    def __init__(self, series=None, openstack=None, source=None, stable=False):
         """Deploy the entire test environment."""
         super(NovaCCBasicDeployment, self).__init__(series, openstack, source, stable)
         self._add_services()
@@ -281,7 +281,6 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             'auth_port': '35357',
             'auth_protocol': 'http',
             'private-address': u.valid_ip,
-            'https_keystone': 'False',
             'auth_host': u.valid_ip,
             'service_username': 's3_ec2_nova',
             'service_tenant_id': u.not_null,
