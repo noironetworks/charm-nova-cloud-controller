@@ -970,9 +970,10 @@ def update_nova_consoleauth_config():
             relation_set(rid, **data)
 
         # nova-consoleauth will be managed by pacemaker, so mark it as manual
-        with open(NOVA_CONSOLEAUTH_OVERRIDE, 'w') as fp:
-            fp.write('manual\n')
-            fp.flush()
+        if relation_ids('ha'):
+            with open(NOVA_CONSOLEAUTH_OVERRIDE, 'w') as fp:
+                fp.write('manual\n')
+                fp.flush()
 
     elif (not config('single-nova-consoleauth')
           and console_attributes('protocol')):
