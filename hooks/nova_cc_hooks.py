@@ -124,11 +124,18 @@ from charmhelpers.contrib.openstack.context import ADDRESS_TYPES
 
 from charmhelpers.contrib.charmsupport import nrpe
 
+try:
+    FileNotFoundError
+except NameError:
+    # python3 compatibility
+    FileNotFoundError = IOError
+
 hooks = Hooks()
 CONFIGS = register_configs()
 COLO_CONSOLEAUTH = 'inf: res_nova_consoleauth grp_nova_vips'
 AGENT_CONSOLEAUTH = 'ocf:openstack:nova-consoleauth'
 AGENT_CA_PARAMS = 'op monitor interval="5s"'
+NOVA_CONSOLEAUTH_OVERRIDE = '/etc/init/nova-consoleauth.override'
 
 
 @hooks.hook()
@@ -182,59 +189,7 @@ def config_changed():
     [cluster_joined(rid) for rid in relation_ids('cluster')]
     update_nrpe_config()
 
-    relids = relation_ids('ha')
-    if len(relids) != 1:
-        log('Related to {} ha services'.format(len(relids)), level='DEBUG')
-        ha_relid = None
-        data = {}
-    else:
-        ha_relid = relids[0]
-        data = relation_get(rid=ha_relid) or {}
-
-    if config('single-nova-consoleauth') and console_attributes('protocol'):
-        data.setdefault('delete_resources', [])
-        for item in ['vip_consoleauth', 'res_nova_consoleauth']:
-            if item in data['delete_resources']:
-                data['delete_resources'].remove(item)
-
-        # the new pcmkr resources have to be added to the existing ones
-        data.setdefault('colocations', {})
-        data['colocations']['vip_consoleauth'] = COLO_CONSOLEAUTH
-
-        data.setdefault('init_services', {})
-        data['init_services']['res_nova_consoleauth'] = 'nova-consoleauth'
-
-        data.setdefault('resources', {})
-        data['resources']['res_nova_consoleauth'] = AGENT_CONSOLEAUTH
-
-        data.setdefault('resource_params', {})
-        data['resource_params']['res_nova_consoleauth'] = AGENT_CA_PARAMS
-
-        for rid in relation_ids('ha'):
-            relation_set(rid,
-                         **data)
-    elif (not config('single-nova-consoleauth')
-          and console_attributes('protocol')):
-        data.setdefault('delete_resources', [])
-        for item in ['vip_consoleauth', 'res_nova_consoleauth']:
-            if item not in data['delete_resources']:
-                data['delete_resources'].append(item)
-
-        # remove them from the rel, so they aren't recreated
-        data.setdefault('colocations', {})
-        data['colocations'].pop('vip_consoleauth', None)
-
-        data.setdefault('init_services', {})
-        data['init_services'].pop('res_nova_consoleauth', None)
-
-        data.setdefault('resources', {})
-        data['resources'].pop('res_nova_consoleauth', None)
-
-        data.setdefault('resource_params', {})
-        data['resource_params'].pop('res_nova_consoleauth', None)
-
-        for rid in relation_ids('ha'):
-            relation_set(rid, **data)
+    update_nova_consoleauth_config()
 
 
 @hooks.hook('amqp-relation-joined')
@@ -779,6 +734,8 @@ def ha_changed():
     for rid in relation_ids('identity-service'):
         identity_joined(rid=rid)
 
+    update_nova_consoleauth_config()
+
 
 @hooks.hook('shared-db-relation-broken',
             'pgsql-nova-db-relation-broken')
@@ -866,6 +823,7 @@ def upgrade_charm():
         for unit in related_units(r_id):
             compute_changed(r_id, unit)
     update_nrpe_config()
+    update_nova_consoleauth_config()
 
 
 # remote_restart is defaulted to true as nova-cells may have started the
@@ -975,6 +933,67 @@ def memcached_joined():
 @restart_on_change(restart_map(), stopstart=True)
 def zeromq_configuration_relation_changed():
     CONFIGS.write(NOVA_CONF)
+
+
+def update_nova_consoleauth_config():
+    """
+    Configure nova-consoleauth pacemaker resources
+    """
+    relids = relation_ids('ha')
+    if len(relids) == 0:
+        log('Related to {} ha services'.format(len(relids)), level='DEBUG')
+        ha_relid = None
+        data = {}
+    else:
+        ha_relid = relids[0]
+        data = relation_get(rid=ha_relid) or {}
+
+    # initialize keys in case this is a new dict
+    data.setdefault('delete_resources', [])
+    for k in ['colocations', 'init_services', 'resources', 'resource_params']:
+        data.setdefault(k, {})
+
+    if config('single-nova-consoleauth') and console_attributes('protocol'):
+        for item in ['vip_consoleauth', 'res_nova_consoleauth']:
+            try:
+                data['delete_resources'].remove(item)
+            except ValueError:
+                pass  # nothing to remove, we are good
+
+        # the new pcmkr resources have to be added to the existing ones
+        data['colocations']['vip_consoleauth'] = COLO_CONSOLEAUTH
+        data['init_services']['res_nova_consoleauth'] = 'nova-consoleauth'
+        data['resources']['res_nova_consoleauth'] = AGENT_CONSOLEAUTH
+        data['resource_params']['res_nova_consoleauth'] = AGENT_CA_PARAMS
+
+        for rid in relation_ids('ha'):
+            relation_set(rid, **data)
+
+        # nova-consoleauth will be managed by pacemaker, so mark it as manual
+        with open(NOVA_CONSOLEAUTH_OVERRIDE, 'w') as fp:
+            fp.write('manual\n')
+            fp.flush()
+
+    elif (not config('single-nova-consoleauth')
+          and console_attributes('protocol')):
+        for item in ['vip_consoleauth', 'res_nova_consoleauth']:
+            if item not in data['delete_resources']:
+                data['delete_resources'].append(item)
+
+        # remove them from the rel, so they aren't recreated when the hook
+        # is recreated
+        data['colocations'].pop('vip_consoleauth', None)
+        data['init_services'].pop('res_nova_consoleauth', None)
+        data['resources'].pop('res_nova_consoleauth', None)
+        data['resource_params'].pop('res_nova_consoleauth', None)
+
+        for rid in relation_ids('ha'):
+            relation_set(rid, **data)
+
+        try:
+            os.remove(NOVA_CONSOLEAUTH_OVERRIDE)
+        except FileNotFoundError as e:
+            log(str(e), level='DEBUG')
 
 
 def main():

@@ -1,6 +1,7 @@
 from mock import MagicMock, patch, call
 from test_utils import CharmTestCase, patch_open
 import os
+import tempfile
 
 with patch('charmhelpers.core.hookenv.config') as config:
     config.return_value = 'neutron'
@@ -90,10 +91,19 @@ class NovaCCHooksTests(CharmTestCase):
 
     def setUp(self):
         super(NovaCCHooksTests, self).setUp(hooks, TO_PATCH)
+        (tmpfd, hooks.NOVA_CONSOLEAUTH_OVERRIDE) = tempfile.mkstemp()
 
         self.config.side_effect = self.test_config.get
         self.relation_get.side_effect = self.test_relation.get
         self.charm_dir.return_value = '/var/lib/juju/charms/nova/charm'
+
+    def tearDown(self):
+        try:
+            os.remove(hooks.NOVA_CONSOLEAUTH_OVERRIDE)
+        except OSError:
+            pass
+
+        super(NovaCCHooksTests, self).tearDown()
 
     def test_install_hook(self):
         self.determine_packages.return_value = [
