@@ -207,8 +207,11 @@ def amqp_changed():
 
 def conditional_neutron_migration():
     if os_release('nova-common') <= 'icehouse':
-        log('Not running neutron database migration as migrations are handled'
+        log('Not running neutron database migration as migrations are handled '
             'by the neutron-server process.')
+    elif os_release('nova-common') >= 'kilo':
+        log('Not running neutron database migration as migrations are by '
+            'the neutron-api charm.')
     else:
         migrate_neutron_database()
         # neutron-api service may have appeared while the migration was
@@ -295,17 +298,18 @@ def db_changed():
         # acl entry has been added. So, if the db supports passing a list of
         # permitted units then check if we're in the list.
         allowed_units = relation_get('nova_allowed_units')
-        if allowed_units and local_unit() not in allowed_units.split():
-            log('Allowed_units list provided and this unit not present')
-            return
-        migrate_nova_database()
-        log('Triggering remote cloud-compute restarts.')
-        [compute_joined(rid=rid, remote_restart=True)
-            for rid in relation_ids('cloud-compute')]
-        log('Triggering remote cell restarts.')
-        [nova_cell_relation_joined(rid=rid, remote_restart=True)
-            for rid in relation_ids('cell')]
-        conditional_neutron_migration()
+        if allowed_units and local_unit() in allowed_units.split():
+            migrate_nova_database()
+            log('Triggering remote cloud-compute restarts.')
+            [compute_joined(rid=rid, remote_restart=True)
+                for rid in relation_ids('cloud-compute')]
+            log('Triggering remote cell restarts.')
+            [nova_cell_relation_joined(rid=rid, remote_restart=True)
+                for rid in relation_ids('cell')]
+            conditional_neutron_migration()
+        else:
+            log('allowed_units either not presented, or local unit '
+                'not in acl list: %s' % repr(allowed_units))
 
 
 @hooks.hook('pgsql-nova-db-relation-changed')

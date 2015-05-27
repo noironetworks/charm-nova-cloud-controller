@@ -84,7 +84,6 @@ options:
         nvp|nsx - Nicira Network Virtualization Platform/
                   VMware NSX Network Virtualization Platform
                   (renamed for Icehouse)
-        vsp - Nuage Networks VSP
       .
       This configuration only has context when used with
       network-manager Quantum|Neutron.

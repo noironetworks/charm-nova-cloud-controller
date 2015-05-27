@@ -687,6 +687,29 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertEquals(self.ml2_migration.call_count, 0)
         self.assertTrue(migrate_nova_database.call_count, 1)
 
+    @patch.object(utils, 'get_step_upgrade_source')
+    @patch.object(utils, 'migrate_nova_database')
+    @patch.object(utils, 'determine_packages')
+    def test_upgrade_juno_kilo(self, determine_packages,
+                               migrate_nova_database,
+                               get_step_upgrade_source):
+        "Simulate a call to do_openstack_upgrade() for juno->kilo"
+        self.test_config.set('openstack-origin', 'cloud:trusty-kilo')
+        get_step_upgrade_source.return_value = None
+        self.os_release.return_value = 'juno'
+        self.get_os_codename_install_source.return_value = 'kilo'
+        self.eligible_leader.return_value = True
+        self.relation_ids.return_value = []
+        utils.do_openstack_upgrade()
+        self.assertEquals(self.neutron_db_manage.call_count, 0)
+        self.apt_update.assert_called_with(fatal=True)
+        self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
+                                            dist=True)
+        self.apt_install.assert_called_with(determine_packages(), fatal=True)
+        self.register_configs.assert_called_with(release='kilo')
+        self.assertEquals(self.ml2_migration.call_count, 0)
+        self.assertTrue(migrate_nova_database.call_count, 1)
+
     @patch.object(utils, '_do_openstack_upgrade')
     def test_upgrade_grizzly_icehouse_source(self, _do_openstack_upgrade):
         "Verify get_step_upgrade_source() for grizzly->icehouse"
