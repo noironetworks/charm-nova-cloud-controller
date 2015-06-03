@@ -290,7 +290,7 @@ class NovaCCHooksTests(CharmTestCase):
         _unit_get.return_value = '127.0.0.1'
         _ip_config.side_effect = self.test_config.get
 
-        self.test_config.set('endpoint-public-name', 'ncc.example.com')
+        self.test_config.set('os-public-hostname', 'ncc.example.com')
         hooks.identity_joined()
 
         self.determine_endpoints.asssert_called_with(
