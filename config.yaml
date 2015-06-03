@@ -230,6 +230,17 @@ options:
       192.168.0.0/24)
       .
       This network will be used for public endpoints.
+  endpoint-public-name:
+    type: string
+    default:
+    description: |
+      The hostname or address of the public endpoints provided by the
+      nova-cloud-controller in the keystone identity provider.
+      .
+      This value will be used for public endpoints. For example, an
+      endpoint-public-name set to 'ncc.example.com' with ssl enabled will
+      create public endpoints such as 
+      https://ncc.example.com:8775/v2/$(tenant_id)s
   service-guard:
     type: boolean
     default: false
