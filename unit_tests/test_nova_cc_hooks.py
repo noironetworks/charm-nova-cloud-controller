@@ -25,13 +25,13 @@ TO_PATCH = [
     'api_port',
     'apt_update',
     'apt_install',
-    'canonical_url',
     'configure_installation_source',
     'charm_dir',
     'do_openstack_upgrade',
     'openstack_upgrade_available',
     'cmd_all_services',
     'config',
+    'determine_endpoints',
     'determine_packages',
     'determine_ports',
     'disable_services',
@@ -188,9 +188,11 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertEquals(sorted(self.relation_set.call_args_list),
                           sorted(expected_relations))
 
+    @patch.object(hooks, 'canonical_url')
     @patch.object(utils, 'config')
     @patch.object(hooks, '_auth_config')
-    def test_compute_joined_neutron(self, auth_config, _util_config):
+    def test_compute_joined_neutron(self, auth_config, _util_config,
+                                    _canonical_url):
         _util_config.return_value = None
         self.is_relation_made.return_value = False
         self.network_manager.return_value = 'neutron'
@@ -198,7 +200,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.keystone_ca_cert_b64.return_value = 'foocert64'
         self.volume_service.return_value = 'cinder'
         self.unit_get.return_value = 'nova-cc-host1'
-        self.canonical_url.return_value = 'http://nova-cc-host1'
+        _canonical_url.return_value = 'http://nova-cc-host1'
         self.api_port.return_value = '9696'
         self.neutron_plugin.return_value = 'nvp'
         auth_config.return_value = FAKE_KS_AUTH_CFG
@@ -217,11 +219,12 @@ class NovaCCHooksTests(CharmTestCase):
             quantum_plugin='nvp',
             network_manager='neutron', **FAKE_KS_AUTH_CFG)
 
+    @patch.object(hooks, 'canonical_url')
     @patch.object(utils, 'config')
     @patch.object(hooks, 'NeutronAPIContext')
     @patch.object(hooks, '_auth_config')
     def test_compute_joined_neutron_api_rel(self, auth_config, napi,
-                                            _util_config):
+                                            _util_config, _canonical_url):
         def mock_NeutronAPIContext():
             return {
                 'neutron_plugin': 'bob',
@@ -236,7 +239,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.keystone_ca_cert_b64.return_value = 'foocert64'
         self.volume_service.return_value = 'cinder'
         self.unit_get.return_value = 'nova-cc-host1'
-        self.canonical_url.return_value = 'http://nova-cc-host1'
+        _canonical_url.return_value = 'http://nova-cc-host1'
         self.api_port.return_value = '9696'
         self.neutron_plugin.return_value = 'nvp'
         auth_config.return_value = FAKE_KS_AUTH_CFG
@@ -254,13 +257,14 @@ class NovaCCHooksTests(CharmTestCase):
             quantum_plugin='bob',
             network_manager='neutron', **FAKE_KS_AUTH_CFG)
 
+    @patch.object(hooks, 'canonical_url')
     @patch.object(hooks, '_auth_config')
-    def test_nova_vmware_joined(self, auth_config):
+    def test_nova_vmware_joined(self, auth_config, _canonical_url):
         auth_config.return_value = FAKE_KS_AUTH_CFG
         # quantum-security-groups, plugin
         self.neutron_plugin.return_value = 'nvp'
         self.network_manager.return_value = 'neutron'
-        self.canonical_url.return_value = 'http://nova-cc-host1'
+        _canonical_url.return_value = 'http://nova-cc-host1'
         self.api_port.return_value = '9696'
         hooks.nova_vmware_relation_joined()
         self.relation_set.assert_called_with(
@@ -277,6 +281,23 @@ class NovaCCHooksTests(CharmTestCase):
                                              nova_username='nova',
                                              nova_hostname='nova.foohost.com')
         self.unit_get.assert_called_with('private-address')
+
+    @patch('charmhelpers.contrib.openstack.ip.unit_get')
+    @patch('charmhelpers.contrib.openstack.ip.is_clustered')
+    @patch('charmhelpers.contrib.openstack.ip.config')
+    def test_identity_joined(self, _ip_config, _is_clustered, _unit_get):
+        _is_clustered.return_value = False
+        _unit_get.return_value = '127.0.0.1'
+        _ip_config.side_effect = self.test_config.get
+
+        self.test_config.set('endpoint-public-name', 'ncc.example.com')
+        hooks.identity_joined()
+
+        self.determine_endpoints.asssert_called_with(
+            public_url='http://ncc.example.com',
+            internal_url='http://127.0.0.1',
+            admin_url='http://127.0.0.1'
+        )
 
     def test_postgresql_nova_db_joined(self):
         self.is_relation_made.return_value = False
@@ -442,9 +463,10 @@ class NovaCCHooksTests(CharmTestCase):
                            call('/etc/neutron/neutron.conf')])
         cell_joined.assert_called_with(rid='nova-cell-api/0')
 
-    def test_nova_cell_relation_joined(self):
+    @patch.object(hooks, 'canonical_url')
+    def test_nova_cell_relation_joined(self, _canonical_url):
         self.uuid.uuid4.return_value = 'bob'
-        self.canonical_url.return_value = 'http://novaurl'
+        _canonical_url.return_value = 'http://novaurl'
         hooks.nova_cell_relation_joined(rid='rid',
                                         remote_restart=True)
         self.relation_set.assert_called_with(restart_trigger='bob',
@@ -463,19 +485,20 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.assertEquals(hooks.get_cell_type(), 'parent')
 
+    @patch.object(hooks, 'canonical_url')
     @patch.object(os, 'rename')
     @patch.object(os.path, 'isfile')
     @patch.object(hooks, 'CONFIGS')
     @patch.object(hooks, 'get_cell_type')
     def test_neutron_api_relation_joined(self, get_cell_type, configs, isfile,
-                                         rename):
+                                         rename, _canonical_url):
         neutron_conf = '/etc/neutron/neutron.conf'
         nova_url = 'http://novaurl:8774/v2'
         isfile.return_value = True
         self.service_running.return_value = True
         _identity_joined = self.patch('identity_joined')
         self.relation_ids.return_value = ['relid']
-        self.canonical_url.return_value = 'http://novaurl'
+        _canonical_url.return_value = 'http://novaurl'
         get_cell_type.return_value = 'parent'
         self.uuid.uuid4.return_value = 'bob'
         with patch_open() as (_open, _file):
@@ -512,11 +535,12 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(_compute_joined.called)
         self.assertTrue(_quantum_joined.called)
 
+    @patch.object(hooks, 'canonical_url')
     @patch.object(utils, 'config')
-    def test_console_settings_vnc(self, _utils_config):
+    def test_console_settings_vnc(self, _utils_config, _canonical_url):
         _utils_config.return_value = 'vnc'
         _cc_host = "nova-cc-host1"
-        self.canonical_url.return_value = 'http://' + _cc_host
+        _canonical_url.return_value = 'http://' + _cc_host
         _con_sets = hooks.console_settings()
         console_settings = {
             'console_proxy_novnc_address': 'http://%s:6080/vnc_auto.html' %
@@ -532,11 +556,12 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.assertEqual(_con_sets, console_settings)
 
+    @patch.object(hooks, 'canonical_url')
     @patch.object(utils, 'config')
-    def test_console_settings_xvpvnc(self, _utils_config):
+    def test_console_settings_xvpvnc(self, _utils_config, _canonical_url):
         _utils_config.return_value = 'xvpvnc'
         _cc_host = "nova-cc-host1"
-        self.canonical_url.return_value = 'http://' + _cc_host
+        _canonical_url.return_value = 'http://' + _cc_host
         _con_sets = hooks.console_settings()
         console_settings = {
             'console_access_protocol': 'xvpvnc',
@@ -548,11 +573,12 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.assertEqual(_con_sets, console_settings)
 
+    @patch.object(hooks, 'canonical_url')
     @patch.object(utils, 'config')
-    def test_console_settings_novnc(self, _utils_config):
+    def test_console_settings_novnc(self, _utils_config, _canonical_url):
         _utils_config.return_value = 'novnc'
         _cc_host = "nova-cc-host1"
-        self.canonical_url.return_value = 'http://' + _cc_host
+        _canonical_url.return_value = 'http://' + _cc_host
         _con_sets = hooks.console_settings()
         console_settings = {
             'console_proxy_novnc_address': 'http://%s:6080/vnc_auto.html' %
@@ -564,11 +590,12 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.assertEqual(_con_sets, console_settings)
 
+    @patch.object(hooks, 'canonical_url')
     @patch.object(utils, 'config')
-    def test_console_settings_spice(self, _utils_config):
+    def test_console_settings_spice(self, _utils_config, _canonical_url):
         _utils_config.return_value = 'spice'
         _cc_host = "nova-cc-host1"
-        self.canonical_url.return_value = 'http://' + _cc_host
+        _canonical_url.return_value = 'http://' + _cc_host
         _con_sets = hooks.console_settings()
         console_settings = {
             'console_proxy_spice_address': 'http://%s:6082/spice_auto.html' %
@@ -580,14 +607,16 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.assertEqual(_con_sets, console_settings)
 
+    @patch.object(hooks, 'canonical_url')
     @patch.object(utils, 'config')
-    def test_console_settings_explicit_ip(self, _utils_config):
+    def test_console_settings_explicit_ip(self, _utils_config,
+                                          _canonical_url):
         _utils_config.return_value = 'spice'
         _cc_public_host = "public-host"
         _cc_private_host = "private-host"
         self.test_config.set('console-proxy-ip', _cc_public_host)
         _con_sets = hooks.console_settings()
-        self.canonical_url.return_value = 'http://' + _cc_private_host
+        _canonical_url.return_value = 'http://' + _cc_private_host
         console_settings = {
             'console_proxy_spice_address': 'http://%s:6082/spice_auto.html' %
                                            (_cc_public_host),
