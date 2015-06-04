@@ -122,6 +122,8 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.config_changed()
         self.assertTrue(self.save_script_rc.called)
 
+    @patch('charmhelpers.contrib.openstack.ip.service_name',
+           lambda *args: 'nova-cloud-controller')
     @patch.object(hooks, 'cluster_joined')
     @patch.object(hooks, 'identity_joined')
     @patch.object(hooks, 'neutron_api_relation_joined')
@@ -292,6 +294,8 @@ class NovaCCHooksTests(CharmTestCase):
                                              nova_hostname='nova.foohost.com')
         self.unit_get.assert_called_with('private-address')
 
+    @patch('charmhelpers.contrib.openstack.ip.service_name',
+           lambda *args: 'nova-cloud-controller')
     @patch('charmhelpers.contrib.openstack.ip.unit_get')
     @patch('charmhelpers.contrib.openstack.ip.is_clustered')
     @patch('charmhelpers.contrib.openstack.ip.config')
