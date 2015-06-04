@@ -1,6 +1,7 @@
 from mock import MagicMock, patch, call
 from test_utils import CharmTestCase, patch_open
 import os
+import tempfile
 
 with patch('charmhelpers.core.hookenv.config') as config:
     config.return_value = 'neutron'
@@ -90,10 +91,19 @@ class NovaCCHooksTests(CharmTestCase):
 
     def setUp(self):
         super(NovaCCHooksTests, self).setUp(hooks, TO_PATCH)
+        (tmpfd, hooks.NOVA_CONSOLEAUTH_OVERRIDE) = tempfile.mkstemp()
 
         self.config.side_effect = self.test_config.get
         self.relation_get.side_effect = self.test_relation.get
         self.charm_dir.return_value = '/var/lib/juju/charms/nova/charm'
+
+    def tearDown(self):
+        try:
+            os.remove(hooks.NOVA_CONSOLEAUTH_OVERRIDE)
+        except OSError:
+            pass
+
+        super(NovaCCHooksTests, self).tearDown()
 
     def test_install_hook(self):
         self.determine_packages.return_value = [
@@ -651,7 +661,8 @@ class NovaCCHooksTests(CharmTestCase):
             'neutron-api charm.'
         )
 
-    def test_ha_relation_joined_no_bound_ip(self):
+    @patch('nova_cc_utils.config')
+    def test_ha_relation_joined_no_bound_ip(self, config):
         self.get_hacluster_config.return_value = {
             'ha-bindiface': 'em0',
             'ha-mcastport': '8080',
@@ -659,6 +670,7 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.test_config.set('vip_iface', 'eth120')
         self.test_config.set('vip_cidr', '21')
+        config.return_value = None
         self.get_iface_for_address.return_value = None
         self.get_netmask_for_address.return_value = None
         hooks.ha_joined()
@@ -672,9 +684,105 @@ class NovaCCHooksTests(CharmTestCase):
                 'res_nova_eth120_vip': 'params ip="10.10.10.10"'
                 ' cidr_netmask="21" nic="eth120"',
                 'res_nova_haproxy': 'op monitor interval="5s"'},
+            'colocations': {},
             'clones': {'cl_nova_haproxy': 'res_nova_haproxy'}
         }
         self.relation_set.assert_has_calls([
             call(groups={'grp_nova_vips': 'res_nova_eth120_vip'}),
             call(**args),
+        ])
+
+    @patch('nova_cc_utils.config')
+    def test_ha_relation_multi_consoleauth(self, config):
+        self.get_hacluster_config.return_value = {
+            'ha-bindiface': 'em0',
+            'ha-mcastport': '8080',
+            'vip': '10.10.10.10',
+        }
+        self.test_config.set('vip_iface', 'eth120')
+        self.test_config.set('vip_cidr', '21')
+        self.test_config.set('single-nova-consoleauth', False)
+        config.return_value = 'novnc'
+        self.get_iface_for_address.return_value = None
+        self.get_netmask_for_address.return_value = None
+        hooks.ha_joined()
+        args = {
+            'corosync_bindiface': 'em0',
+            'corosync_mcastport': '8080',
+            'init_services': {'res_nova_haproxy': 'haproxy'},
+            'resources': {'res_nova_eth120_vip': 'ocf:heartbeat:IPaddr2',
+                          'res_nova_haproxy': 'lsb:haproxy'},
+            'resource_params': {
+                'res_nova_eth120_vip': 'params ip="10.10.10.10"'
+                ' cidr_netmask="21" nic="eth120"',
+                'res_nova_haproxy': 'op monitor interval="5s"'},
+            'colocations': {},
+            'clones': {'cl_nova_haproxy': 'res_nova_haproxy'}
+        }
+        self.relation_set.assert_has_calls([
+            call(groups={'grp_nova_vips': 'res_nova_eth120_vip'}),
+            call(**args),
+        ])
+
+    @patch('nova_cc_utils.config')
+    def test_ha_relation_single_consoleauth(self, config):
+        self.get_hacluster_config.return_value = {
+            'ha-bindiface': 'em0',
+            'ha-mcastport': '8080',
+            'vip': '10.10.10.10',
+        }
+        self.test_config.set('vip_iface', 'eth120')
+        self.test_config.set('vip_cidr', '21')
+        config.return_value = 'novnc'
+        self.get_iface_for_address.return_value = None
+        self.get_netmask_for_address.return_value = None
+        hooks.ha_joined()
+        args = {
+            'corosync_bindiface': 'em0',
+            'corosync_mcastport': '8080',
+            'init_services': {'res_nova_haproxy': 'haproxy',
+                              'res_nova_consoleauth': 'nova-consoleauth'},
+            'resources': {'res_nova_eth120_vip': 'ocf:heartbeat:IPaddr2',
+                          'res_nova_haproxy': 'lsb:haproxy',
+                          'res_nova_consoleauth':
+                          'ocf:openstack:nova-consoleauth'},
+            'resource_params': {
+                'res_nova_eth120_vip': 'params ip="10.10.10.10"'
+                ' cidr_netmask="21" nic="eth120"',
+                'res_nova_haproxy': 'op monitor interval="5s"',
+                'res_nova_consoleauth': 'op monitor interval="5s"'},
+            'colocations': {
+                'vip_consoleauth': 'inf: res_nova_consoleauth grp_nova_vips'
+            },
+            'clones': {'cl_nova_haproxy': 'res_nova_haproxy'}
+        }
+        self.relation_set.assert_has_calls([
+            call(groups={'grp_nova_vips': 'res_nova_eth120_vip'}),
+            call(**args),
+        ])
+
+    @patch('nova_cc_hooks.configure_https')
+    @patch('nova_cc_utils.config')
+    def test_config_changed_single_consoleauth(self, config, *args):
+        config.return_value = 'novnc'
+        rids = {'ha': ['ha:1']}
+
+        def f(r):
+            return rids.get(r, [])
+
+        self.relation_ids.side_effect = f
+        hooks.config_changed()
+        args = {
+            'delete_resources': [],
+            'init_services': {'res_nova_consoleauth': 'nova-consoleauth'},
+            'resources': {'res_nova_consoleauth':
+                          'ocf:openstack:nova-consoleauth'},
+            'resource_params': {
+                'res_nova_consoleauth': 'op monitor interval="5s"'},
+            'colocations': {
+                'vip_consoleauth': 'inf: res_nova_consoleauth grp_nova_vips'
+            }
+        }
+        self.relation_set.assert_has_calls([
+            call(v, **args) for v in rids['ha']
         ])
