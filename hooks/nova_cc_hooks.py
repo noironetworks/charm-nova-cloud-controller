@@ -225,7 +225,11 @@ def conditional_neutron_migration():
         log('Not running neutron database migration as migrations are by '
             'the neutron-api charm.')
     else:
-        migrate_neutron_database()
+        if not config('quantum-plugin') == 'vsp':
+            migrate_neutron_database()
+            log('Running database migration')
+        log('Not running neutron database migration as migrations are handled '
+            'by the neutron-api charm in case of VSP(juno).')
         # neutron-api service may have appeared while the migration was
         # running so prod it just in case
         [neutron_api_relation_joined(rid=rid, remote_restart=True)
