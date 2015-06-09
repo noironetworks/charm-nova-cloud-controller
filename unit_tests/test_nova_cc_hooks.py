@@ -60,7 +60,7 @@ TO_PATCH = [
     'volume_service',
     'unit_get',
     'uuid',
-    'eligible_leader',
+    'is_elected_leader',
     'keystone_ca_cert_b64',
     'neutron_plugin',
     'migrate_nova_database',
@@ -204,7 +204,7 @@ class NovaCCHooksTests(CharmTestCase):
         _util_config.return_value = None
         self.is_relation_made.return_value = False
         self.network_manager.return_value = 'neutron'
-        self.eligible_leader = True
+        self.is_elected_leader = True
         self.keystone_ca_cert_b64.return_value = 'foocert64'
         self.volume_service.return_value = 'cinder'
         self.unit_get.return_value = 'nova-cc-host1'
@@ -242,7 +242,7 @@ class NovaCCHooksTests(CharmTestCase):
         napi.return_value = mock_NeutronAPIContext
         self.is_relation_made.return_value = True
         self.network_manager.return_value = 'neutron'
-        self.eligible_leader = True
+        self.is_elected_leader = True
         self.keystone_ca_cert_b64.return_value = 'foocert64'
         self.volume_service.return_value = 'cinder'
         self.unit_get.return_value = 'nova-cc-host1'

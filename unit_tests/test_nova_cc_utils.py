@@ -20,7 +20,7 @@ TO_PATCH = [
     'config',
     'configure_installation_source',
     'disable_policy_rcd',
-    'eligible_leader',
+    'is_elected_leader',
     'enable_policy_rcd',
     'enable_services',
     'get_os_codename_install_source',
@@ -623,7 +623,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.get_os_codename_install_source.side_effect = [
             'havana',
             'icehouse']
-        self.eligible_leader.return_value = True
+        self.is_elected_leader.return_value = True
         self.relation_ids.return_value = []
         utils.do_openstack_upgrade()
         expected = [call(['stamp', 'grizzly']), call(['upgrade', 'head']),
@@ -649,7 +649,7 @@ class NovaCCUtilsTests(CharmTestCase):
         get_step_upgrade_source.return_value = None
         self.os_release.return_value = 'havana'
         self.get_os_codename_install_source.return_value = 'icehouse'
-        self.eligible_leader.return_value = True
+        self.is_elected_leader.return_value = True
         self.relation_ids.return_value = []
         utils.do_openstack_upgrade()
         self.neutron_db_manage.assert_called_with(['upgrade', 'head'])
@@ -672,7 +672,7 @@ class NovaCCUtilsTests(CharmTestCase):
         get_step_upgrade_source.return_value = None
         self.os_release.return_value = 'icehouse'
         self.get_os_codename_install_source.return_value = 'juno'
-        self.eligible_leader.return_value = True
+        self.is_elected_leader.return_value = True
         self.relation_ids.return_value = []
         utils.do_openstack_upgrade()
         neutron_db_calls = [call(['stamp', 'icehouse']),
@@ -698,7 +698,7 @@ class NovaCCUtilsTests(CharmTestCase):
         get_step_upgrade_source.return_value = None
         self.os_release.return_value = 'juno'
         self.get_os_codename_install_source.return_value = 'kilo'
-        self.eligible_leader.return_value = True
+        self.is_elected_leader.return_value = True
         self.relation_ids.return_value = []
         utils.do_openstack_upgrade()
         self.assertEquals(self.neutron_db_manage.call_count, 0)
