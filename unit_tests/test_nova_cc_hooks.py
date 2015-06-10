@@ -790,6 +790,7 @@ class NovaCCHooksTests(CharmTestCase):
     @patch('nova_cc_hooks.configure_https')
     @patch('nova_cc_utils.config')
     def test_config_changed_single_consoleauth(self, config, *args):
+        self.git_install_requested.return_value = False
         config.return_value = 'novnc'
         rids = {'ha': ['ha:1']}
 
