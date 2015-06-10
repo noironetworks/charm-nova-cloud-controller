@@ -342,3 +342,14 @@ options:
     description: |
       A comma-separated list of nagios servicegroups.
       If left empty, the nagios_context will be used as the servicegroup
+  single-nova-consoleauth:
+    type: boolean
+    default: true
+    description: |
+      When this configuration is set to True, a single instance of
+      nova-consoleauth service will be running, this allows users to always
+      authenticate against the same instance and avoid authentications issues
+      when the token used was stored in a different instance.
+      
+      If memcached is being used to store the tokens, then it's recommended to
+      change this configuration to False.
