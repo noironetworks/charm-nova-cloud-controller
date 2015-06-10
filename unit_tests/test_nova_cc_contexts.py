@@ -90,11 +90,13 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual({'memcached_servers': "%s:11211" % (formated_ip, )},
                          instance_console())
 
+    @mock.patch('charmhelpers.contrib.openstack.neutron.os_release')
     @mock.patch.object(context, 'use_local_neutron_api')
     @mock.patch('charmhelpers.contrib.openstack.ip.config')
     @mock.patch('charmhelpers.contrib.openstack.ip.is_clustered')
     def test_neutron_context_single_vip(self, mock_is_clustered, mock_config,
-                                        mock_use_local_neutron_api):
+                                        mock_use_local_neutron_api,
+                                        _os_release):
         mock_use_local_neutron_api.return_value = True
         self.https.return_value = False
         mock_is_clustered.return_value = True
@@ -102,7 +104,7 @@ class NovaComputeContextTests(CharmTestCase):
                   'os-internal-network': '10.0.0.1/24',
                   'os-admin-network': '10.0.1.0/24',
                   'os-public-network': '10.0.2.0/24'}
-        mock_config.side_effect = lambda key: config[key]
+        mock_config.side_effect = lambda key: config.get(key)
 
         mock_use_local_neutron_api.return_value = False
         ctxt = context.NeutronCCContext()()
@@ -114,18 +116,20 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual(ctxt['nova_url'], 'http://10.0.0.1:8774/v2')
         self.assertEqual(ctxt['neutron_url'], 'http://10.0.0.1:9696')
 
+    @mock.patch('charmhelpers.contrib.openstack.neutron.os_release')
     @mock.patch.object(context, 'use_local_neutron_api')
     @mock.patch('charmhelpers.contrib.openstack.ip.config')
     @mock.patch('charmhelpers.contrib.openstack.ip.is_clustered')
     def test_neutron_context_multi_vip(self, mock_is_clustered, mock_config,
-                                       mock_use_local_neutron_api):
+                                       mock_use_local_neutron_api,
+                                       _os_release):
         self.https.return_value = False
         mock_is_clustered.return_value = True
         config = {'vip': '10.0.0.1 10.0.1.1 10.0.2.1',
                   'os-internal-network': '10.0.1.0/24',
                   'os-admin-network': '10.0.0.0/24',
                   'os-public-network': '10.0.2.0/24'}
-        mock_config.side_effect = lambda key: config[key]
+        mock_config.side_effect = lambda key: config.get(key)
 
         mock_use_local_neutron_api.return_value = False
         ctxt = context.NeutronCCContext()()
