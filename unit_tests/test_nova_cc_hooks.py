@@ -1,6 +1,7 @@
 from mock import MagicMock, patch, call
 from test_utils import CharmTestCase, patch_open
 import os
+import yaml
 import tempfile
 
 with patch('charmhelpers.core.hookenv.config') as config:
@@ -70,6 +71,8 @@ TO_PATCH = [
     'get_iface_for_address',
     'get_netmask_for_address',
     'update_nrpe_config',
+    'git_install',
+    'git_install_requested',
 ]
 
 
@@ -116,11 +119,62 @@ class NovaCCHooksTests(CharmTestCase):
         self.disable_services.assert_called()
         self.cmd_all_services.assert_called_with('stop')
 
+    def test_install_hook_git(self):
+        self.git_install_requested.return_value = True
+        self.determine_packages.return_value = ['foo', 'bar']
+        self.determine_ports.return_value = [80, 81, 82]
+        repo = 'cloud:trusty-juno'
+        openstack_origin_git = {
+            'repositories': [
+                {'name': 'requirements',
+                 'repository': 'git://git.openstack.org/openstack/requirements',  # noqa
+                 'branch': 'stable/juno'},
+                {'name': 'nova',
+                 'repository': 'git://git.openstack.org/openstack/nova',
+                 'branch': 'stable/juno'}
+            ],
+            'directory': '/mnt/openstack-git',
+        }
+        projects_yaml = yaml.dump(openstack_origin_git)
+        self.test_config.set('openstack-origin', repo)
+        self.test_config.set('openstack-origin-git', projects_yaml)
+        hooks.install()
+        self.git_install.assert_called_with(projects_yaml)
+        self.apt_install.assert_called_with(['foo', 'bar'], fatal=True)
+        self.execd_preinstall.assert_called()
+        self.disable_services.assert_called()
+        self.cmd_all_services.assert_called_with('stop')
+
     @patch.object(hooks, 'configure_https')
     def test_config_changed_no_upgrade(self, conf_https):
+        self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = False
         hooks.config_changed()
         self.assertTrue(self.save_script_rc.called)
+
+    @patch.object(hooks, 'config_value_changed')
+    @patch.object(hooks, 'configure_https')
+    def test_config_changed_git(self, configure_https, config_val_changed):
+        self.git_install_requested.return_value = True
+        repo = 'cloud:trusty-juno'
+        openstack_origin_git = {
+            'repositories': [
+                {'name': 'requirements',
+                 'repository':
+                 'git://git.openstack.org/openstack/requirements',
+                 'branch': 'stable/juno'},
+                {'name': 'nova',
+                 'repository': 'git://git.openstack.org/openstack/nova',
+                 'branch': 'stable/juno'}
+            ],
+            'directory': '/mnt/openstack-git',
+        }
+        projects_yaml = yaml.dump(openstack_origin_git)
+        self.test_config.set('openstack-origin', repo)
+        self.test_config.set('openstack-origin-git', projects_yaml)
+        hooks.config_changed()
+        self.git_install.assert_called_with(projects_yaml)
+        self.assertFalse(self.do_openstack_upgrade.called)
 
     @patch('charmhelpers.contrib.openstack.ip.service_name',
            lambda *args: 'nova-cloud-controller')
@@ -130,6 +184,7 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'configure_https')
     def test_config_changed_with_upgrade(self, conf_https, neutron_api_joined,
                                          identity_joined, cluster_joined):
+        self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = True
         self.relation_ids.return_value = ['generic_rid']
         _zmq_joined = self.patch('zeromq_configuration_relation_joined')
@@ -768,6 +823,7 @@ class NovaCCHooksTests(CharmTestCase):
     @patch('nova_cc_hooks.configure_https')
     @patch('nova_cc_utils.config')
     def test_config_changed_single_consoleauth(self, config, *args):
+        self.git_install_requested.return_value = False
         config.return_value = 'novnc'
         rids = {'ha': ['ha:1']}
 
