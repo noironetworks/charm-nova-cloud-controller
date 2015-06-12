@@ -190,9 +190,14 @@ def config_changed():
     if console_attributes('protocol'):
         if not git_install_requested():
             apt_update()
-            apt_install(console_attributes('packages'), fatal=True)
+            packages = console_attributes('packages') or []
+            filtered = filter_installed_packages(packages)
+            if filtered:
+                apt_install(filtered, fatal=True)
+
         [compute_joined(rid=rid)
             for rid in relation_ids('cloud-compute')]
+
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
     for rid in relation_ids('zeromq-configuration'):

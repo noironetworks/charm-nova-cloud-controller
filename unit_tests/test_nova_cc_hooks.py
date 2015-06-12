@@ -145,12 +145,14 @@ class NovaCCHooksTests(CharmTestCase):
         self.disable_services.assert_called()
         self.cmd_all_services.assert_called_with('stop')
 
+    @patch.object(hooks, 'filter_installed_packages')
     @patch.object(hooks, 'configure_https')
-    def test_config_changed_no_upgrade(self, conf_https):
+    def test_config_changed_no_upgrade(self, conf_https, mock_filter_packages):
         self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = False
         hooks.config_changed()
         self.assertTrue(self.save_script_rc.called)
+        mock_filter_packages.assert_called_with([])
 
     @patch.object(hooks, 'config_value_changed')
     @patch.object(hooks, 'configure_https')
@@ -176,6 +178,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.git_install.assert_called_with(projects_yaml)
         self.assertFalse(self.do_openstack_upgrade.called)
 
+    @patch.object(hooks, 'filter_installed_packages')
     @patch('charmhelpers.contrib.openstack.ip.service_name',
            lambda *args: 'nova-cloud-controller')
     @patch.object(hooks, 'cluster_joined')
@@ -183,7 +186,8 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'neutron_api_relation_joined')
     @patch.object(hooks, 'configure_https')
     def test_config_changed_with_upgrade(self, conf_https, neutron_api_joined,
-                                         identity_joined, cluster_joined):
+                                         identity_joined, cluster_joined,
+                                         mock_filter_packages):
         self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = True
         self.relation_ids.return_value = ['generic_rid']
@@ -195,6 +199,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(_zmq_joined.called)
         self.assertTrue(cluster_joined.called)
         self.assertTrue(self.save_script_rc.called)
+        mock_filter_packages.assert_called_with([])
 
     def test_compute_changed_ssh_migration(self):
         self.test_relation.set({
@@ -820,9 +825,12 @@ class NovaCCHooksTests(CharmTestCase):
             call(**args),
         ])
 
+    @patch.object(hooks, 'filter_installed_packages')
     @patch('nova_cc_hooks.configure_https')
     @patch('nova_cc_utils.config')
-    def test_config_changed_single_consoleauth(self, config, *args):
+    def test_config_changed_single_consoleauth(self, mock_config,
+                                               mock_configure_https,
+                                               mock_filter_packages):
         self.git_install_requested.return_value = False
         config.return_value = 'novnc'
         rids = {'ha': ['ha:1']}
@@ -846,3 +854,5 @@ class NovaCCHooksTests(CharmTestCase):
         self.relation_set.assert_has_calls([
             call(v, **args) for v in rids['ha']
         ])
+
+        mock_filter_packages.assert_called_with([])
