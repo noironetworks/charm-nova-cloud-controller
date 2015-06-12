@@ -43,7 +43,9 @@ from charmhelpers.fetch import (
 )
 
 from charmhelpers.contrib.openstack.utils import (
+    config_value_changed,
     configure_installation_source,
+    git_install_requested,
     openstack_upgrade_available,
     os_release,
     os_requires_version,
@@ -75,6 +77,7 @@ from nova_cc_utils import (
     disable_services,
     do_openstack_upgrade,
     enable_services,
+    git_install,
     keystone_ca_cert_b64,
     migrate_neutron_database,
     migrate_nova_database,
@@ -142,8 +145,11 @@ NOVA_CONSOLEAUTH_OVERRIDE = '/etc/init/nova-consoleauth.override'
 def install():
     execd_preinstall()
     configure_installation_source(config('openstack-origin'))
+
     apt_update()
     apt_install(determine_packages(), fatal=True)
+
+    git_install(config('openstack-origin-git'))
 
     _files = os.path.join(charm_dir(), 'files')
     if os.path.isdir(_files):
@@ -170,16 +176,21 @@ def config_changed():
                                           relation_prefix='nova')
 
     global CONFIGS
-    if openstack_upgrade_available('nova-common'):
-        CONFIGS = do_openstack_upgrade()
-        [neutron_api_relation_joined(rid=rid, remote_restart=True)
-            for rid in relation_ids('neutron-api')]
+    if git_install_requested():
+        if config_value_changed('openstack-origin-git'):
+            git_install(config('openstack-origin-git'))
+    else:
+        if openstack_upgrade_available('nova-common'):
+            CONFIGS = do_openstack_upgrade()
+            [neutron_api_relation_joined(rid=rid, remote_restart=True)
+                for rid in relation_ids('neutron-api')]
     save_script_rc()
     configure_https()
     CONFIGS.write_all()
     if console_attributes('protocol'):
-        apt_update()
-        apt_install(console_attributes('packages'), fatal=True)
+        if not git_install_requested():
+            apt_update()
+            apt_install(console_attributes('packages'), fatal=True)
         [compute_joined(rid=rid)
             for rid in relation_ids('cloud-compute')]
     for r_id in relation_ids('identity-service'):

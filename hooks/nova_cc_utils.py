@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import ConfigParser
 
@@ -14,11 +15,20 @@ from charmhelpers.contrib.hahelpers.cluster import is_elected_leader
 
 from charmhelpers.contrib.peerstorage import peer_store
 
+from charmhelpers.contrib.python.packages import (
+    pip_install,
+)
+
 from charmhelpers.contrib.openstack.utils import (
     configure_installation_source,
     get_host_ip,
     get_hostname,
     get_os_codename_install_source,
+    git_install_requested,
+    git_clone_and_install,
+    git_src_dir,
+    git_pip_venv_dir,
+    git_yaml_value,
     is_ip,
     os_release,
     save_script_rc as _save_script_rc)
@@ -31,6 +41,7 @@ from charmhelpers.fetch import (
 )
 
 from charmhelpers.core.hookenv import (
+    charm_dir,
     config,
     log,
     relation_get,
@@ -42,12 +53,18 @@ from charmhelpers.core.hookenv import (
 )
 
 from charmhelpers.core.host import (
+    adduser,
+    add_group,
+    add_user_to_group,
+    mkdir,
     service,
     service_start,
     service_stop,
     service_running,
-    lsb_release
+    lsb_release,
 )
+
+from charmhelpers.core.templating import render
 
 from charmhelpers.contrib.network.ip import (
     is_ipv6
@@ -74,6 +91,46 @@ BASE_PACKAGES = [
     'python-six',
     'uuid',
     'python-memcache',
+]
+
+BASE_GIT_PACKAGES = [
+    'libffi-dev',
+    'libmysqlclient-dev',
+    'libssl-dev',
+    'libxml2-dev',
+    'libxslt1-dev',
+    'libyaml-dev',
+    'python-dev',
+    'python-pip',
+    'python-setuptools',
+    'zlib1g-dev',
+]
+
+LATE_GIT_PACKAGES = [
+    'novnc',
+    'spice-html5',
+    'websockify',
+]
+
+# ubuntu packages that should not be installed when deploying from git
+GIT_PACKAGE_BLACKLIST = [
+    'neutron-common',
+    'neutron-server',
+    'neutron-plugin-ml2',
+    'nova-api-ec2',
+    'nova-api-os-compute',
+    'nova-api-os-volume',
+    'nova-cert',
+    'nova-conductor',
+    'nova-consoleauth',
+    'nova-novncproxy',
+    'nova-objectstore',
+    'nova-scheduler',
+    'nova-spiceproxy',
+    'nova-xvpvncproxy',
+    'python-keystoneclient',
+    'python-six',
+    'quantum-server',
 ]
 
 BASE_SERVICES = [
@@ -381,6 +438,15 @@ def determine_packages():
         packages.extend(pkgs)
     if console_attributes('packages'):
         packages.extend(console_attributes('packages'))
+
+    if git_install_requested():
+        packages = list(set(packages))
+        packages.extend(BASE_GIT_PACKAGES)
+        # don't include packages that will be installed from git
+        for p in GIT_PACKAGE_BLACKLIST:
+            if p in packages:
+                packages.remove(p)
+
     return list(set(packages))
 
 
@@ -454,8 +520,8 @@ def disable_policy_rcd():
     os.unlink('/usr/sbin/policy-rc.d')
 
 
-QUANTUM_DB_MANAGE = "/usr/bin/quantum-db-manage"
-NEUTRON_DB_MANAGE = "/usr/bin/neutron-db-manage"
+QUANTUM_DB_MANAGE = "quantum-db-manage"
+NEUTRON_DB_MANAGE = "neutron-db-manage"
 
 
 def reset_os_release():
@@ -985,3 +1051,257 @@ def setup_ipv6():
                    ' main')
         apt_update()
         apt_install('haproxy/trusty-backports', fatal=True)
+
+
+def git_install(projects_yaml):
+    """Perform setup, and install git repos specified in yaml parameter."""
+    if git_install_requested():
+        git_pre_install()
+        git_clone_and_install(projects_yaml, core_project='nova')
+        git_post_install(projects_yaml)
+
+
+def git_pre_install():
+    """Perform pre-install setup."""
+    dirs = [
+        '/var/lib/nova',
+        '/var/lib/nova/buckets',
+        '/var/lib/nova/CA',
+        '/var/lib/nova/CA/INTER',
+        '/var/lib/nova/CA/newcerts',
+        '/var/lib/nova/CA/private',
+        '/var/lib/nova/CA/reqs',
+        '/var/lib/nova/images',
+        '/var/lib/nova/instances',
+        '/var/lib/nova/keys',
+        '/var/lib/nova/networks',
+        '/var/lib/nova/tmp',
+        '/var/lib/neutron',
+        '/var/lib/neutron/lock',
+        '/var/log/nova',
+        '/etc/neutron',
+        '/etc/neutron/plugins',
+        '/etc/neutron/plugins/ml2',
+    ]
+
+    adduser('nova', shell='/bin/bash', system_user=True)
+    subprocess.check_call(['usermod', '--home', '/var/lib/nova', 'nova'])
+    add_group('nova', system_group=True)
+    add_user_to_group('nova', 'nova')
+
+    adduser('neutron', shell='/bin/bash', system_user=True)
+    add_group('neutron', system_group=True)
+    add_user_to_group('neutron', 'neutron')
+
+    for d in dirs:
+        mkdir(d, owner='nova', group='nova', perms=0755, force=False)
+
+
+def git_post_install(projects_yaml):
+    """Perform post-install setup."""
+    http_proxy = git_yaml_value(projects_yaml, 'http_proxy')
+    if http_proxy:
+        pip_install('mysql-python', proxy=http_proxy,
+                    venv=git_pip_venv_dir(projects_yaml))
+    else:
+        pip_install('mysql-python',
+                    venv=git_pip_venv_dir(projects_yaml))
+
+    src_etc = os.path.join(git_src_dir(projects_yaml, 'nova'), 'etc/nova')
+    configs = [
+        {'src': src_etc,
+         'dest': '/etc/nova'},
+    ]
+
+    for c in configs:
+        if os.path.exists(c['dest']):
+            shutil.rmtree(c['dest'])
+        shutil.copytree(c['src'], c['dest'])
+
+    # NOTE(coreycb): Need to find better solution than bin symlinks.
+    symlinks = [
+        {'src': os.path.join(git_pip_venv_dir(projects_yaml),
+                             'bin/nova-manage'),
+         'link': '/usr/local/bin/nova-manage'},
+        {'src': os.path.join(git_pip_venv_dir(projects_yaml),
+                             'bin/nova-rootwrap'),
+         'link': '/usr/local/bin/nova-rootwrap'},
+    ]
+
+    for s in symlinks:
+        if os.path.lexists(s['link']):
+            os.remove(s['link'])
+        os.symlink(s['src'], s['link'])
+
+    render('git/nova_sudoers', '/etc/sudoers.d/nova_sudoers', {}, perms=0o440)
+
+    nova_cc = 'nova-cloud-controller'
+    nova_user = 'nova'
+    start_dir = '/var/lib/nova'
+    bin_dir = os.path.join(git_pip_venv_dir(projects_yaml), 'bin')
+    nova_conf = '/etc/nova/nova.conf'
+    nova_ec2_api_context = {
+        'service_description': 'Nova EC2 API server',
+        'service_name': nova_cc,
+        'user_name': nova_user,
+        'start_dir': start_dir,
+        'process_name': 'nova-api-ec2',
+        'executable_name': os.path.join(bin_dir, 'nova-api-ec2'),
+        'config_files': [nova_conf],
+    }
+    nova_api_os_compute_context = {
+        'service_description': 'Nova OpenStack Compute API server',
+        'service_name': nova_cc,
+        'user_name': nova_user,
+        'start_dir': start_dir,
+        'process_name': 'nova-api-os-compute',
+        'executable_name': os.path.join(bin_dir, 'nova-api-os-compute'),
+        'config_files': [nova_conf],
+    }
+    nova_cells_context = {
+        'service_description': 'Nova cells',
+        'service_name': nova_cc,
+        'user_name': nova_user,
+        'start_dir': start_dir,
+        'process_name': 'nova-cells',
+        'executable_name': os.path.join(bin_dir, 'nova-cells'),
+        'config_files': [nova_conf],
+    }
+    nova_cert_context = {
+        'service_description': 'Nova cert',
+        'service_name': nova_cc,
+        'user_name': nova_user,
+        'start_dir': start_dir,
+        'process_name': 'nova-cert',
+        'executable_name': os.path.join(bin_dir, 'nova-cert'),
+        'config_files': [nova_conf],
+    }
+    nova_conductor_context = {
+        'service_description': 'Nova conductor',
+        'service_name': nova_cc,
+        'user_name': nova_user,
+        'start_dir': start_dir,
+        'process_name': 'nova-conductor',
+        'executable_name': os.path.join(bin_dir, 'nova-conductor'),
+        'config_files': [nova_conf],
+    }
+    nova_consoleauth_context = {
+        'service_description': 'Nova console auth',
+        'service_name': nova_cc,
+        'user_name': nova_user,
+        'start_dir': start_dir,
+        'process_name': 'nova-consoleauth',
+        'executable_name': os.path.join(bin_dir, 'nova-consoleauth'),
+        'config_files': [nova_conf],
+    }
+    nova_console_context = {
+        'service_description': 'Nova console',
+        'service_name': nova_cc,
+        'user_name': nova_user,
+        'start_dir': start_dir,
+        'process_name': 'nova-console',
+        'executable_name': os.path.join(bin_dir, 'nova-console'),
+        'config_files': [nova_conf],
+    }
+    nova_novncproxy_context = {
+        'service_description': 'Nova NoVNC proxy',
+        'service_name': nova_cc,
+        'user_name': nova_user,
+        'start_dir': start_dir,
+        'process_name': 'nova-novncproxy',
+        'executable_name': os.path.join(bin_dir, 'nova-novncproxy'),
+        'config_files': [nova_conf],
+    }
+    nova_objectstore_context = {
+        'service_description': 'Nova object store',
+        'service_name': nova_cc,
+        'user_name': nova_user,
+        'start_dir': start_dir,
+        'process_name': 'nova-objectstore',
+        'executable_name': os.path.join(bin_dir, 'nova-objectstore'),
+        'config_files': [nova_conf],
+    }
+    nova_scheduler_context = {
+        'service_description': 'Nova scheduler',
+        'service_name': nova_cc,
+        'user_name': nova_user,
+        'start_dir': start_dir,
+        'process_name': 'nova-scheduler',
+        'executable_name': os.path.join(bin_dir, 'nova-scheduler'),
+        'config_files': [nova_conf],
+    }
+    nova_serialproxy_context = {
+        'service_description': 'Nova serial proxy',
+        'service_name': nova_cc,
+        'user_name': nova_user,
+        'start_dir': start_dir,
+        'process_name': 'nova-serialproxy',
+        'executable_name': os.path.join(bin_dir, 'nova-serialproxy'),
+        'config_files': [nova_conf],
+    }
+    nova_spiceproxy_context = {
+        'service_description': 'Nova spice proxy',
+        'service_name': nova_cc,
+        'user_name': nova_user,
+        'start_dir': start_dir,
+        'process_name': 'nova-spicehtml5proxy',
+        'executable_name': os.path.join(bin_dir, 'nova-spicehtml5proxy'),
+        'config_files': [nova_conf],
+    }
+    nova_xvpvncproxy_context = {
+        'service_description': 'Nova XVPVNC proxy',
+        'service_name': nova_cc,
+        'user_name': nova_user,
+        'start_dir': start_dir,
+        'process_name': 'nova-xvpvncproxy',
+        'executable_name': os.path.join(bin_dir, 'nova-xvpvncproxy'),
+        'config_files': [nova_conf],
+    }
+
+    # NOTE(coreycb): Needs systemd support
+    templates_dir = 'hooks/charmhelpers/contrib/openstack/templates'
+    templates_dir = os.path.join(charm_dir(), templates_dir)
+    os_rel = os_release('nova-common')
+    render('git.upstart', '/etc/init/nova-api-ec2.conf',
+           nova_ec2_api_context, perms=0o644,
+           templates_dir=templates_dir)
+    render('git.upstart', '/etc/init/nova-api-os-compute.conf',
+           nova_api_os_compute_context, perms=0o644,
+           templates_dir=templates_dir)
+    render('git.upstart', '/etc/init/nova-cells.conf',
+           nova_cells_context, perms=0o644,
+           templates_dir=templates_dir)
+    render('git.upstart', '/etc/init/nova-cert.conf',
+           nova_cert_context, perms=0o644,
+           templates_dir=templates_dir)
+    render('git.upstart', '/etc/init/nova-conductor.conf',
+           nova_conductor_context, perms=0o644,
+           templates_dir=templates_dir)
+    render('git.upstart', '/etc/init/nova-consoleauth.conf',
+           nova_consoleauth_context, perms=0o644,
+           templates_dir=templates_dir)
+    render('git.upstart', '/etc/init/nova-console.conf',
+           nova_console_context, perms=0o644,
+           templates_dir=templates_dir)
+    render('git.upstart', '/etc/init/nova-novncproxy.conf',
+           nova_novncproxy_context, perms=0o644,
+           templates_dir=templates_dir)
+    render('git.upstart', '/etc/init/nova-objectstore.conf',
+           nova_objectstore_context, perms=0o644,
+           templates_dir=templates_dir)
+    render('git.upstart', '/etc/init/nova-scheduler.conf',
+           nova_scheduler_context, perms=0o644,
+           templates_dir=templates_dir)
+    if os_rel >= 'juno':
+        render('git.upstart', '/etc/init/nova-serialproxy.conf',
+               nova_serialproxy_context, perms=0o644,
+               templates_dir=templates_dir)
+    render('git.upstart', '/etc/init/nova-spiceproxy.conf',
+           nova_spiceproxy_context, perms=0o644,
+           templates_dir=templates_dir)
+    render('git.upstart', '/etc/init/nova-xvpvncproxy.conf',
+           nova_xvpvncproxy_context, perms=0o644,
+           templates_dir=templates_dir)
+
+    apt_update()
+    apt_install(LATE_GIT_PACKAGES, fatal=True)
