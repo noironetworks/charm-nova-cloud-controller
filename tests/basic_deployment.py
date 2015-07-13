@@ -68,13 +68,21 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         """Configure all of the services."""
         nova_cc_config = {}
         if self.git:
-            branch = 'stable/' + self._get_openstack_release_string()
             amulet_http_proxy = os.environ.get('AMULET_HTTP_PROXY')
+
             if self._get_openstack_release() == self.trusty_icehouse:
                 reqs_repo = 'git://github.com/coreycb/requirements'
-            else:   
+            else:
                 reqs_repo = 'git://github.com/openstack/requirements'
             nova_repo = 'git://github.com/openstack/nova'
+
+            release = self._get_openstack_release_string()
+            reqs_branch = 'stable/' + release
+            if self._get_openstack_release() == self.trusty_icehouse:
+                nova_branch = release + '-eol'
+            else:
+                nova_branch = 'stable/' + release
+
             openstack_origin_git = {
                 'repositories': [
                     {'name': 'requirements',
