@@ -544,7 +544,6 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             expected[d]['lock_path'] = '/var/lock/nova'
             expected[d]['libvirt_use_virtio_for_bridges'] = 'True'
             expected[d]['compute_driver'] = 'libvirt.LibvirtDriver'
-            expected[d]['sql_connection'] = db_uri
             expected[d]['rabbit_userid'] = 'nova'
             expected[d]['rabbit_virtual_host'] = 'openstack'
             expected[d]['rabbit_password'] = rabbitmq_relation['password']
