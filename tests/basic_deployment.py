@@ -68,21 +68,24 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         """Configure all of the services."""
         nova_cc_config = {}
         if self.git:
-            release = self._get_openstack_release_string()
-            reqs_branch = 'stable/' + release
-            if self._get_openstack_release() == self.trusty_icehouse:
-                nova_branch = release + '-eol'
-            else:
-                nova_branch = 'stable/' + release
             amulet_http_proxy = os.environ.get('AMULET_HTTP_PROXY')
+
+            reqs_repo = 'git://github.com/openstack/requirements'
+            nova_repo = 'git://github.com/openstack/nova'
+            if self._get_openstack_release() == self.trusty_icehouse:
+                reqs_repo = 'git://github.com/coreycb/requirements'
+                nova_repo = 'git://github.com/coreycb/nova'
+
+            branch = 'stable/' + self._get_openstack_release_string()
+
             openstack_origin_git = {
                 'repositories': [
                     {'name': 'requirements',
-                     'repository': 'git://github.com/openstack/requirements',
-                     'branch': reqs_branch},
+                     'repository': reqs_repo,
+                     'branch': branch},
                     {'name': 'nova',
-                     'repository': 'git://github.com/openstack/nova',
-                     'branch': nova_branch},
+                     'repository': nova_repo,
+                     'branch': branch},
                 ],
                 'directory': '/mnt/openstack-git',
                 'http_proxy': amulet_http_proxy,
@@ -177,8 +180,11 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         if self._get_openstack_release() >= self.precise_folsom:
             endpoint_vol['id'] = u.not_null
             endpoint_id['id'] = u.not_null
-        expected = {'s3': [endpoint_vol], 'compute': [endpoint_vol],
-                    'ec2': [endpoint_vol], 'identity': [endpoint_id]}
+        if self._get_openstack_release() >= self.trusty_kilo:
+            expected = {'compute': [endpoint_vol], 'identity': [endpoint_id]}
+        else:
+            expected = {'s3': [endpoint_vol], 'compute': [endpoint_vol],
+                        'ec2': [endpoint_vol], 'identity': [endpoint_id]}
         actual = self.keystone_demo.service_catalog.get_endpoints()
 
         ret = u.validate_svc_catalog_endpoint_data(expected, actual)
@@ -204,6 +210,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
 
     def test_ec2_api_endpoint(self):
         """Verify the EC2 api endpoint data."""
+        if self._get_openstack_release() >= self.trusty_kilo:
+            return
+
         endpoints = self.keystone.endpoints.list()
         admin_port = internal_port = public_port = '8773'
         expected = {'id': u.not_null,
@@ -221,6 +230,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
 
     def test_s3_api_endpoint(self):
         """Verify the S3 api endpoint data."""
+        if self._get_openstack_release() >= self.trusty_kilo:
+            return
+
         endpoints = self.keystone.endpoints.list()
         admin_port = internal_port = public_port = '3333'
         expected = {'id': u.not_null,
@@ -274,21 +286,22 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         expected = {
             'nova_internal_url': u.valid_url,
             'nova_public_url': u.valid_url,
-            's3_public_url': u.valid_url,
-            's3_service': 's3',
-            'ec2_admin_url': u.valid_url,
-            'ec2_internal_url': u.valid_url,
             'nova_service': 'nova',
-            's3_region': 'RegionOne',
             'private-address': u.valid_ip,
             'nova_region': 'RegionOne',
-            'ec2_public_url': u.valid_url,
-            'ec2_region': 'RegionOne',
-            's3_internal_url': u.valid_url,
-            's3_admin_url': u.valid_url,
             'nova_admin_url': u.valid_url,
-            'ec2_service': 'ec2'
         }
+        if self._get_openstack_release() < self.trusty_kilo:
+            expected['s3_admin_url'] = u.valid_url
+            expected['s3_internal_url'] = u.valid_url
+            expected['s3_public_url'] = u.valid_url
+            expected['s3_region'] = 'RegionOne'
+            expected['s3_service'] = 's3'
+            expected['ec2_admin_url'] = u.valid_url
+            expected['ec2_internal_url'] = u.valid_url
+            expected['ec2_public_url'] = u.valid_url
+            expected['ec2_region'] = 'RegionOne'
+            expected['ec2_service'] = 'ec2'
 
         ret = u.validate_relation_data(unit, relation, expected)
         if ret:
@@ -314,6 +327,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             'service_tenant_id': u.not_null,
             'service_host': u.valid_ip
         }
+        if self._get_openstack_release() >= self.trusty_kilo:
+            expected['service_username'] = 'nova'
 
         ret = u.validate_relation_data(unit, relation, expected)
         if ret:
@@ -462,58 +477,14 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                                                       endpoint_type='publicURL')
         keystone_ec2 = "{}/ec2tokens".format(keystone_ep)
 
-        expected = {'dhcpbridge_flagfile': '/etc/nova/nova.conf',
-                    'dhcpbridge': '/usr/bin/nova-dhcpbridge',
-                    'logdir': '/var/log/nova',
-                    'state_path': '/var/lib/nova',
-                    'lock_path': '/var/lock/nova',
-                    'force_dhcp_release': 'True',
-                    'iscsi_helper': 'tgtadm',
-                    'libvirt_use_virtio_for_bridges': 'True',
-                    'connection_type': 'libvirt',
-                    'root_helper': 'sudo nova-rootwrap /etc/nova/rootwrap.conf',
-                    'verbose': 'False',
-                    'debug': 'False',
-                    'ec2_private_dns_show_ip': 'True',
-                    'api_paste_config': '/etc/nova/api-paste.ini',
-                    'volumes_path': '/var/lib/nova/volumes',
-                    'enabled_apis': 'ec2,osapi_compute,metadata',
-                    'auth_strategy': 'keystone',
-                    'compute_driver': 'libvirt.LibvirtDriver',
-                    'keystone_ec2_url': keystone_ec2,
-                    'rabbit_userid': 'nova',
-                    'rabbit_virtual_host': 'openstack',
-                    'rabbit_password': rabbitmq_relation['password'],
-                    'rabbit_host': rabbitmq_relation['hostname'],
-                    'glance_api_servers': glance_relation['glance-api-server'],
-                    'network_manager': 'nova.network.manager.FlatDHCPManager',
-                    's3_listen_port': '3323',
-                    'osapi_compute_listen_port': '8764',
-                    'ec2_listen_port': '8763'}
+        keystone_relation = self.keystone_sentry.relation('identity-service',
+                                       'nova-cloud-controller:identity-service')
+        keystone_uri = "http://{}:{}/".format(keystone_relation['service_host'],
+                                              keystone_relation['service_port'])
+        identity_uri = "{}://{}:{}/".format(keystone_relation['auth_protocol'],
+                                            keystone_relation['service_host'],
+                                            keystone_relation['auth_port'])
 
-        # This has been moved to [database] for I and above
-        if self._get_openstack_release() < self.precise_icehouse:
-            mysql_relation = self.mysql_sentry.relation('shared-db',
-                                            'nova-cloud-controller:shared-db')
-            db_uri = "mysql://{}:{}@{}/{}".format('nova',
-                                              mysql_relation['nova_password'],
-                                              mysql_relation['db_host'],
-                                              'nova')
-            expected['sql_connection'] = db_uri
-
-        ret = u.validate_config_data(unit, conf, 'DEFAULT', expected)
-        if ret:
-            message = "nova config error: {}".format(ret)
-            amulet.raise_status(amulet.FAIL, msg=message)
-
-    def test_nova_database_config(self):
-        """Verify the data in the nova config file's database section."""
-        # NOTE(hopem): this is >= Icehouse only
-        if self._get_openstack_release() < self.precise_icehouse:
-            return
-
-        unit = self.nova_cc_sentry
-        conf = '/etc/nova/nova.conf'
         mysql_relation = self.mysql_sentry.relation('shared-db',
                                               'nova-cloud-controller:shared-db')
         db_uri = "mysql://{}:{}@{}/{}".format('nova',
@@ -521,38 +492,122 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                                               mysql_relation['db_host'],
                                               'nova')
 
-        # For >= icehouse we move away from deprecated sql_connection
-        expected = {'connection': db_uri}
+        expected = {
+            'DEFAULT': {
+                'dhcpbridge_flagfile': '/etc/nova/nova.conf',
+                'dhcpbridge': '/usr/bin/nova-dhcpbridge',
+                'logdir': '/var/log/nova',
+                'state_path': '/var/lib/nova',
+                'force_dhcp_release': 'True',
+                'iscsi_helper': 'tgtadm',
+                'libvirt_use_virtio_for_bridges': 'True',
+                'connection_type': 'libvirt',
+                'root_helper': 'sudo nova-rootwrap /etc/nova/rootwrap.conf',
+                'verbose': 'False',
+                'debug': 'False',
+                'ec2_private_dns_show_ip': 'True',
+                'api_paste_config': '/etc/nova/api-paste.ini',
+                'volumes_path': '/var/lib/nova/volumes',
+                'enabled_apis': 'ec2,osapi_compute,metadata',
+                'auth_strategy': 'keystone',
+                'compute_driver': 'libvirt.LibvirtDriver',
+                'keystone_ec2_url': keystone_ec2,
+                'network_manager': 'nova.network.manager.FlatDHCPManager',
+                's3_listen_port': '3323',
+                'osapi_compute_listen_port': '8764',
+                'ec2_listen_port': '8763'
+            }
+        }
+        if self._get_openstack_release() < self.trusty_kilo:
+            d = 'DEFAULT'
+            if self._get_openstack_release() < self.precise_icehouse:
+                expected[d]['sql_connection'] = db_uri
+            else:
+                database = {
+                    'database': {
+                        'connection': db_uri
+                    }
+                }
+                keystone_authtoken = {
+                    'keystone_authtoken': {
+                        'auth_uri': keystone_uri,
+                        'auth_host': keystone_relation['service_host'],
+                        'auth_port': keystone_relation['auth_port'],
+                        'auth_protocol': keystone_relation['auth_protocol'],
+                        'admin_tenant_name': keystone_relation['service_tenant'],
+                        'admin_user': keystone_relation['service_username'],
+                        'admin_password': keystone_relation['service_password'],
+                    }
+                }
+                expected.update(database)
+                expected.update(keystone_authtoken)
+            expected[d]['lock_path'] = '/var/lock/nova'
+            expected[d]['libvirt_use_virtio_for_bridges'] = 'True'
+            expected[d]['compute_driver'] = 'libvirt.LibvirtDriver'
+            expected[d]['rabbit_userid'] = 'nova'
+            expected[d]['rabbit_virtual_host'] = 'openstack'
+            expected[d]['rabbit_password'] = rabbitmq_relation['password']
+            expected[d]['rabbit_host'] = rabbitmq_relation['hostname']
+            expected[d]['glance_api_servers'] = glance_relation['glance-api-server']
 
-        ret = u.validate_config_data(unit, conf, 'database', expected)
-        if ret:
-            message = "nova config error: {}".format(ret)
-            amulet.raise_status(amulet.FAIL, msg=message)
-
-    def test_nova_keystone_authtoken_config(self):
-        """Verify the data in the nova config file's keystone_authtoken
-           section. This data only exists since icehouse."""
-        if self._get_openstack_release() < self.precise_icehouse:
-            return
-
-        unit = self.nova_cc_sentry
-        conf = '/etc/nova/nova.conf'
-        keystone_relation = self.keystone_sentry.relation('identity-service',
-                                       'nova-cloud-controller:identity-service')
-        keystone_uri = "http://{}:{}/".format(keystone_relation['service_host'],
-                                              keystone_relation['service_port'])
-        expected = {'auth_uri': keystone_uri,
-                    'auth_host': keystone_relation['service_host'],
-                    'auth_port': keystone_relation['auth_port'],
-                    'auth_protocol': keystone_relation['auth_protocol'],
+        else:
+            database = {
+                'database': {
+                    'connection': db_uri,
+                    'max_pool_size': '2',
+                }
+            }
+            glance = {
+                'glance': {
+                    'api_servers': glance_relation['glance-api-server'],
+                }
+            }
+            keystone_authtoken = {
+                'keystone_authtoken': {
+                    'identity_uri': identity_uri,
+                    'auth_uri': keystone_uri,
                     'admin_tenant_name': keystone_relation['service_tenant'],
                     'admin_user': keystone_relation['service_username'],
-                    'admin_password': keystone_relation['service_password']}
+                    'admin_password': keystone_relation['service_password'],
+                    'signing_dir': '/var/cache/nova',
+                }
+            }
+            osapi_v3 = {
+                'osapi_v3': {
+                    'enabled': 'True',
+                }
+            }
+            conductor = {
+                'conductor': {
+                    'workers': '2',
+                }
+            }
+            oslo_messaging_rabbit = {
+                'oslo_messaging_rabbit': {
+                    'rabbit_userid': 'nova',
+                    'rabbit_virtual_host': 'openstack',
+                    'rabbit_password': rabbitmq_relation['password'],
+                    'rabbit_host': rabbitmq_relation['hostname'],
+                }
+            }
+            oslo_concurrency = {
+                'oslo_concurrency': {
+                    'lock_path': '/var/lock/nova',
+                }
+            }
+            expected.update(database)
+            expected.update(glance)
+            expected.update(keystone_authtoken)
+            expected.update(osapi_v3)
+            expected.update(conductor)
+            expected.update(oslo_messaging_rabbit)
+            expected.update(oslo_concurrency)
 
-        ret = u.validate_config_data(unit, conf, 'keystone_authtoken', expected)
-        if ret:
-            message = "nova config error: {}".format(ret)
-            amulet.raise_status(amulet.FAIL, msg=message)
+        for section, pairs in expected.iteritems():
+            ret = u.validate_config_data(unit, conf, section, pairs)
+            if ret:
+                message = "nova config error: {}".format(ret)
+                amulet.raise_status(amulet.FAIL, msg=message)
 
     def test_image_instance_create(self):
         """Create an image/instance, verify they exist, and delete them."""
