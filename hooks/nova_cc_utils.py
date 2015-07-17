@@ -1126,6 +1126,9 @@ def git_post_install(projects_yaml):
         {'src': os.path.join(git_pip_venv_dir(projects_yaml),
                              'bin/nova-rootwrap'),
          'link': '/usr/local/bin/nova-rootwrap'},
+        {'src': os.path.join(git_pip_venv_dir(projects_yaml),
+                             'bin/neutron-db-manage'),
+         'link': '/usr/local/bin/neutron-db-manage'},
     ]
 
     for s in symlinks:
