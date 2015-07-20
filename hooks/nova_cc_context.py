@@ -9,6 +9,7 @@ from charmhelpers.core.hookenv import (
     related_units,
     relations_for_id,
     relation_get,
+    is_relation_made,
 )
 from charmhelpers.fetch import (
     apt_install,
@@ -180,13 +181,14 @@ class HAProxyContext(context.HAProxyContext):
             })
             listen_ports['osapi_volume_listen_port'] = nvol_api
 
-        if neutron.network_manager() in ['neutron', 'quantum']:
-            port_mapping.update({
-                'neutron-server': [
-                    api_port('neutron-server'), a_neutron_api]
-            })
-            # quantum/neutron.conf listening port, set separte from nova's.
-            ctxt['neutron_bind_port'] = neutron_api
+        if not is_relation_made('neutron-api'):
+            if neutron.network_manager() in ['neutron', 'quantum']:
+                port_mapping.update({
+                    'neutron-server': [
+                        api_port('neutron-server'), a_neutron_api]
+                })
+                # quantum/neutron.conf listening port, set separte from nova's.
+                ctxt['neutron_bind_port'] = neutron_api
 
         # for haproxy.conf
         ctxt['service_ports'] = port_mapping
