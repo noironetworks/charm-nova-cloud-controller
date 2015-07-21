@@ -363,8 +363,7 @@ class NoVNCSslOnlyContext(context.OSContextGenerator):
     def __call__(self):
         ctxt = {}
 
-        if config('encrypted-noVNC') \
-                and config('ssl_cert') and config('ssl_key'):
+        if config('noVNC-ssl-cert') and config('noVNC-ssl-key'):
             ssl_dir = '/etc/nova/ssl/'
             if not os.path.exists(ssl_dir):
                 log('Creating %s.' % ssl_dir, level=DEBUG)
@@ -372,11 +371,11 @@ class NoVNCSslOnlyContext(context.OSContextGenerator):
 
             cert_path = os.path.join(ssl_dir, 'nova_cert.pem')
             with open(cert_path, 'w') as fh:
-                fh.write(b64decode(config('ssl_cert')))
+                fh.write(b64decode(config('noVNC-ssl-cert')))
 
             key_path = os.path.join(ssl_dir, 'nova_key.pem')
             with open(key_path, 'w') as fh:
-                fh.write(b64decode(config('ssl_key')))
+                fh.write(b64decode(config('noVNC-ssl-key')))
 
             ctxt['ssl_only'] = True
             ctxt['ssl_cert'] = cert_path

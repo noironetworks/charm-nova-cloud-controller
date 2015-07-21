@@ -172,9 +172,8 @@ class NovaComputeContextTests(CharmTestCase):
     def test_noVNC_ssl_only_enabled(self, mock_resolve_address,
                                     mock_is_clustered, mock_unit_get,
                                     mock_config, mock_exists, mock_open):
-        config = {'encrypted-noVNC': True,
-                  'ssl_cert': 'LS0tLS1CRUdJTiBDRV',
-                  'ssl_key': 'LS0tLS1CRUdJTiBQUk'}
+        config = {'noVNC-ssl-cert': 'LS0tLS1CRUdJTiBDRV',
+                  'noVNC-ssl-key': 'LS0tLS1CRUdJTiBQUk'}
         mock_config.side_effect = lambda key: config.get(key)
         mock_exists.return_value = True
         mock_unit_get.return_value = '127.0.0.1'
