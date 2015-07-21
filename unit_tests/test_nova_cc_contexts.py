@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import mock
+import os
 
 #####
 # NOTE(freyes): this is a workaround to patch config() function imported by
@@ -148,3 +149,38 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertTrue(context.use_local_neutron_api())
         self.related_units.return_value = ['unit/0']
         self.assertFalse(context.use_local_neutron_api())
+
+    @mock.patch('__builtin__.open')
+    @mock.patch('os.path.exists')
+    @mock.patch.object(context, 'config')
+    @mock.patch.object(context, 'unit_get')
+    def test_noVNC_ssl_only_disabled(self, mock_unit_get, mock_config,
+                                     mock_exists, mock_open):
+        config = {'encrypted-noVNC': False,
+                  'ssl_cert': 'LS0tLS1CRUdJTiBDRV',
+                  'ssl_key': 'LS0tLS1CRUdJTiBQUk'}
+        mock_config.side_effect = lambda key: config.get(key)
+
+        ctxt = context.NoVNCSslOnlyContext()()
+        self.assertEqual(ctxt, None)
+
+    @mock.patch('__builtin__.open')
+    @mock.patch('os.path.exists')
+    @mock.patch.object(context, 'config')
+    @mock.patch.object(context, 'unit_get')
+    def test_noVNC_ssl_only_enabled(self, mock_unit_get, mock_config,
+                                    mock_exists, mock_open):
+        config = {'encrypted-noVNC': True,
+                  'ssl_cert': 'LS0tLS1CRUdJTiBDRV',
+                  'ssl_key': 'LS0tLS1CRUdJTiBQUk'}
+        mock_config.side_effect = lambda key: config.get(key)
+        mock_exists.return_value = True
+        mock_unit_get.return_value = '127.0.0.1'
+
+        mock_open.return_value.__enter__ = lambda s: s
+        mock_open.return_value.__exit__ = mock.Mock()
+
+        ctxt = context.NoVNCSslOnlyContext()()
+        self.assertTrue(ctxt['ssl_only'])
+        self.assertEqual(ctxt['ssl_cert'], '/etc/nova/ssl/nova_cert.pem')
+        self.assertEqual(ctxt['ssl_key'], '/etc/nova/ssl/nova_key.pem')

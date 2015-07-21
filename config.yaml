@@ -381,3 +381,11 @@ options:
       
       If memcached is being used to store the tokens, then it's recommended to
       change this configuration to False.
+  encrypted-noVNC:
+    type: boolean
+    default: False
+    description: |
+      The default value is False, when it is set to True, the noVNC session will
+      be encrypted, this is useful for the cloud disabled SSL for OpenStack services
+      but want to ensure the security for noVNC session, ssl_cert and ssl_key are
+      needed to encrypt noVNC session.

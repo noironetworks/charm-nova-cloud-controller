@@ -7,3 +7,6 @@ cert={{ ssl_cert }}
 {% if ssl_key -%}
 key={{ ssl_key }}
 {% endif %}
+{% if novncproxy_base_url -%}
+novncproxy_base_url={{ novncproxy_base_url }}
+{% endif %}
