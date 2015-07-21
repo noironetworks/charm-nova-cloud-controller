@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import mock
-import os
 
 #####
 # NOTE(freyes): this is a workaround to patch config() function imported by
@@ -168,14 +167,19 @@ class NovaComputeContextTests(CharmTestCase):
     @mock.patch('os.path.exists')
     @mock.patch.object(context, 'config')
     @mock.patch.object(context, 'unit_get')
-    def test_noVNC_ssl_only_enabled(self, mock_unit_get, mock_config,
-                                    mock_exists, mock_open):
+    @mock.patch.object(context, 'is_clustered')
+    @mock.patch.object(context, 'resolve_address')
+    def test_noVNC_ssl_only_enabled(self, mock_resolve_address,
+                                    mock_is_clustered, mock_unit_get,
+                                    mock_config, mock_exists, mock_open):
         config = {'encrypted-noVNC': True,
                   'ssl_cert': 'LS0tLS1CRUdJTiBDRV',
                   'ssl_key': 'LS0tLS1CRUdJTiBQUk'}
         mock_config.side_effect = lambda key: config.get(key)
         mock_exists.return_value = True
         mock_unit_get.return_value = '127.0.0.1'
+        mock_is_clustered.return_value = True
+        mock_resolve_address.return_value = '10.5.100.1'
 
         mock_open.return_value.__enter__ = lambda s: s
         mock_open.return_value.__exit__ = mock.Mock()

@@ -26,6 +26,7 @@ from charmhelpers.contrib.hahelpers.cluster import (
     determine_apache_port,
     determine_api_port,
     https,
+    is_clustered,
 )
 from charmhelpers.contrib.network.ip import (
     format_ipv6_addr,
@@ -33,6 +34,7 @@ from charmhelpers.contrib.network.ip import (
 from charmhelpers.contrib.openstack.ip import (
     resolve_address,
     INTERNAL,
+    PUBLIC,
 )
 
 
@@ -379,8 +381,13 @@ class NoVNCSslOnlyContext(context.OSContextGenerator):
             ctxt['ssl_only'] = True
             ctxt['ssl_cert'] = cert_path
             ctxt['ssl_key'] = key_path
-            private_addr = unit_get('private-address')
-            url = 'https://%s:6080/vnc_auto.html' % private_addr
+
+            if is_clustered():
+                ip_addr = resolve_address(endpoint_type=PUBLIC)
+            else:
+                ip_addr = unit_get('private-address')
+
+            url = 'https://%s:6080/vnc_auto.html' % ip_addr
             ctxt['novncproxy_base_url'] = url
 
             return ctxt
