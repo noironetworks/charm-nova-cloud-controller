@@ -1,5 +1,6 @@
 import os
 
+from base64 import b64decode
 from charmhelpers.core.hookenv import (
     config,
     relation_ids,
@@ -9,6 +10,8 @@ from charmhelpers.core.hookenv import (
     related_units,
     relations_for_id,
     relation_get,
+    DEBUG,
+    unit_get,
 )
 from charmhelpers.fetch import (
     apt_install,
@@ -350,3 +353,34 @@ class InstanceConsoleContext(context.OSContextGenerator):
                 ctxt['ssl_key'] = key
 
         return ctxt
+
+
+class NoVNCSslOnlyContext(context.OSContextGenerator):
+    interfaces = []
+
+    def __call__(self):
+        ctxt = {}
+
+        if config('encrypted-noVNC') \
+                and config('ssl_cert') and config('ssl_key'):
+            ssl_dir = '/etc/nova/ssl/'
+            if not os.path.exists(ssl_dir):
+                log('Creating %s.' % ssl_dir, level=DEBUG)
+                os.mkdir(ssl_dir)
+
+            cert_path = os.path.join(ssl_dir, 'nova_cert.pem')
+            with open(cert_path, 'w') as fh:
+                fh.write(b64decode(config('ssl_cert')))
+
+            key_path = os.path.join(ssl_dir, 'nova_key.pem')
+            with open(key_path, 'w') as fh:
+                fh.write(b64decode(config('ssl_key')))
+
+            ctxt['ssl_only'] = True
+            ctxt['ssl_cert'] = cert_path
+            ctxt['ssl_key'] = key_path
+            private_addr = unit_get('private-address')
+            url = 'https://%s:6080/vnc_auto.html' % private_addr
+            ctxt['novncproxy_base_url'] = url
+
+            return ctxt
