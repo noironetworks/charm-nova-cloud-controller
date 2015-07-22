@@ -375,11 +375,11 @@ class ConsoleSslContext(context.OSContextGenerator):
 
             cert_path = os.path.join(ssl_dir, 'nova_cert.pem')
             with open(cert_path, 'w') as fh:
-                fh.write(b64decode(config('noVNC-ssl-cert')))
+                fh.write(b64decode(config('console-access-ssl-cert')))
 
             key_path = os.path.join(ssl_dir, 'nova_key.pem')
             with open(key_path, 'w') as fh:
-                fh.write(b64decode(config('noVNC-ssl-key')))
+                fh.write(b64decode(config('console-access-ssl-key')))
 
             ctxt['ssl_only'] = True
             ctxt['ssl_cert'] = cert_path
