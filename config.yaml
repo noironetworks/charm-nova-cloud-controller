@@ -390,7 +390,7 @@ options:
       access-ssl-key will enable encrypted console session. This has nothing
       relation with Nova API SSL, it could be used in the case without Nova API
       SSL enabled.
-  console-access-ssl-cert:
+  console-access-ssl-key:
     type: string
     default:
     description: SSL key to use with certificate specified as console-access-ssl-cert.
