@@ -153,14 +153,13 @@ class NovaComputeContextTests(CharmTestCase):
     @mock.patch('os.path.exists')
     @mock.patch.object(context, 'config')
     @mock.patch.object(context, 'unit_get')
-    def test_noVNC_ssl_only_disabled(self, mock_unit_get, mock_config,
-                                     mock_exists, mock_open):
-        config = {'encrypted-noVNC': False,
-                  'ssl_cert': 'LS0tLS1CRUdJTiBDRV',
-                  'ssl_key': 'LS0tLS1CRUdJTiBQUk'}
+    def test_noVNC_ssl_disabled(self, mock_unit_get, mock_config,
+                                mock_exists, mock_open):
+        config = {'console-access-ssl_cert': 'LS0tLS1CRUdJTiBDRV',
+                  'console-access-ssl_key': 'LS0tLS1CRUdJTiBQUk'}
         mock_config.side_effect = lambda key: config.get(key)
 
-        ctxt = context.NoVNCSslOnlyContext()()
+        ctxt = context.ConsoleSslContext()()
         self.assertEqual(ctxt, None)
 
     @mock.patch('__builtin__.open')
@@ -169,11 +168,12 @@ class NovaComputeContextTests(CharmTestCase):
     @mock.patch.object(context, 'unit_get')
     @mock.patch.object(context, 'is_clustered')
     @mock.patch.object(context, 'resolve_address')
-    def test_noVNC_ssl_only_enabled(self, mock_resolve_address,
-                                    mock_is_clustered, mock_unit_get,
-                                    mock_config, mock_exists, mock_open):
-        config = {'noVNC-ssl-cert': 'LS0tLS1CRUdJTiBDRV',
-                  'noVNC-ssl-key': 'LS0tLS1CRUdJTiBQUk'}
+    def test_noVNC_ssl_enabled(self, mock_resolve_address,
+                               mock_is_clustered, mock_unit_get,
+                               mock_config, mock_exists, mock_open):
+        config = {'console-access-ssl-cert': 'LS0tLS1CRUdJTiBDRV',
+                  'console-access-ssl-key': 'LS0tLS1CRUdJTiBQUk',
+                  'console-access-protocol': 'novnc'}
         mock_config.side_effect = lambda key: config.get(key)
         mock_exists.return_value = True
         mock_unit_get.return_value = '127.0.0.1'
@@ -183,7 +183,7 @@ class NovaComputeContextTests(CharmTestCase):
         mock_open.return_value.__enter__ = lambda s: s
         mock_open.return_value.__exit__ = mock.Mock()
 
-        ctxt = context.NoVNCSslOnlyContext()()
+        ctxt = context.ConsoleSslContext()()
         self.assertTrue(ctxt['ssl_only'])
         self.assertEqual(ctxt['ssl_cert'], '/etc/nova/ssl/nova_cert.pem')
         self.assertEqual(ctxt['ssl_key'], '/etc/nova/ssl/nova_key.pem')
