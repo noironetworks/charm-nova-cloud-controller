@@ -389,7 +389,8 @@ options:
       it used for console access session only.  Setting this value with console-
       access-ssl-key will enable encrypted console session. This has nothing
       relation with Nova API SSL, it could be used in the case without Nova API
-      SSL enabled.
+      SSL enabled. Option console-access-protocol need to be chosen from set{novnc,
+      spice} for console session encypted.
   console-access-ssl-key:
     type: string
     default:

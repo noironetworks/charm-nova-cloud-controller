@@ -149,14 +149,25 @@ class NovaComputeContextTests(CharmTestCase):
         self.related_units.return_value = ['unit/0']
         self.assertFalse(context.use_local_neutron_api())
 
-    @mock.patch('__builtin__.open')
-    @mock.patch('os.path.exists')
     @mock.patch.object(context, 'config')
-    @mock.patch.object(context, 'unit_get')
-    def test_noVNC_ssl_disabled(self, mock_unit_get, mock_config,
-                                mock_exists, mock_open):
+    def test_console_access_ssl_disabled(self, mock_config):
         config = {'console-access-ssl_cert': 'LS0tLS1CRUdJTiBDRV',
                   'console-access-ssl_key': 'LS0tLS1CRUdJTiBQUk'}
+        mock_config.side_effect = lambda key: config.get(key)
+
+        ctxt = context.ConsoleSslContext()()
+        self.assertEqual(ctxt, None)
+
+        config = {'console-access-ssl_cert': None,
+                  'console-access-ssl_key': None}
+        mock_config.side_effect = lambda key: config.get(key)
+
+        ctxt = context.ConsoleSslContext()()
+        self.assertEqual(ctxt, None)
+
+        config = {'console-access-protocol': 'novnc',
+                  'console-access-ssl_cert': None,
+                  'console-access-ssl_key': None}
         mock_config.side_effect = lambda key: config.get(key)
 
         ctxt = context.ConsoleSslContext()()
@@ -187,3 +198,89 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertTrue(ctxt['ssl_only'])
         self.assertEqual(ctxt['ssl_cert'], '/etc/nova/ssl/nova_cert.pem')
         self.assertEqual(ctxt['ssl_key'], '/etc/nova/ssl/nova_key.pem')
+        self.assertEqual(ctxt['novncproxy_base_url'],
+                         'https://10.5.100.1:6080/vnc_auto.html')
+
+    @mock.patch('__builtin__.open')
+    @mock.patch('os.path.exists')
+    @mock.patch.object(context, 'config')
+    @mock.patch.object(context, 'unit_get')
+    @mock.patch.object(context, 'is_clustered')
+    @mock.patch.object(context, 'resolve_address')
+    def test_noVNC_ssl_enabled_no_cluster(self, mock_resolve_address,
+                                          mock_is_clustered, mock_unit_get,
+                                          mock_config, mock_exists, mock_open):
+        config = {'console-access-ssl-cert': 'LS0tLS1CRUdJTiBDRV',
+                  'console-access-ssl-key': 'LS0tLS1CRUdJTiBQUk',
+                  'console-access-protocol': 'novnc'}
+        mock_config.side_effect = lambda key: config.get(key)
+        mock_exists.return_value = True
+        mock_unit_get.return_value = '10.5.0.1'
+        mock_is_clustered.return_value = False
+
+        mock_open.return_value.__enter__ = lambda s: s
+        mock_open.return_value.__exit__ = mock.Mock()
+
+        ctxt = context.ConsoleSslContext()()
+        self.assertTrue(ctxt['ssl_only'])
+        self.assertEqual(ctxt['ssl_cert'], '/etc/nova/ssl/nova_cert.pem')
+        self.assertEqual(ctxt['ssl_key'], '/etc/nova/ssl/nova_key.pem')
+        self.assertEqual(ctxt['novncproxy_base_url'],
+                         'https://10.5.0.1:6080/vnc_auto.html')
+
+    @mock.patch('__builtin__.open')
+    @mock.patch('os.path.exists')
+    @mock.patch.object(context, 'config')
+    @mock.patch.object(context, 'unit_get')
+    @mock.patch.object(context, 'is_clustered')
+    @mock.patch.object(context, 'resolve_address')
+    def test_spice_html5_ssl_enabled(self, mock_resolve_address,
+                                     mock_is_clustered, mock_unit_get,
+                                     mock_config, mock_exists, mock_open):
+        config = {'console-access-ssl-cert': 'LS0tLS1CRUdJTiBDRV',
+                  'console-access-ssl-key': 'LS0tLS1CRUdJTiBQUk',
+                  'console-access-protocol': 'spice'}
+        mock_config.side_effect = lambda key: config.get(key)
+        mock_exists.return_value = True
+        mock_unit_get.return_value = '127.0.0.1'
+        mock_is_clustered.return_value = True
+        mock_resolve_address.return_value = '10.5.100.1'
+
+        mock_open.return_value.__enter__ = lambda s: s
+        mock_open.return_value.__exit__ = mock.Mock()
+
+        ctxt = context.ConsoleSslContext()()
+        self.assertTrue(ctxt['ssl_only'])
+        self.assertEqual(ctxt['ssl_cert'], '/etc/nova/ssl/nova_cert.pem')
+        self.assertEqual(ctxt['ssl_key'], '/etc/nova/ssl/nova_key.pem')
+        self.assertEqual(ctxt['novncproxy_base_url'],
+                         'https://10.5.100.1:6082/spice_auto.html')
+
+    @mock.patch('__builtin__.open')
+    @mock.patch('os.path.exists')
+    @mock.patch.object(context, 'config')
+    @mock.patch.object(context, 'unit_get')
+    @mock.patch.object(context, 'is_clustered')
+    @mock.patch.object(context, 'resolve_address')
+    def test_spice_html5_ssl_enabled_no_cluster(self, mock_resolve_address,
+                                                mock_is_clustered,
+                                                mock_unit_get,
+                                                mock_config, mock_exists,
+                                                mock_open):
+        config = {'console-access-ssl-cert': 'LS0tLS1CRUdJTiBDRV',
+                  'console-access-ssl-key': 'LS0tLS1CRUdJTiBQUk',
+                  'console-access-protocol': 'spice'}
+        mock_config.side_effect = lambda key: config.get(key)
+        mock_exists.return_value = True
+        mock_unit_get.return_value = '10.5.0.1'
+        mock_is_clustered.return_value = False
+
+        mock_open.return_value.__enter__ = lambda s: s
+        mock_open.return_value.__exit__ = mock.Mock()
+
+        ctxt = context.ConsoleSslContext()()
+        self.assertTrue(ctxt['ssl_only'])
+        self.assertEqual(ctxt['ssl_cert'], '/etc/nova/ssl/nova_cert.pem')
+        self.assertEqual(ctxt['ssl_key'], '/etc/nova/ssl/nova_key.pem')
+        self.assertEqual(ctxt['novncproxy_base_url'],
+                         'https://10.5.0.1:6082/spice_auto.html')
