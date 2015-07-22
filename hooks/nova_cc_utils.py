@@ -195,7 +195,7 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.NovaConfigContext(),
                      nova_cc_context.InstanceConsoleContext(),
-                     nova_cc_context.ConsoleSslContext()],
+                     nova_cc_context.ConsoleSSLContext()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in BASE_SERVICES if 'api' in s],

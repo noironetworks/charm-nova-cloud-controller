@@ -609,12 +609,12 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(_compute_joined.called)
         self.assertTrue(_quantum_joined.called)
 
-    @patch.object(hooks, 'resolve_address')
+    @patch.object(hooks, 'canonical_url')
     @patch.object(utils, 'config')
-    def test_console_settings_vnc(self, _utils_config, _resolve_address):
+    def test_console_settings_vnc(self, _utils_config, _canonical_url):
         _utils_config.return_value = 'vnc'
         _cc_host = "nova-cc-host1"
-        _resolve_address.return_value = _cc_host
+        _canonical_url.return_value = 'http://' + _cc_host
         _con_sets = hooks.console_settings()
         console_settings = {
             'console_proxy_novnc_address': 'http://%s:6080/vnc_auto.html' %
@@ -630,12 +630,12 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.assertEqual(_con_sets, console_settings)
 
-    @patch.object(hooks, 'resolve_address')
+    @patch.object(hooks, 'canonical_url')
     @patch.object(utils, 'config')
-    def test_console_settings_xvpvnc(self, _utils_config, _resolve_address):
+    def test_console_settings_xvpvnc(self, _utils_config, _canonical_url):
         _utils_config.return_value = 'xvpvnc'
         _cc_host = "nova-cc-host1"
-        _resolve_address.return_value = _cc_host
+        _canonical_url.return_value = 'http://' + _cc_host
         _con_sets = hooks.console_settings()
         console_settings = {
             'console_access_protocol': 'xvpvnc',
@@ -647,12 +647,12 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.assertEqual(_con_sets, console_settings)
 
-    @patch.object(hooks, 'resolve_address')
+    @patch.object(hooks, 'canonical_url')
     @patch.object(utils, 'config')
-    def test_console_settings_novnc(self, _utils_config, _resolve_address):
+    def test_console_settings_novnc(self, _utils_config, _canonical_url):
         _utils_config.return_value = 'novnc'
         _cc_host = "nova-cc-host1"
-        _resolve_address.return_value = _cc_host
+        _canonical_url.return_value = 'http://' + _cc_host
         _con_sets = hooks.console_settings()
         console_settings = {
             'console_proxy_novnc_address': 'http://%s:6080/vnc_auto.html' %
@@ -664,12 +664,12 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.assertEqual(_con_sets, console_settings)
 
-    @patch.object(hooks, 'resolve_address')
+    @patch.object(hooks, 'canonical_url')
     @patch.object(utils, 'config')
-    def test_console_settings_spice(self, _utils_config, _resolve_address):
+    def test_console_settings_spice(self, _utils_config, _canonical_url):
         _utils_config.return_value = 'spice'
         _cc_host = "nova-cc-host1"
-        _resolve_address.return_value = _cc_host
+        _canonical_url.return_value = 'http://' + _cc_host
         _con_sets = hooks.console_settings()
         console_settings = {
             'console_proxy_spice_address': 'http://%s:6082/spice_auto.html' %
@@ -681,18 +681,35 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.assertEqual(_con_sets, console_settings)
 
-    @patch.object(hooks, 'resolve_address')
+    @patch.object(hooks, 'https')
     @patch.object(utils, 'config')
-    def test_console_settings_explicit_ip(self, _utils_config,
-                                          _resolve_address):
+    def test_console_settings_explicit_ip(self, _utils_config, _https):
         _utils_config.return_value = 'spice'
+        _https.return_value = False
         _cc_public_host = "public-host"
-        _cc_private_host = "private-host"
         self.test_config.set('console-proxy-ip', _cc_public_host)
         _con_sets = hooks.console_settings()
-        _resolve_address.return_value = _cc_private_host
         console_settings = {
             'console_proxy_spice_address': 'http://%s:6082/spice_auto.html' %
+                                           (_cc_public_host),
+            'console_proxy_spice_host': _cc_public_host,
+            'console_proxy_spice_port': 6082,
+            'console_access_protocol': 'spice',
+            'console_keymap': 'en-us'
+        }
+        self.assertEqual(_con_sets, console_settings)
+
+    @patch.object(hooks, 'https')
+    @patch.object(utils, 'config')
+    def test_console_settings_explicit_ip_with_https(self, _utils_config,
+                                                     _https):
+        _utils_config.return_value = 'spice'
+        _https.return_value = True
+        _cc_public_host = "public-host"
+        self.test_config.set('console-proxy-ip', _cc_public_host)
+        _con_sets = hooks.console_settings()
+        console_settings = {
+            'console_proxy_spice_address': 'https://%s:6082/spice_auto.html' %
                                            (_cc_public_host),
             'console_proxy_spice_host': _cc_public_host,
             'console_proxy_spice_port': 6082,
