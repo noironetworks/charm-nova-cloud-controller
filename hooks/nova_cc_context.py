@@ -394,9 +394,11 @@ class ConsoleSslContext(context.OSContextGenerator):
                 ip_addr = "[{}]".format(ip_addr)
 
             _proto = config('console-access-protocol')
-            url = "%s:%s%s" % (ip_addr,
-                               console_attributes('proxy-port', proto=_proto),
-                               console_attributes('proxy-page', proto=_proto))
+            url = "https://%s:%s%s" % (
+                ip_addr,
+                console_attributes('proxy-port', proto=_proto),
+                console_attributes('proxy-page', proto=_proto))
+
             ctxt['novncproxy_base_url'] = url
 
             return ctxt
