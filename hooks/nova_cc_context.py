@@ -30,6 +30,7 @@ from charmhelpers.contrib.hahelpers.cluster import (
 )
 from charmhelpers.contrib.network.ip import (
     format_ipv6_addr,
+    is_ipv6,
 )
 from charmhelpers.contrib.openstack.ip import (
     resolve_address,
@@ -357,13 +358,16 @@ class InstanceConsoleContext(context.OSContextGenerator):
         return ctxt
 
 
-class NoVNCSslOnlyContext(context.OSContextGenerator):
+class ConsoleSslContext(context.OSContextGenerator):
     interfaces = []
 
     def __call__(self):
         ctxt = {}
+        from nova_cc_utils import console_attributes
 
-        if config('noVNC-ssl-cert') and config('noVNC-ssl-key'):
+        if config('console-access-ssl-cert') \
+                and config('console-access-ssl-key') \
+                and config('console-access-protocol'):
             ssl_dir = '/etc/nova/ssl/'
             if not os.path.exists(ssl_dir):
                 log('Creating %s.' % ssl_dir, level=DEBUG)
@@ -386,7 +390,13 @@ class NoVNCSslOnlyContext(context.OSContextGenerator):
             else:
                 ip_addr = unit_get('private-address')
 
-            url = 'https://%s:6080/vnc_auto.html' % ip_addr
+            if is_ipv6(ip_addr):
+                ip_addr = "[{}]".format(ip_addr)
+
+            _proto = config('console-access-protocol')
+            url = "%s:%s%s" % (ip_addr,
+                               console_attributes('proxy-port', proto=_proto),
+                               console_attributes('proxy-page', proto=_proto))
             ctxt['novncproxy_base_url'] = url
 
             return ctxt

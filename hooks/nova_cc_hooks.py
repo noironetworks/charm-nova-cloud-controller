@@ -112,7 +112,8 @@ from charmhelpers.payload.execd import execd_preinstall
 
 from charmhelpers.contrib.openstack.ip import (
     canonical_url,
-    PUBLIC, INTERNAL, ADMIN
+    PUBLIC, INTERNAL, ADMIN,
+    resolve_address,
 )
 
 from charmhelpers.contrib.network.ip import (
@@ -511,10 +512,19 @@ def console_settings():
         return {}
     rel_settings['console_keymap'] = config('console-keymap')
     rel_settings['console_access_protocol'] = proto
+
+    scheme = 'http'
+    if config('console-access-ssl-cert') and config('console-access-ssl-key'):
+        scheme = 'https'
+
+    address = resolve_address(endpoint_type=PUBLIC)
+    if is_ipv6(address):
+        address = "[{}]".format(address)
+
     if config('console-proxy-ip') == 'local':
-        proxy_base_addr = canonical_url(CONFIGS, PUBLIC)
+        proxy_base_addr = '%s://%s' % (scheme, address)
     else:
-        proxy_base_addr = "http://" + config('console-proxy-ip')
+        proxy_base_addr = "%s://%s" % (scheme, config('console-proxy-ip'))
     if proto == 'vnc':
         protocols = ['novnc', 'xvpvnc']
     else:
