@@ -106,6 +106,7 @@ from nova_cc_utils import (
 from charmhelpers.contrib.hahelpers.cluster import (
     is_elected_leader,
     get_hacluster_config,
+    https,
 )
 
 from charmhelpers.payload.execd import execd_preinstall
@@ -121,7 +122,8 @@ from charmhelpers.contrib.network.ip import (
     get_netmask_for_address,
     get_address_in_network,
     get_ipv6_addr,
-    is_ipv6
+    is_ipv6,
+    format_ipv6_addr,
 )
 
 from charmhelpers.contrib.openstack.context import ADDRESS_TYPES
@@ -513,18 +515,25 @@ def console_settings():
     rel_settings['console_keymap'] = config('console-keymap')
     rel_settings['console_access_protocol'] = proto
 
-    scheme = 'http'
+    console_ssl = False
     if config('console-access-ssl-cert') and config('console-access-ssl-key'):
-        scheme = 'https'
-
-    address = resolve_address(endpoint_type=PUBLIC)
-    if is_ipv6(address):
-        address = "[{}]".format(address)
+        console_ssl = True
 
     if config('console-proxy-ip') == 'local':
-        proxy_base_addr = '%s://%s' % (scheme, address)
+        if console_ssl:
+            address = resolve_address(endpoint_type=PUBLIC)
+            address = format_ipv6_addr(address) or address
+            proxy_base_addr = 'https://%s' % address
+        else:
+            # canonical_url will only return 'https:' if API SSL are enabled.
+            proxy_base_addr = canonical_url(CONFIGS, PUBLIC)
     else:
-        proxy_base_addr = "%s://%s" % (scheme, config('console-proxy-ip'))
+        if console_ssl or https():
+            schema = "https"
+        else:
+            schema = "http"
+        proxy_base_addr = "%s://%s" % (schema, config('console-proxy-ip'))
+
     if proto == 'vnc':
         protocols = ['novnc', 'xvpvnc']
     else:

@@ -30,7 +30,6 @@ from charmhelpers.contrib.hahelpers.cluster import (
 )
 from charmhelpers.contrib.network.ip import (
     format_ipv6_addr,
-    is_ipv6,
 )
 from charmhelpers.contrib.openstack.ip import (
     resolve_address,
@@ -358,7 +357,7 @@ class InstanceConsoleContext(context.OSContextGenerator):
         return ctxt
 
 
-class ConsoleSslContext(context.OSContextGenerator):
+class ConsoleSSLContext(context.OSContextGenerator):
     interfaces = []
 
     def __call__(self):
@@ -374,12 +373,14 @@ class ConsoleSslContext(context.OSContextGenerator):
                 os.mkdir(ssl_dir)
 
             cert_path = os.path.join(ssl_dir, 'nova_cert.pem')
+            decode_ssl_cert = b64decode(config('console-access-ssl-cert'))
             with open(cert_path, 'w') as fh:
-                fh.write(b64decode(config('console-access-ssl-cert')))
+                fh.write(decode_ssl_cert)
 
             key_path = os.path.join(ssl_dir, 'nova_key.pem')
+            decode_ssl_key = b64decode(config('console-access-ssl-key'))
             with open(key_path, 'w') as fh:
-                fh.write(b64decode(config('console-access-ssl-key')))
+                fh.write(decode_ssl_key)
 
             ctxt['ssl_only'] = True
             ctxt['ssl_cert'] = cert_path
@@ -390,8 +391,7 @@ class ConsoleSslContext(context.OSContextGenerator):
             else:
                 ip_addr = unit_get('private-address')
 
-            if is_ipv6(ip_addr):
-                ip_addr = "[{}]".format(ip_addr)
+            ip_addr = format_ipv6_addr(ip_addr) or ip_addr
 
             _proto = config('console-access-protocol')
             url = "https://%s:%s%s" % (
@@ -399,6 +399,9 @@ class ConsoleSslContext(context.OSContextGenerator):
                 console_attributes('proxy-port', proto=_proto),
                 console_attributes('proxy-page', proto=_proto))
 
-            ctxt['novncproxy_base_url'] = url
+            if _proto == 'novnc':
+                ctxt['novncproxy_base_url'] = url
+            elif _proto == 'spice':
+                ctxt['html5proxy_base_url'] = url
 
             return ctxt
