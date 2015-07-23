@@ -66,14 +66,16 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
 
     def _configure_services(self):
         """Configure all of the services."""
-        nova_cc_config = {}
+        nova_cc_config = nova_config = {}
         if self.git:
             amulet_http_proxy = os.environ.get('AMULET_HTTP_PROXY')
 
             reqs_repo = 'git://github.com/openstack/requirements'
+            neutron_repo = 'git://github.com/openstack/neutron'
             nova_repo = 'git://github.com/openstack/nova'
             if self._get_openstack_release() == self.trusty_icehouse:
                 reqs_repo = 'git://github.com/coreycb/requirements'
+                neutron_repo = 'git://github.com/coreycb/neutron'
                 nova_repo = 'git://github.com/coreycb/nova'
 
             branch = 'stable/' + self._get_openstack_release_string()
@@ -82,6 +84,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 'repositories': [
                     {'name': 'requirements',
                      'repository': reqs_repo,
+                     'branch': branch},
+                    {'name': 'neutron',
+                     'repository': neutron_repo,
                      'branch': branch},
                     {'name': 'nova',
                      'repository': nova_repo,
@@ -92,10 +97,11 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 'https_proxy': amulet_http_proxy,
             }
             nova_cc_config['openstack-origin-git'] = yaml.dump(openstack_origin_git)
+            nova_config['openstack-origin-git'] = yaml.dump(openstack_origin_git)
         keystone_config = {'admin-password': 'openstack',
                            'admin-token': 'ubuntutesting'}
         configs = {'nova-cloud-controller': nova_cc_config,
-                   'keystone': keystone_config}
+                   'keystone': keystone_config, 'nova-compute': nova_config}
         super(NovaCCBasicDeployment, self)._configure_services(configs)
 
     def _initialize_tests(self):
