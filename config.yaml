@@ -317,6 +317,20 @@ options:
     default: 'en-us'
     description: |
        Console keymap
+  console-ssl-cert:
+    type: string
+    default: 
+    description: |
+      Used for encrypted console connections. This differs from the SSL
+      certificate used for API endpoints and is used for console sessions only.
+      Setting this value along with console-ssl-key will enable encrypted
+      console sessions. This has nothing to do with Nova API SSL and can be
+      used independently. This can be used in conjunction when
+      console-access-protocol is set to 'novnc' or 'spice'.
+  console-ssl-key:
+    type: string
+    default:
+    description: SSL key to use with certificate specified as console-ssl-cert.
   worker-multiplier:
     type: int
     default: 2
