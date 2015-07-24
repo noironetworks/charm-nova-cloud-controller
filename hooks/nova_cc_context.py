@@ -374,11 +374,12 @@ class ConsoleSSLContext(context.OSContextGenerator):
 
             cert_path = os.path.join(ssl_dir, 'nova_cert.pem')
             decode_ssl_cert = b64decode(config('console-access-ssl-cert'))
-            with open(cert_path, 'w') as fh:
-                fh.write(decode_ssl_cert)
 
             key_path = os.path.join(ssl_dir, 'nova_key.pem')
             decode_ssl_key = b64decode(config('console-access-ssl-key'))
+
+            with open(cert_path, 'w') as fh:
+                fh.write(decode_ssl_cert)
             with open(key_path, 'w') as fh:
                 fh.write(decode_ssl_key)
 
