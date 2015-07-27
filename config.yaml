@@ -1,4 +1,17 @@
 options:
+  debug:
+    default: False
+    type: boolean
+    description: Enable debug logging.
+  verbose:
+    default: False
+    type: boolean
+    description: Enable verbose logging.
+  use-syslog:
+    type: boolean
+    default: False
+    description: |
+      Setting this to True will allow supporting services to log to syslog.
   openstack-origin:
     default: distro
     type: string
@@ -7,13 +20,39 @@ options:
       distro (default), ppa:somecustom/ppa, a deb url sources entry,
       or a supported Cloud Archive release pocket.
 
-      Supported Cloud Archive sources include: cloud:precise-folsom,
-      cloud:precise-folsom/updates, cloud:precise-folsom/staging,
-      cloud:precise-folsom/proposed.
+      Supported Cloud Archive sources include:
 
-      Note that updating this setting to a source that is known to
-      provide a later version of OpenStack will trigger a software
-      upgrade.
+      cloud:<series>-<openstack-release>
+      cloud:<series>-<openstack-release>/updates
+      cloud:<series>-<openstack-release>/staging
+      cloud:<series>-<openstack-release>/proposed
+
+      For series=Precise we support cloud archives for openstack-release:
+         * icehouse
+
+      For series=Trusty we support cloud archives for openstack-release:
+         * juno
+         * kilo
+         * ...
+
+      NOTE: updating this setting to a source that is known to provide
+      a later version of OpenStack will trigger a software upgrade.
+
+      NOTE: when openstack-origin-git is specified, openstack specific
+      packages will be installed from source rather than from the
+      openstack-origin repository.
+  openstack-origin-git:
+    default:
+    type: string
+    description: |
+      Specifies a YAML-formatted dictionary listing the git
+      repositories and branches from which to install OpenStack and
+      its dependencies.
+
+      Note that the installed config files will be determined based on
+      the OpenStack release of the openstack-origin option.
+
+      For more details see README.md.
   rabbit-user:
     default: nova
     type: string
@@ -54,12 +93,12 @@ options:
     default: FlatDHCPManager
     type: string
     description: |
-      Network manager for the cloud; supports the following options
-      .
+      Network manager for the cloud; supports the following options:
+
         FlatDHCPManager (nova-network) (default)
         FlatManager (nova-network)
         Neutron|Quantum (Full SDN solution)
-      .
+
       When using the Neutron option you will most likely want to use
       the neutron-gateway charm to provide L3 routing and DHCP Services.
   bridge-interface:
@@ -78,16 +117,16 @@ options:
     default: ovs
     type: string
     description: |
-      Quantum plugin to use for network management; supports
-      .
+      Quantum plugin to use for network management; supports:
+
         ovs - OpenvSwitch Plugin
         nvp|nsx - Nicira Network Virtualization Platform/
                   VMware NSX Network Virtualization Platform
                   (renamed for Icehouse)
         vsp - Nuage Networks VSP
-      .
-      This configuration only has context when used with
-      network-manager Quantum|Neutron.
+
+      This configuration only has context when used with network-manager
+      Quantum|Neutron.
   quantum-security-groups:
     type: string
     default: "no"
@@ -98,11 +137,15 @@ options:
   neutron-external-network:
     type: string
     default: ext_net
-    description: Name of the external network for floating IP addresses provided by Neutron.
+    description: |
+      Name of the external network for floating IP addresses provided by
+      Neutron.
   config-flags:
-    default: None
     type: string
-    description: Comma separated list of key=value config flags to be set in nova.conf.
+    default:
+    description: |
+      Comma-separated list of key=value config flags. These values will be
+      placed in the nova.conf [DEFAULT] section.
   region:
     default: RegionOne
     type: string
@@ -120,8 +163,8 @@ options:
     type: string
     default: eth0
     description: |
-      Default network interface to use for HA vip when it cannot be automatically
-      determined.
+      Default network interface to use for HA vip when it cannot be
+      automatically determined.
   vip_cidr:
     type: int
     default: 24
@@ -144,14 +187,14 @@ options:
     type: int
     default:
     description: |
-       Server timeout configuration in ms for haproxy, used in HA configurations.
-       If not provided, default value of 30000ms is used.
+       Server timeout configuration in ms for haproxy, used in HA
+       configurations. If not provided, default value of 30000ms is used.
   haproxy-client-timeout:
     type: int
     default:
     description: |
-       Client timeout configuration in ms for haproxy, used in HA configurations.
-       If not provided, default value of 30000ms is used.
+       Client timeout configuration in ms for haproxy, used in HA
+       configurations. If not provided, default value of 30000ms is used.
   ssl_cert:
     type: string
     default:
@@ -170,11 +213,6 @@ options:
     description: |
       SSL CA to use with the certificate and key provided - this is only
       required if you are providing a privately signed ssl_cert and ssl_key.
-  use-syslog:
-    type: boolean
-    default: False
-    description: |
-      If set to True, supporting services will log to syslog.
   # Neutron NVP and VMware NSX plugin configuration
   nvp-controllers:
     type: string
@@ -211,42 +249,54 @@ options:
     type: string
     default:
     description: |
-      The IP address and netmask of the OpenStack Admin network (e.g.,
+      The IP address and netmask of the OpenStack Admin network (e.g.
       192.168.0.0/24)
-      .
+
       This network will be used for admin endpoints.
   os-internal-network:
     type: string
     default:
     description: |
-      The IP address and netmask of the OpenStack Internal network (e.g.,
+      The IP address and netmask of the OpenStack Internal network (e.g.
       192.168.0.0/24)
-      .
+
       This network will be used for internal endpoints.
   os-public-network:
     type: string
     default:
     description: |
-      The IP address and netmask of the OpenStack Public network (e.g.,
+      The IP address and netmask of the OpenStack Public network (e.g.
       192.168.0.0/24)
-      .
+
       This network will be used for public endpoints.
+  os-public-hostname:
+    type: string
+    default:
+    description: |
+      The hostname or address of the public endpoints provided by the
+      nova-cloud-controller in the keystone identity provider.
+
+      This value will be used for public endpoints. For example, an
+      os-public-hostname set to 'ncc.example.com' with ssl enabled will
+      create public endpoints such as:
+
+      https://ncc.example.com:8775/v2/$(tenant_id)s
   service-guard:
     type: boolean
     default: false
     description: |
       Ensure required relations are made and complete before allowing services
       to be started
-      .
+
       By default, services may be up and accepting API request from install
       onwards.
-      .
+
       Enabling this flag ensures that services will not be started until the
       minimum 'core relations' have been made between this charm and other
       charms.
-      .
+
       For this charm the following relations must be made:
-      .
+
         * shared-db or (pgsql-nova-db, pgsql-neutron-db)
         * amqp
         * identity-service
@@ -268,14 +318,20 @@ options:
     default: 'en-us'
     description: |
        Console keymap
-  debug:
-    default: False
-    type: boolean
-    description: Enable debug logging
-  verbose:
-    default: False
-    type: boolean
-    description: Enable verbose logging
+  console-ssl-cert:
+    type: string
+    default: 
+    description: |
+      Used for encrypted console connections. This differs from the SSL
+      certificate used for API endpoints and is used for console sessions only.
+      Setting this value along with console-ssl-key will enable encrypted
+      console sessions. This has nothing to do with Nova API SSL and can be
+      used independently. This can be used in conjunction when
+      console-access-protocol is set to 'novnc' or 'spice'.
+  console-ssl-key:
+    type: string
+    default:
+    description: SSL key to use with certificate specified as console-ssl-cert.
   worker-multiplier:
     type: int
     default: 2
@@ -296,7 +352,7 @@ options:
     default: 1.5
     description: |
       The physical ram -> virtual ram ratio to use in the Nova scheduler.
-      .
+
       Increasing this value will increase instance density on compute nodes
       at the potential expense of instance performance.
   prefer-ipv6:
@@ -306,7 +362,7 @@ options:
       If True enables IPv6 support. The charm will expect network interfaces
       to be configured with an IPv6 address. If set to False (default) IPv4
       is expected.
-      .
+
       NOTE: these charms do not currently support IPv6 privacy extension. In
       order for this charm to function correctly, the privacy extension must be
       disabled and a non-temporary address must be configured/available on
@@ -318,15 +374,17 @@ options:
       Used by the nrpe-external-master subordinate charm.
       A string that will be prepended to instance name to set the host name
       in nagios. So for instance the hostname would be something like:
-          juju-myservice-0
+      
+        juju-myservice-0
+
       If you're running multiple environments with the same services in them
       this allows you to differentiate between them.
   nagios_servicegroups:
     default: ""
     type: string
     description: |
-      A comma-separated list of nagios servicegroups.
-      If left empty, the nagios_context will be used as the servicegroup
+      A comma-separated list of nagios servicegroups. If left empty, the
+      nagios_context will be used as the servicegroup.
   single-nova-consoleauth:
     type: boolean
     default: true
