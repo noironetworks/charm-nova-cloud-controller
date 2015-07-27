@@ -43,7 +43,9 @@ from charmhelpers.fetch import (
 )
 
 from charmhelpers.contrib.openstack.utils import (
+    config_value_changed,
     configure_installation_source,
+    git_install_requested,
     openstack_upgrade_available,
     os_release,
     os_requires_version,
@@ -75,6 +77,7 @@ from nova_cc_utils import (
     disable_services,
     do_openstack_upgrade,
     enable_services,
+    git_install,
     keystone_ca_cert_b64,
     migrate_neutron_database,
     migrate_nova_database,
@@ -101,23 +104,26 @@ from nova_cc_utils import (
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
-    eligible_leader,
+    is_elected_leader,
     get_hacluster_config,
+    https,
 )
 
 from charmhelpers.payload.execd import execd_preinstall
 
 from charmhelpers.contrib.openstack.ip import (
     canonical_url,
-    PUBLIC, INTERNAL, ADMIN
+    PUBLIC, INTERNAL, ADMIN,
+    resolve_address,
 )
 
 from charmhelpers.contrib.network.ip import (
+    format_ipv6_addr,
     get_iface_for_address,
     get_netmask_for_address,
     get_address_in_network,
     get_ipv6_addr,
-    is_ipv6
+    is_ipv6,
 )
 
 from charmhelpers.contrib.openstack.context import ADDRESS_TYPES
@@ -142,8 +148,11 @@ NOVA_CONSOLEAUTH_OVERRIDE = '/etc/init/nova-consoleauth.override'
 def install():
     execd_preinstall()
     configure_installation_source(config('openstack-origin'))
+
     apt_update()
     apt_install(determine_packages(), fatal=True)
+
+    git_install(config('openstack-origin-git'))
 
     _files = os.path.join(charm_dir(), 'files')
     if os.path.isdir(_files):
@@ -170,18 +179,28 @@ def config_changed():
                                           relation_prefix='nova')
 
     global CONFIGS
-    if openstack_upgrade_available('nova-common'):
-        CONFIGS = do_openstack_upgrade()
-        [neutron_api_relation_joined(rid=rid, remote_restart=True)
-            for rid in relation_ids('neutron-api')]
+    if git_install_requested():
+        if config_value_changed('openstack-origin-git'):
+            git_install(config('openstack-origin-git'))
+    else:
+        if openstack_upgrade_available('nova-common'):
+            CONFIGS = do_openstack_upgrade()
+            [neutron_api_relation_joined(rid=rid, remote_restart=True)
+                for rid in relation_ids('neutron-api')]
     save_script_rc()
     configure_https()
     CONFIGS.write_all()
     if console_attributes('protocol'):
-        apt_update()
-        apt_install(console_attributes('packages'), fatal=True)
+        if not git_install_requested():
+            apt_update()
+            packages = console_attributes('packages') or []
+            filtered = filter_installed_packages(packages)
+            if filtered:
+                apt_install(filtered, fatal=True)
+
         [compute_joined(rid=rid)
             for rid in relation_ids('cloud-compute')]
+
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
     for rid in relation_ids('zeromq-configuration'):
@@ -310,7 +329,7 @@ def db_changed():
         return
     CONFIGS.write_all()
 
-    if eligible_leader(CLUSTER_RES):
+    if is_elected_leader(CLUSTER_RES):
         # Bugs 1353135 & 1187508. Dbs can appear to be ready before the units
         # acl entry has been added. So, if the db supports passing a list of
         # permitted units then check if we're in the list.
@@ -339,7 +358,7 @@ def postgresql_nova_db_changed():
         return
     CONFIGS.write_all()
 
-    if eligible_leader(CLUSTER_RES):
+    if is_elected_leader(CLUSTER_RES):
         migrate_nova_database()
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
@@ -500,10 +519,27 @@ def console_settings():
         return {}
     rel_settings['console_keymap'] = config('console-keymap')
     rel_settings['console_access_protocol'] = proto
+
+    console_ssl = False
+    if config('console-ssl-cert') and config('console-ssl-key'):
+        console_ssl = True
+
     if config('console-proxy-ip') == 'local':
-        proxy_base_addr = canonical_url(CONFIGS, PUBLIC)
+        if console_ssl:
+            address = resolve_address(endpoint_type=PUBLIC)
+            address = format_ipv6_addr(address) or address
+            proxy_base_addr = 'https://%s' % address
+        else:
+            # canonical_url will only return 'https:' if API SSL are enabled.
+            proxy_base_addr = canonical_url(CONFIGS, PUBLIC)
     else:
-        proxy_base_addr = "http://" + config('console-proxy-ip')
+        if console_ssl or https():
+            schema = "https"
+        else:
+            schema = "http"
+
+        proxy_base_addr = "%s://%s" % (schema, config('console-proxy-ip'))
+
     if proto == 'vnc':
         protocols = ['novnc', 'xvpvnc']
     else:
@@ -640,7 +676,8 @@ def cluster_joined(relation_id=None):
 
 
 @hooks.hook('cluster-relation-changed',
-            'cluster-relation-departed')
+            'cluster-relation-departed',
+            'leader-settings-changed')
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 @restart_on_change(restart_map(), stopstart=True)
