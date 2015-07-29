@@ -724,7 +724,8 @@ def authorized_keys(unit=None, user=None):
 def ssh_known_host_key(host, unit=None, user=None):
     cmd = ['ssh-keygen', '-f', known_hosts(unit, user), '-H', '-F', host]
     try:
-        return subprocess.check_output(cmd).strip()
+        output = subprocess.check_output(cmd).strip()
+        return output.split('\n')[1]
     except subprocess.CalledProcessError:
         return None
 
