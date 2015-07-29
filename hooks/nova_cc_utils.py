@@ -736,6 +736,12 @@ def remove_known_host(host, unit=None, user=None):
     subprocess.check_call(cmd)
 
 
+def is_same_key(key_1, key_2):
+    k_1 = key_1.split('= ')[1]
+    k_2 = key_2.split('= ')[1]
+    return k_1 == k_2
+
+
 def add_known_host(host, unit=None, user=None):
     '''Add variations of host to a known hosts file.'''
     cmd = ['ssh-keyscan', '-H', '-t', 'rsa', host]
@@ -746,8 +752,8 @@ def add_known_host(host, unit=None, user=None):
         raise e
 
     current_key = ssh_known_host_key(host, unit, user)
-    if current_key:
-        if remote_key == current_key:
+    if current_key and remote_key:
+        if is_same_key(remote_key, current_key):
             log('Known host key for compute host %s up to date.' % host)
             return
         else:
