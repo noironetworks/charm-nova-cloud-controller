@@ -787,8 +787,7 @@ def ssh_compute_add(public_key, rid=None, unit=None, user=None):
             hosts.append(hn.split('.')[0])
 
     for host in list(set(hosts)):
-        if not ssh_known_host_key(host, unit, user):
-            add_known_host(host, unit, user)
+        add_known_host(host, unit, user)
 
     if not ssh_authorized_key_exists(public_key, unit, user):
         log('Saving SSH authorized key for compute host at %s.' %
