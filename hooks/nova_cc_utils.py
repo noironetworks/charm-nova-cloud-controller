@@ -724,6 +724,8 @@ def authorized_keys(unit=None, user=None):
 def ssh_known_host_key(host, unit=None, user=None):
     cmd = ['ssh-keygen', '-f', known_hosts(unit, user), '-H', '-F', host]
     try:
+        # The first line of output is like '# Host xx found: line 1 type RSA',
+        # which should be excluded.
         output = subprocess.check_output(cmd).strip()
         return output.split('\n')[1]
     except subprocess.CalledProcessError:
@@ -737,6 +739,10 @@ def remove_known_host(host, unit=None, user=None):
 
 
 def is_same_key(key_1, key_2):
+    # The key format get will be like '|1|2rUumCavEXWVaVyB5uMl6m85pZo=|Cp'
+    # 'EL6l7VTY37T/fg/ihhNb/GPgs= ssh-rsa AAAAB', we only need to compare
+    # the part start with 'ssh-rsa' followed with '= ', because the hash
+    # value in the beginning will change each time.
     k_1 = key_1.split('= ')[1]
     k_2 = key_2.split('= ')[1]
     return k_1 == k_2
