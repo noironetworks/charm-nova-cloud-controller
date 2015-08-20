@@ -50,6 +50,8 @@ from charmhelpers.core.sysctl import create as sysctl_create
 from charmhelpers.core.strutils import bool_from_string
 
 from charmhelpers.core.host import (
+    get_bond_master,
+    is_phy_iface,
     list_nics,
     get_nic_hwaddr,
     mkdir,
@@ -923,7 +925,6 @@ class NeutronContext(OSContextGenerator):
 
 
 class NeutronPortContext(OSContextGenerator):
-    NIC_PREFIXES = ['eth', 'bond']
 
     def resolve_ports(self, ports):
         """Resolve NICs not yet bound to bridge(s)
@@ -935,7 +936,18 @@ class NeutronPortContext(OSContextGenerator):
 
         hwaddr_to_nic = {}
         hwaddr_to_ip = {}
-        for nic in list_nics(self.NIC_PREFIXES):
+        for nic in list_nics():
+            # Ignore virtual interfaces (bond masters will be identified from
+            # their slaves)
+            if not is_phy_iface(nic):
+                continue
+
+            _nic = get_bond_master(nic)
+            if _nic:
+                log("Replacing iface '%s' with bond master '%s'" % (nic, _nic),
+                    level=DEBUG)
+                nic = _nic
+
             hwaddr = get_nic_hwaddr(nic)
             hwaddr_to_nic[hwaddr] = nic
             addresses = get_ipv4_addr(nic, fatal=False)
@@ -961,7 +973,8 @@ class NeutronPortContext(OSContextGenerator):
                 # trust it to be the real external network).
                 resolved.append(entry)
 
-        return resolved
+        # Ensure no duplicates
+        return list(set(resolved))
 
 
 class OSConfigFlagContext(OSContextGenerator):
@@ -1051,13 +1064,22 @@ class SubordinateConfigContext(OSContextGenerator):
         :param config_file : Service's config file to query sections
         :param interface   : Subordinate interface to inspect
         """
-        self.service = service
         self.config_file = config_file
-        self.interface = interface
+        if isinstance(service, list):
+            self.services = service
+        else:
+            self.services = [service]
+        if isinstance(interface, list):
+            self.interfaces = interface
+        else:
+            self.interfaces = [interface]
 
     def __call__(self):
         ctxt = {'sections': {}}
-        for rid in relation_ids(self.interface):
+        rids = []
+        for interface in self.interfaces:
+            rids.extend(relation_ids(interface))
+        for rid in rids:
             for unit in related_units(rid):
                 sub_config = relation_get('subordinate_configuration',
                                           rid=rid, unit=unit)
@@ -1069,29 +1091,32 @@ class SubordinateConfigContext(OSContextGenerator):
                             'setting from %s' % rid, level=ERROR)
                         continue
 
-                    if self.service not in sub_config:
-                        log('Found subordinate_config on %s but it contained'
-                            'nothing for %s service' % (rid, self.service),
-                            level=INFO)
-                        continue
+                    for service in self.services:
+                        if service not in sub_config:
+                            log('Found subordinate_config on %s but it contained'
+                                'nothing for %s service' % (rid, service),
+                                level=INFO)
+                            continue
 
-                    sub_config = sub_config[self.service]
-                    if self.config_file not in sub_config:
-                        log('Found subordinate_config on %s but it contained'
-                            'nothing for %s' % (rid, self.config_file),
-                            level=INFO)
-                        continue
+                        sub_config = sub_config[service]
+                        if self.config_file not in sub_config:
+                            log('Found subordinate_config on %s but it contained'
+                                'nothing for %s' % (rid, self.config_file),
+                                level=INFO)
+                            continue
 
-                    sub_config = sub_config[self.config_file]
-                    for k, v in six.iteritems(sub_config):
-                        if k == 'sections':
-                            for section, config_dict in six.iteritems(v):
-                                log("adding section '%s'" % (section),
-                                    level=DEBUG)
-                                ctxt[k][section] = config_dict
-                        else:
-                            ctxt[k] = v
-
+                        sub_config = sub_config[self.config_file]
+                        for k, v in six.iteritems(sub_config):
+                            if k == 'sections':
+                                for section, config_list in six.iteritems(v):
+                                    log("adding section '%s'" % (section),
+                                        level=DEBUG)
+                                    if ctxt[k].get(section):
+                                        ctxt[k][section].extend(config_list)
+                                    else:
+                                        ctxt[k][section] = config_list
+                            else:
+                                ctxt[k] = v
         log("%d section(s) found" % (len(ctxt['sections'])), level=DEBUG)
         return ctxt
 
@@ -1268,15 +1293,19 @@ class DataPortContext(NeutronPortContext):
     def __call__(self):
         ports = config('data-port')
         if ports:
+            # Map of {port/mac:bridge}
             portmap = parse_data_port_mappings(ports)
-            ports = portmap.values()
+            ports = portmap.keys()
+            # Resolve provided ports or mac addresses and filter out those
+            # already attached to a bridge.
             resolved = self.resolve_ports(ports)
+            # FIXME: is this necessary?
             normalized = {get_nic_hwaddr(port): port for port in resolved
                           if port not in ports}
             normalized.update({port: port for port in resolved
                                if port in ports})
             if resolved:
-                return {bridge: normalized[port] for bridge, port in
+                return {bridge: normalized[port] for port, bridge in
                         six.iteritems(portmap) if port in normalized.keys()}
 
         return None
