@@ -249,7 +249,7 @@ def conditional_neutron_migration():
             log('Running database migration')
         else:
             log('Not running neutron database migration as migrations are '
-            'handled by the neutron-api charm in case of VSP(juno).')
+                'handled by the neutron-api charm in case of VSP(juno).')
         # neutron-api service may have appeared while the migration was
         # running so prod it just in case
         [neutron_api_relation_joined(rid=rid, remote_restart=True)
