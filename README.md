@@ -37,7 +37,7 @@ The minimum openstack-origin-git config required to deploy from source is:
 Note that there are only two 'name' values the charm knows about: 'requirements'
 and 'nova'. These repositories must correspond to these 'name' values.
 Additionally, the requirements repository must be specified first and the
-nova repository must be specified last. All other repostories are installed
+nova repository must be specified last. All other repositories are installed
 in the order in which they are specified.
 
 The following is a full list of current tip repos (may not be up-to-date):
