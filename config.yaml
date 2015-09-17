@@ -395,3 +395,9 @@ options:
       
       If memcached is being used to store the tokens, then it's recommended to
       change this configuration to False.
+  scheduler-default-filters:
+    type: string
+    default: "RetryFilter,AvailabilityZoneFilter,CoreFilter,RamFilter,ComputeFilter,ComputeCapabilitiesFilter,ImagePropertiesFilter,ServerGroupAntiAffinityFilter,ServerGroupAffinityFilter"
+    description: |
+      List of filter class names to use for filtering hosts when not specified in
+      the request.
