@@ -4,7 +4,7 @@ summary: "Openstack nova controller node."
 description: |
   Cloud controller node for Openstack nova.  Contains nova-schedule,
   nova-api, nova-network and nova-objectstore.
-categories:
+tags:
   - openstack
 provides:
   nrpe-external-master:
