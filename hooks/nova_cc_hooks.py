@@ -134,7 +134,7 @@ try:
     FileNotFoundError
 except NameError:
     # python3 compatibility
-    FileNotFoundError = IOError
+    FileNotFoundError = OSError
 
 hooks = Hooks()
 CONFIGS = register_configs()
