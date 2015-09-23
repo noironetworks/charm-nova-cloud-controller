@@ -416,8 +416,8 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch.object(utils, 'ssh_known_host_key')
     @patch('subprocess.check_output')
     def test_add_known_host_exists(self, check_output, host_key, rm):
-        check_output.return_value = 'fookey'
-        host_key.return_value = 'fookey'
+        check_output.return_value = '|1|= fookey'
+        host_key.return_value = '|1|= fookey'
         with patch_open() as (_open, _file):
             utils.add_known_host('foohost')
             self.assertFalse(rm.called)
@@ -429,8 +429,8 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('subprocess.check_output')
     def test_add_known_host_exists_outdated(
             self, check_output, host_key, rm, known_hosts):
-        check_output.return_value = 'fookey'
-        host_key.return_value = 'fookey_old'
+        check_output.return_value = '|1|= fookey'
+        host_key.return_value = '|1|= fookey_old'
         with patch_open() as (_open, _file):
             utils.add_known_host('foohost', None, None)
             rm.assert_called_with('foohost', None, None)
@@ -441,13 +441,13 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('subprocess.check_output')
     def test_add_known_host_exists_added(
             self, check_output, host_key, rm, known_hosts):
-        check_output.return_value = 'fookey'
+        check_output.return_value = '|1|= fookey'
         host_key.return_value = None
         with patch_open() as (_open, _file):
             _file.write = MagicMock()
             utils.add_known_host('foohost')
             self.assertFalse(rm.called)
-            _file.write.assert_called_with('fookey\n')
+            _file.write.assert_called_with('|1|= fookey\n')
 
     @patch('__builtin__.open')
     @patch('os.mkdir')

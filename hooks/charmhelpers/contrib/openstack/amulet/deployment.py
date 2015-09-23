@@ -51,13 +51,17 @@ class OpenStackAmuletDeployment(AmuletDeployment):
         else:
             base_series = self.current_next
 
-        if self.stable:
-            for svc in other_services:
+        for svc in other_services:
+            if svc['name'] in force_series_current:
+                base_series = self.current_next
+            # If a location has been explicitly set, use it
+            if svc.get('location'):
+                continue
+            if self.stable:
                 temp = 'lp:charms/{}/{}'
                 svc['location'] = temp.format(base_series,
                                               svc['name'])
-        else:
-            for svc in other_services:
+            else:
                 if svc['name'] in base_charms:
                     temp = 'lp:charms/{}/{}'
                     svc['location'] = temp.format(base_series,
@@ -66,6 +70,7 @@ class OpenStackAmuletDeployment(AmuletDeployment):
                     temp = 'lp:~openstack-charmers/charms/{}/{}/next'
                     svc['location'] = temp.format(self.current_next,
                                                   svc['name'])
+
         return other_services
 
     def _add_services(self, this_service, other_services):
@@ -77,6 +82,8 @@ class OpenStackAmuletDeployment(AmuletDeployment):
 
         services = other_services
         services.append(this_service)
+
+        # Charms which should use the source config option
         use_source = ['mysql', 'mongodb', 'rabbitmq-server', 'ceph',
                       'ceph-osd', 'ceph-radosgw']
         # Most OpenStack subordinate charms do not expose an origin option
@@ -85,13 +92,13 @@ class OpenStackAmuletDeployment(AmuletDeployment):
 
         if self.openstack:
             for svc in services:
-                if svc['name'] not in use_source + ignore:
+                if svc['name'] not in use_source + no_origin:
                     config = {'openstack-origin': self.openstack}
                     self.d.configure(svc['name'], config)
 
         if self.source:
             for svc in services:
-                if svc['name'] in use_source and svc['name'] not in ignore:
+                if svc['name'] in use_source and svc['name'] not in no_origin:
                     config = {'source': self.source}
                     self.d.configure(svc['name'], config)
 
