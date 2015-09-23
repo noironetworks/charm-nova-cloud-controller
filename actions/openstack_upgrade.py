@@ -11,16 +11,15 @@ from charmhelpers.core.hookenv import (
     relation_ids,
 )
 
-from nova_cc_hooks import neutron_api_relation_joined
-
 from nova_cc_utils import (
     do_openstack_upgrade,
-    register_configs
 )
 
-from nova_cc_hooks import config_changed
-
-CONFIGS = register_configs()
+from nova_cc_hooks import (
+    config_changed,
+    CONFIGS,
+    neutron_api_relation_joined,
+)
 
 
 def openstack_upgrade():
