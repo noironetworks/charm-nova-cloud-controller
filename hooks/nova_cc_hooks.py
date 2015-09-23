@@ -144,7 +144,7 @@ AGENT_CA_PARAMS = 'op monitor interval="5s"'
 NOVA_CONSOLEAUTH_OVERRIDE = '/etc/init/nova-consoleauth.override'
 
 
-@hooks.hook()
+@hooks.hook('install.real')
 def install():
     execd_preinstall()
     configure_installation_source(config('openstack-origin'))
