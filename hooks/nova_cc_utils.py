@@ -624,7 +624,7 @@ def _do_openstack_upgrade(new_src):
     return configs
 
 
-def do_openstack_upgrade():
+def do_openstack_upgrade(configs):
     new_src = config('openstack-origin')
     if new_src[:6] != 'cloud:':
         raise ValueError("Unable to perform upgrade to %s" % new_src)

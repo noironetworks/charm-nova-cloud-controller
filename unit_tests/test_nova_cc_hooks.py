@@ -115,8 +115,8 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.install()
         self.apt_install.assert_called_with(
             ['nova-scheduler', 'nova-api-ec2'], fatal=True)
-        self.execd_preinstall.assert_called()
-        self.disable_services.assert_called()
+        self.assertTrue(self.execd_preinstall.called)
+        self.assertTrue(self.disable_services.called)
         self.cmd_all_services.assert_called_with('stop')
 
     def test_install_hook_git(self):
@@ -141,8 +141,8 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.install()
         self.git_install.assert_called_with(projects_yaml)
         self.apt_install.assert_called_with(['foo', 'bar'], fatal=True)
-        self.execd_preinstall.assert_called()
-        self.disable_services.assert_called()
+        self.assertTrue(self.execd_preinstall.called)
+        self.assertTrue(self.disable_services.called)
         self.cmd_all_services.assert_called_with('stop')
 
     @patch.object(hooks, 'filter_installed_packages')
