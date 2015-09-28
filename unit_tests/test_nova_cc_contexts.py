@@ -296,3 +296,14 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual(ctxt['ssl_key'], '/etc/nova/ssl/nova_key.pem')
         self.assertEqual(ctxt['html5proxy_base_url'],
                          'https://10.5.0.1:6082/spice_auto.html')
+
+    @mock.patch('charmhelpers.core.hookenv.local_unit')
+    def test_nova_config_context(self, local_unit):
+        local_unit.return_value = 'nova-cloud-controller/0'
+        ctxt = context.NovaConfigContext()()
+        self.assertEqual(ctxt['scheduler_default_filters'],
+                         self.config('scheduler-default-filters'))
+        self.assertEqual(ctxt['cpu_allocation_ratio'],
+                         self.config('cpu-allocation-ratio'))
+        self.assertEqual(ctxt['ram_allocation_ratio'],
+                         self.config('ram-allocation-ratio'))
