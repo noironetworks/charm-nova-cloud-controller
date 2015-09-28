@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 # Copyright 2014-2015 Canonical Limited.
 #
 # This file is part of charm-helpers.
@@ -24,8 +22,10 @@ import subprocess
 import json
 import os
 import sys
+import re
 
 import six
+import traceback
 import yaml
 
 from charmhelpers.contrib.network import ip
@@ -35,6 +35,8 @@ from charmhelpers.core import (
 )
 
 from charmhelpers.core.hookenv import (
+    action_fail,
+    action_set,
     config,
     log as juju_log,
     charm_dir,
@@ -68,7 +70,6 @@ CLOUD_ARCHIVE_KEY_ID = '5EDB1B62EC4926EA'
 
 DISTRO_PROPOSED = ('deb http://archive.ubuntu.com/ubuntu/ %s-proposed '
                    'restricted main multiverse universe')
-
 
 UBUNTU_OPENSTACK_RELEASE = OrderedDict([
     ('oneiric', 'diablo'),
@@ -116,7 +117,39 @@ SWIFT_CODENAMES = OrderedDict([
     ('2.2.1', 'kilo'),
     ('2.2.2', 'kilo'),
     ('2.3.0', 'liberty'),
+    ('2.4.0', 'liberty'),
 ])
+
+# >= Liberty version->codename mapping
+PACKAGE_CODENAMES = {
+    'nova-common': OrderedDict([
+        ('12.0.0', 'liberty'),
+    ]),
+    'neutron-common': OrderedDict([
+        ('7.0.0', 'liberty'),
+    ]),
+    'cinder-common': OrderedDict([
+        ('7.0.0', 'liberty'),
+    ]),
+    'keystone': OrderedDict([
+        ('8.0.0', 'liberty'),
+    ]),
+    'horizon-common': OrderedDict([
+        ('8.0.0', 'liberty'),
+    ]),
+    'ceilometer-common': OrderedDict([
+        ('5.0.0', 'liberty'),
+    ]),
+    'heat-common': OrderedDict([
+        ('5.0.0', 'liberty'),
+    ]),
+    'glance-common': OrderedDict([
+        ('11.0.0', 'liberty'),
+    ]),
+    'openstack-dashboard': OrderedDict([
+        ('8.0.0', 'liberty'),
+    ]),
+}
 
 DEFAULT_LOOPBACK_SIZE = '5G'
 
@@ -167,9 +200,9 @@ def get_os_codename_version(vers):
         error_out(e)
 
 
-def get_os_version_codename(codename):
+def get_os_version_codename(codename, version_map=OPENSTACK_CODENAMES):
     '''Determine OpenStack version number from codename.'''
-    for k, v in six.iteritems(OPENSTACK_CODENAMES):
+    for k, v in six.iteritems(version_map):
         if v == codename:
             return k
     e = 'Could not derive OpenStack version for '\
@@ -201,20 +234,31 @@ def get_os_codename_package(package, fatal=True):
         error_out(e)
 
     vers = apt.upstream_version(pkg.current_ver.ver_str)
+    match = re.match('^(\d+)\.(\d+)\.(\d+)', vers)
+    if match:
+        vers = match.group(0)
 
-    try:
-        if 'swift' in pkg.name:
-            swift_vers = vers[:5]
-            if swift_vers not in SWIFT_CODENAMES:
-                # Deal with 1.10.0 upward
-                swift_vers = vers[:6]
-            return SWIFT_CODENAMES[swift_vers]
-        else:
-            vers = vers[:6]
-            return OPENSTACK_CODENAMES[vers]
-    except KeyError:
-        e = 'Could not determine OpenStack codename for version %s' % vers
-        error_out(e)
+    # >= Liberty independent project versions
+    if (package in PACKAGE_CODENAMES and
+            vers in PACKAGE_CODENAMES[package]):
+        return PACKAGE_CODENAMES[package][vers]
+    else:
+        # < Liberty co-ordinated project versions
+        try:
+            if 'swift' in pkg.name:
+                swift_vers = vers[:5]
+                if swift_vers not in SWIFT_CODENAMES:
+                    # Deal with 1.10.0 upward
+                    swift_vers = vers[:6]
+                return SWIFT_CODENAMES[swift_vers]
+            else:
+                vers = vers[:6]
+                return OPENSTACK_CODENAMES[vers]
+        except KeyError:
+            if not fatal:
+                return None
+            e = 'Could not determine OpenStack codename for version %s' % vers
+            error_out(e)
 
 
 def get_os_version_package(pkg, fatal=True):
@@ -392,7 +436,11 @@ def openstack_upgrade_available(package):
     import apt_pkg as apt
     src = config('openstack-origin')
     cur_vers = get_os_version_package(package)
-    available_vers = get_os_version_install_source(src)
+    if "swift" in package:
+        codename = get_os_codename_install_source(src)
+        available_vers = get_os_version_codename(codename, SWIFT_CODENAMES)
+    else:
+        available_vers = get_os_version_install_source(src)
     apt.init()
     return apt.version_compare(available_vers, cur_vers) == 1
 
@@ -704,3 +752,47 @@ def git_yaml_value(projects_yaml, key):
         return projects[key]
 
     return None
+
+
+def do_action_openstack_upgrade(package, upgrade_callback, configs):
+    """Perform action-managed OpenStack upgrade.
+
+    Upgrades packages to the configured openstack-origin version and sets
+    the corresponding action status as a result.
+
+    If the charm was installed from source we cannot upgrade it.
+    For backwards compatibility a config flag (action-managed-upgrade) must
+    be set for this code to run, otherwise a full service level upgrade will
+    fire on config-changed.
+
+    @param package: package name for determining if upgrade available
+    @param upgrade_callback: function callback to charm's upgrade function
+    @param configs: templating object derived from OSConfigRenderer class
+
+    @return: True if upgrade successful; False if upgrade failed or skipped
+    """
+    ret = False
+
+    if git_install_requested():
+        action_set({'outcome': 'installed from source, skipped upgrade.'})
+    else:
+        if openstack_upgrade_available(package):
+            if config('action-managed-upgrade'):
+                juju_log('Upgrading OpenStack release')
+
+                try:
+                    upgrade_callback(configs=configs)
+                    action_set({'outcome': 'success, upgrade completed.'})
+                    ret = True
+                except:
+                    action_set({'outcome': 'upgrade failed, see traceback.'})
+                    action_set({'traceback': traceback.format_exc()})
+                    action_fail('do_openstack_upgrade resulted in an '
+                                'unexpected error')
+            else:
+                action_set({'outcome': 'action-managed-upgrade config is '
+                                       'False, skipped upgrade.'})
+        else:
+            action_set({'outcome': 'no upgrade available.'})
+
+    return ret

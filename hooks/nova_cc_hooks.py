@@ -106,21 +106,24 @@ from nova_cc_utils import (
 from charmhelpers.contrib.hahelpers.cluster import (
     is_elected_leader,
     get_hacluster_config,
+    https,
 )
 
 from charmhelpers.payload.execd import execd_preinstall
 
 from charmhelpers.contrib.openstack.ip import (
     canonical_url,
-    PUBLIC, INTERNAL, ADMIN
+    PUBLIC, INTERNAL, ADMIN,
+    resolve_address,
 )
 
 from charmhelpers.contrib.network.ip import (
+    format_ipv6_addr,
     get_iface_for_address,
     get_netmask_for_address,
     get_address_in_network,
     get_ipv6_addr,
-    is_ipv6
+    is_ipv6,
 )
 
 from charmhelpers.contrib.openstack.context import ADDRESS_TYPES
@@ -131,7 +134,7 @@ try:
     FileNotFoundError
 except NameError:
     # python3 compatibility
-    FileNotFoundError = IOError
+    FileNotFoundError = OSError
 
 hooks = Hooks()
 CONFIGS = register_configs()
@@ -141,7 +144,7 @@ AGENT_CA_PARAMS = 'op monitor interval="5s"'
 NOVA_CONSOLEAUTH_OVERRIDE = '/etc/init/nova-consoleauth.override'
 
 
-@hooks.hook()
+@hooks.hook('install.real')
 def install():
     execd_preinstall()
     configure_installation_source(config('openstack-origin'))
@@ -179,9 +182,9 @@ def config_changed():
     if git_install_requested():
         if config_value_changed('openstack-origin-git'):
             git_install(config('openstack-origin-git'))
-    else:
+    elif not config('action-managed-upgrade'):
         if openstack_upgrade_available('nova-common'):
-            CONFIGS = do_openstack_upgrade()
+            CONFIGS = do_openstack_upgrade(CONFIGS)
             [neutron_api_relation_joined(rid=rid, remote_restart=True)
                 for rid in relation_ids('neutron-api')]
     save_script_rc()
@@ -511,10 +514,27 @@ def console_settings():
         return {}
     rel_settings['console_keymap'] = config('console-keymap')
     rel_settings['console_access_protocol'] = proto
+
+    console_ssl = False
+    if config('console-ssl-cert') and config('console-ssl-key'):
+        console_ssl = True
+
     if config('console-proxy-ip') == 'local':
-        proxy_base_addr = canonical_url(CONFIGS, PUBLIC)
+        if console_ssl:
+            address = resolve_address(endpoint_type=PUBLIC)
+            address = format_ipv6_addr(address) or address
+            proxy_base_addr = 'https://%s' % address
+        else:
+            # canonical_url will only return 'https:' if API SSL are enabled.
+            proxy_base_addr = canonical_url(CONFIGS, PUBLIC)
     else:
-        proxy_base_addr = "http://" + config('console-proxy-ip')
+        if console_ssl or https():
+            schema = "https"
+        else:
+            schema = "http"
+
+        proxy_base_addr = "%s://%s" % (schema, config('console-proxy-ip'))
+
     if proto == 'vnc':
         protocols = ['novnc', 'xvpvnc']
     else:

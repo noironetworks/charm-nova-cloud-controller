@@ -115,8 +115,8 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.install()
         self.apt_install.assert_called_with(
             ['nova-scheduler', 'nova-api-ec2'], fatal=True)
-        self.execd_preinstall.assert_called()
-        self.disable_services.assert_called()
+        self.assertTrue(self.execd_preinstall.called)
+        self.assertTrue(self.disable_services.called)
         self.cmd_all_services.assert_called_with('stop')
 
     def test_install_hook_git(self):
@@ -141,8 +141,8 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.install()
         self.git_install.assert_called_with(projects_yaml)
         self.apt_install.assert_called_with(['foo', 'bar'], fatal=True)
-        self.execd_preinstall.assert_called()
-        self.disable_services.assert_called()
+        self.assertTrue(self.execd_preinstall.called)
+        self.assertTrue(self.disable_services.called)
         self.cmd_all_services.assert_called_with('stop')
 
     @patch.object(hooks, 'filter_installed_packages')
@@ -681,18 +681,35 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.assertEqual(_con_sets, console_settings)
 
-    @patch.object(hooks, 'canonical_url')
+    @patch.object(hooks, 'https')
     @patch.object(utils, 'config')
-    def test_console_settings_explicit_ip(self, _utils_config,
-                                          _canonical_url):
+    def test_console_settings_explicit_ip(self, _utils_config, _https):
         _utils_config.return_value = 'spice'
+        _https.return_value = False
         _cc_public_host = "public-host"
-        _cc_private_host = "private-host"
         self.test_config.set('console-proxy-ip', _cc_public_host)
         _con_sets = hooks.console_settings()
-        _canonical_url.return_value = 'http://' + _cc_private_host
         console_settings = {
             'console_proxy_spice_address': 'http://%s:6082/spice_auto.html' %
+                                           (_cc_public_host),
+            'console_proxy_spice_host': _cc_public_host,
+            'console_proxy_spice_port': 6082,
+            'console_access_protocol': 'spice',
+            'console_keymap': 'en-us'
+        }
+        self.assertEqual(_con_sets, console_settings)
+
+    @patch.object(hooks, 'https')
+    @patch.object(utils, 'config')
+    def test_console_settings_explicit_ip_with_https(self, _utils_config,
+                                                     _https):
+        _utils_config.return_value = 'spice'
+        _https.return_value = True
+        _cc_public_host = "public-host"
+        self.test_config.set('console-proxy-ip', _cc_public_host)
+        _con_sets = hooks.console_settings()
+        console_settings = {
+            'console_proxy_spice_address': 'https://%s:6082/spice_auto.html' %
                                            (_cc_public_host),
             'console_proxy_spice_host': _cc_public_host,
             'console_proxy_spice_port': 6082,

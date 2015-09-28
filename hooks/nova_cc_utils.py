@@ -194,7 +194,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.NovaIPv6Context(),
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.NovaConfigContext(),
-                     nova_cc_context.InstanceConsoleContext()],
+                     nova_cc_context.InstanceConsoleContext(),
+                     nova_cc_context.ConsoleSSLContext()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in BASE_SERVICES if 'api' in s],
@@ -623,7 +624,7 @@ def _do_openstack_upgrade(new_src):
     return configs
 
 
-def do_openstack_upgrade():
+def do_openstack_upgrade(configs):
     new_src = config('openstack-origin')
     if new_src[:6] != 'cloud:':
         raise ValueError("Unable to perform upgrade to %s" % new_src)
@@ -723,7 +724,10 @@ def authorized_keys(unit=None, user=None):
 def ssh_known_host_key(host, unit=None, user=None):
     cmd = ['ssh-keygen', '-f', known_hosts(unit, user), '-H', '-F', host]
     try:
-        return subprocess.check_output(cmd).strip()
+        # The first line of output is like '# Host xx found: line 1 type RSA',
+        # which should be excluded.
+        output = subprocess.check_output(cmd).strip()
+        return output.split('\n')[1]
     except subprocess.CalledProcessError:
         return None
 
@@ -732,6 +736,16 @@ def remove_known_host(host, unit=None, user=None):
     log('Removing SSH known host entry for compute host at %s' % host)
     cmd = ['ssh-keygen', '-f', known_hosts(unit, user), '-R', host]
     subprocess.check_call(cmd)
+
+
+def is_same_key(key_1, key_2):
+    # The key format get will be like '|1|2rUumCavEXWVaVyB5uMl6m85pZo=|Cp'
+    # 'EL6l7VTY37T/fg/ihhNb/GPgs= ssh-rsa AAAAB', we only need to compare
+    # the part start with 'ssh-rsa' followed with '= ', because the hash
+    # value in the beginning will change each time.
+    k_1 = key_1.split('= ')[1]
+    k_2 = key_2.split('= ')[1]
+    return k_1 == k_2
 
 
 def add_known_host(host, unit=None, user=None):
@@ -744,8 +758,8 @@ def add_known_host(host, unit=None, user=None):
         raise e
 
     current_key = ssh_known_host_key(host, unit, user)
-    if current_key:
-        if remote_key == current_key:
+    if current_key and remote_key:
+        if is_same_key(remote_key, current_key):
             log('Known host key for compute host %s up to date.' % host)
             return
         else:
@@ -786,8 +800,7 @@ def ssh_compute_add(public_key, rid=None, unit=None, user=None):
             hosts.append(hn.split('.')[0])
 
     for host in list(set(hosts)):
-        if not ssh_known_host_key(host, unit, user):
-            add_known_host(host, unit, user)
+        add_known_host(host, unit, user)
 
     if not ssh_authorized_key_exists(public_key, unit, user):
         log('Saving SSH authorized key for compute host at %s.' %
@@ -1043,12 +1056,11 @@ def setup_ipv6():
         raise Exception("IPv6 is not supported in the charms for Ubuntu "
                         "versions less than Trusty 14.04")
 
-    # NOTE(xianghui): Need to install haproxy(1.5.3) from trusty-backports
-    # to support ipv6 address, so check is required to make sure not
-    # breaking other versions, IPv6 only support for >= Trusty
-    if ubuntu_rel == 'trusty':
-        add_source('deb http://archive.ubuntu.com/ubuntu trusty-backports'
-                   ' main')
+    # Need haproxy >= 1.5.3 for ipv6 so for Trusty if we are <= Kilo we need to
+    # use trusty-backports otherwise we can use the UCA.
+    if ubuntu_rel == 'trusty' and os_release('nova-api') < 'liberty':
+        add_source('deb http://archive.ubuntu.com/ubuntu trusty-backports '
+                   'main')
         apt_update()
         apt_install('haproxy/trusty-backports', fatal=True)
 
