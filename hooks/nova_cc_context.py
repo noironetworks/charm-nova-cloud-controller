@@ -304,6 +304,7 @@ class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
 class NovaConfigContext(context.WorkerConfigContext):
     def __call__(self):
         ctxt = super(NovaConfigContext, self).__call__()
+        ctxt['scheduler_default_filters'] = config('scheduler-default-filters')
         ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
         ctxt['ram_allocation_ratio'] = config('ram-allocation-ratio')
         addr = resolve_address(INTERNAL)
