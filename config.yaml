@@ -398,6 +398,7 @@ options:
   action-managed-upgrade:
     type: boolean
     default: False
+    description: |
       If True enables openstack upgrades for this charm via juju actions.
       You will still need to set openstack-origin to the new repository but
       instead of an upgrade running automatically across all units, it will
