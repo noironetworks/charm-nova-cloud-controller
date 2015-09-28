@@ -416,8 +416,8 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch.object(utils, 'ssh_known_host_key')
     @patch('subprocess.check_output')
     def test_add_known_host_exists(self, check_output, host_key, rm):
-        check_output.return_value = 'fookey'
-        host_key.return_value = 'fookey'
+        check_output.return_value = '|1|= fookey'
+        host_key.return_value = '|1|= fookey'
         with patch_open() as (_open, _file):
             utils.add_known_host('foohost')
             self.assertFalse(rm.called)
@@ -429,8 +429,8 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('subprocess.check_output')
     def test_add_known_host_exists_outdated(
             self, check_output, host_key, rm, known_hosts):
-        check_output.return_value = 'fookey'
-        host_key.return_value = 'fookey_old'
+        check_output.return_value = '|1|= fookey'
+        host_key.return_value = '|1|= fookey_old'
         with patch_open() as (_open, _file):
             utils.add_known_host('foohost', None, None)
             rm.assert_called_with('foohost', None, None)
@@ -441,13 +441,13 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('subprocess.check_output')
     def test_add_known_host_exists_added(
             self, check_output, host_key, rm, known_hosts):
-        check_output.return_value = 'fookey'
+        check_output.return_value = '|1|= fookey'
         host_key.return_value = None
         with patch_open() as (_open, _file):
             _file.write = MagicMock()
             utils.add_known_host('foohost')
             self.assertFalse(rm.called)
-            _file.write.assert_called_with('fookey\n')
+            _file.write.assert_called_with('|1|= fookey\n')
 
     @patch('__builtin__.open')
     @patch('os.mkdir')
@@ -619,7 +619,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.relation_ids.return_value = []
         utils.migrate_nova_database()
         check_output.assert_called_with(['nova-manage', 'db', 'sync'])
-        self.enable_services.assert_called()
+        self.assertTrue(self.enable_services.called)
         self.cmd_all_services.assert_called_with('start')
 
     @patch('subprocess.check_output')
@@ -629,7 +629,7 @@ class NovaCCUtilsTests(CharmTestCase):
         utils.migrate_nova_database()
         check_output.assert_called_with(['nova-manage', 'db', 'sync'])
         self.peer_store.assert_called_with('dbsync_state', 'complete')
-        self.enable_services.assert_called()
+        self.assertTrue(self.enable_services.called)
         self.cmd_all_services.assert_called_with('start')
 
     @patch.object(utils, 'get_step_upgrade_source')
@@ -647,7 +647,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'icehouse']
         self.is_elected_leader.return_value = True
         self.relation_ids.return_value = []
-        utils.do_openstack_upgrade()
+        utils.do_openstack_upgrade(self.register_configs())
         expected = [call(['stamp', 'grizzly']), call(['upgrade', 'head']),
                     call(['stamp', 'havana']), call(['upgrade', 'head'])]
         self.assertEquals(self.neutron_db_manage.call_args_list, expected)
@@ -655,7 +655,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
                                             dist=True)
         self.apt_install.assert_called_with(determine_packages(), fatal=True)
-        expected = [call(release='havana'), call(release='icehouse')]
+        expected = [call(), call(release='havana'), call(release='icehouse')]
         self.assertEquals(self.register_configs.call_args_list, expected)
         self.assertEquals(self.ml2_migration.call_count, 1)
         self.assertTrue(migrate_nova_database.call_count, 2)
@@ -673,7 +673,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.get_os_codename_install_source.return_value = 'icehouse'
         self.is_elected_leader.return_value = True
         self.relation_ids.return_value = []
-        utils.do_openstack_upgrade()
+        utils.do_openstack_upgrade(self.register_configs())
         self.neutron_db_manage.assert_called_with(['upgrade', 'head'])
         self.apt_update.assert_called_with(fatal=True)
         self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
@@ -696,7 +696,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.get_os_codename_install_source.return_value = 'juno'
         self.is_elected_leader.return_value = True
         self.relation_ids.return_value = []
-        utils.do_openstack_upgrade()
+        utils.do_openstack_upgrade(self.register_configs())
         neutron_db_calls = [call(['stamp', 'icehouse']),
                             call(['upgrade', 'head'])]
         self.neutron_db_manage.assert_has_calls(neutron_db_calls,
@@ -722,7 +722,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.get_os_codename_install_source.return_value = 'kilo'
         self.is_elected_leader.return_value = True
         self.relation_ids.return_value = []
-        utils.do_openstack_upgrade()
+        utils.do_openstack_upgrade(self.register_configs())
         self.assertEquals(self.neutron_db_manage.call_count, 0)
         self.apt_update.assert_called_with(fatal=True)
         self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
@@ -741,7 +741,7 @@ class NovaCCUtilsTests(CharmTestCase):
             _file.read = MagicMock()
             _file.readline.return_value = ("deb url"
                                            " precise-updates/grizzly main")
-            utils.do_openstack_upgrade()
+            utils.do_openstack_upgrade(self.register_configs())
             expected = [call('cloud:precise-havana'),
                         call('cloud:precise-icehouse')]
             self.assertEquals(_do_openstack_upgrade.call_args_list, expected)
@@ -754,7 +754,7 @@ class NovaCCUtilsTests(CharmTestCase):
         with patch_open() as (_open, _file):
             _file.read = MagicMock()
             _file.readline.return_value = "deb url precise-updates/havana main"
-            utils.do_openstack_upgrade()
+            utils.do_openstack_upgrade(self.register_configs())
             expected = [call('cloud:precise-icehouse')]
             self.assertEquals(_do_openstack_upgrade.call_args_list, expected)
 

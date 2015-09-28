@@ -14,17 +14,23 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with charm-helpers.  If not, see <http://www.gnu.org/licenses/>.
 
-import amulet
-import ConfigParser
-import distro_info
 import io
+import json
 import logging
 import os
 import re
-import six
+import subprocess
 import sys
 import time
-import urlparse
+
+import amulet
+import distro_info
+import six
+from six.moves import configparser
+if six.PY3:
+    from urllib import parse as urlparse
+else:
+    import urlparse
 
 
 class AmuletUtils(object):
@@ -108,7 +114,7 @@ class AmuletUtils(object):
         # /!\ DEPRECATION WARNING (beisner):
         # New and existing tests should be rewritten to use
         # validate_services_by_name() as it is aware of init systems.
-        self.log.warn('/!\\ DEPRECATION WARNING:  use '
+        self.log.warn('DEPRECATION WARNING:  use '
                       'validate_services_by_name instead of validate_services '
                       'due to init system differences.')
 
@@ -142,19 +148,23 @@ class AmuletUtils(object):
 
             for service_name in services_list:
                 if (self.ubuntu_releases.index(release) >= systemd_switch or
-                        service_name == "rabbitmq-server"):
-                    # init is systemd
+                        service_name in ['rabbitmq-server', 'apache2']):
+                    # init is systemd (or regular sysv)
                     cmd = 'sudo service {} status'.format(service_name)
+                    output, code = sentry_unit.run(cmd)
+                    service_running = code == 0
                 elif self.ubuntu_releases.index(release) < systemd_switch:
                     # init is upstart
                     cmd = 'sudo status {}'.format(service_name)
+                    output, code = sentry_unit.run(cmd)
+                    service_running = code == 0 and "start/running" in output
 
-                output, code = sentry_unit.run(cmd)
                 self.log.debug('{} `{}` returned '
                                '{}'.format(sentry_unit.info['unit_name'],
                                            cmd, code))
-                if code != 0:
-                    return "command `{}` returned {}".format(cmd, str(code))
+                if not service_running:
+                    return u"command `{}` returned {} {}".format(
+                        cmd, output, str(code))
         return None
 
     def _get_config(self, unit, filename):
@@ -164,7 +174,7 @@ class AmuletUtils(object):
         # NOTE(beisner):  by default, ConfigParser does not handle options
         # with no value, such as the flags used in the mysql my.cnf file.
         # https://bugs.python.org/issue7005
-        config = ConfigParser.ConfigParser(allow_no_value=True)
+        config = configparser.ConfigParser(allow_no_value=True)
         config.readfp(io.StringIO(file_contents))
         return config
 
@@ -259,33 +269,52 @@ class AmuletUtils(object):
         """Get last modification time of directory."""
         return sentry_unit.directory_stat(directory)['mtime']
 
-    def _get_proc_start_time(self, sentry_unit, service, pgrep_full=False):
-        """Get process' start time.
+    def _get_proc_start_time(self, sentry_unit, service, pgrep_full=None):
+        """Get start time of a process based on the last modification time
+           of the /proc/pid directory.
 
-           Determine start time of the process based on the last modification
-           time of the /proc/pid directory. If pgrep_full is True, the process
-           name is matched against the full command line.
-           """
-        if pgrep_full:
-            cmd = 'pgrep -o -f {}'.format(service)
-        else:
-            cmd = 'pgrep -o {}'.format(service)
-        cmd = cmd + '  | grep  -v pgrep || exit 0'
-        cmd_out = sentry_unit.run(cmd)
-        self.log.debug('CMDout: ' + str(cmd_out))
-        if cmd_out[0]:
-            self.log.debug('Pid for %s %s' % (service, str(cmd_out[0])))
-            proc_dir = '/proc/{}'.format(cmd_out[0].strip())
-            return self._get_dir_mtime(sentry_unit, proc_dir)
+        :sentry_unit:  The sentry unit to check for the service on
+        :service:  service name to look for in process table
+        :pgrep_full:  [Deprecated] Use full command line search mode with pgrep
+        :returns:  epoch time of service process start
+        :param commands:  list of bash commands
+        :param sentry_units:  list of sentry unit pointers
+        :returns:  None if successful; Failure message otherwise
+        """
+        if pgrep_full is not None:
+            # /!\ DEPRECATION WARNING (beisner):
+            # No longer implemented, as pidof is now used instead of pgrep.
+            # https://bugs.launchpad.net/charm-helpers/+bug/1474030
+            self.log.warn('DEPRECATION WARNING:  pgrep_full bool is no '
+                          'longer implemented re: lp 1474030.')
+
+        pid_list = self.get_process_id_list(sentry_unit, service)
+        pid = pid_list[0]
+        proc_dir = '/proc/{}'.format(pid)
+        self.log.debug('Pid for {} on {}: {}'.format(
+            service, sentry_unit.info['unit_name'], pid))
+
+        return self._get_dir_mtime(sentry_unit, proc_dir)
 
     def service_restarted(self, sentry_unit, service, filename,
-                          pgrep_full=False, sleep_time=20):
+                          pgrep_full=None, sleep_time=20):
         """Check if service was restarted.
 
            Compare a service's start time vs a file's last modification time
            (such as a config file for that service) to determine if the service
            has been restarted.
            """
+        # /!\ DEPRECATION WARNING (beisner):
+        # This method is prone to races in that no before-time is known.
+        # Use validate_service_config_changed instead.
+
+        # NOTE(beisner) pgrep_full is no longer implemented, as pidof is now
+        # used instead of pgrep.  pgrep_full is still passed through to ensure
+        # deprecation WARNS.  lp1474030
+        self.log.warn('DEPRECATION WARNING:  use '
+                      'validate_service_config_changed instead of '
+                      'service_restarted due to known races.')
+
         time.sleep(sleep_time)
         if (self._get_proc_start_time(sentry_unit, service, pgrep_full) >=
                 self._get_file_mtime(sentry_unit, filename)):
@@ -294,15 +323,15 @@ class AmuletUtils(object):
             return False
 
     def service_restarted_since(self, sentry_unit, mtime, service,
-                                pgrep_full=False, sleep_time=20,
-                                retry_count=2):
+                                pgrep_full=None, sleep_time=20,
+                                retry_count=2, retry_sleep_time=30):
         """Check if service was been started after a given time.
 
         Args:
           sentry_unit (sentry): The sentry unit to check for the service on
           mtime (float): The epoch time to check against
           service (string): service name to look for in process table
-          pgrep_full (boolean): Use full command line search mode with pgrep
+          pgrep_full: [Deprecated] Use full command line search mode with pgrep
           sleep_time (int): Seconds to sleep before looking for process
           retry_count (int): If service is not found, how many times to retry
 
@@ -311,30 +340,44 @@ class AmuletUtils(object):
                 False if service is older than mtime or if service was
                 not found.
         """
-        self.log.debug('Checking %s restarted since %s' % (service, mtime))
+        # NOTE(beisner) pgrep_full is no longer implemented, as pidof is now
+        # used instead of pgrep.  pgrep_full is still passed through to ensure
+        # deprecation WARNS.  lp1474030
+
+        unit_name = sentry_unit.info['unit_name']
+        self.log.debug('Checking that %s service restarted since %s on '
+                       '%s' % (service, mtime, unit_name))
         time.sleep(sleep_time)
-        proc_start_time = self._get_proc_start_time(sentry_unit, service,
-                                                    pgrep_full)
-        while retry_count > 0 and not proc_start_time:
-            self.log.debug('No pid file found for service %s, will retry %i '
-                           'more times' % (service, retry_count))
-            time.sleep(30)
-            proc_start_time = self._get_proc_start_time(sentry_unit, service,
-                                                        pgrep_full)
-            retry_count = retry_count - 1
+        proc_start_time = None
+        tries = 0
+        while tries <= retry_count and not proc_start_time:
+            try:
+                proc_start_time = self._get_proc_start_time(sentry_unit,
+                                                            service,
+                                                            pgrep_full)
+                self.log.debug('Attempt {} to get {} proc start time on {} '
+                               'OK'.format(tries, service, unit_name))
+            except IOError:
+                # NOTE(beisner) - race avoidance, proc may not exist yet.
+                # https://bugs.launchpad.net/charm-helpers/+bug/1474030
+                self.log.debug('Attempt {} to get {} proc start time on {} '
+                               'failed'.format(tries, service, unit_name))
+                time.sleep(retry_sleep_time)
+                tries += 1
 
         if not proc_start_time:
             self.log.warn('No proc start time found, assuming service did '
                           'not start')
             return False
         if proc_start_time >= mtime:
-            self.log.debug('proc start time is newer than provided mtime'
-                           '(%s >= %s)' % (proc_start_time, mtime))
+            self.log.debug('Proc start time is newer than provided mtime'
+                           '(%s >= %s) on %s (OK)' % (proc_start_time,
+                                                      mtime, unit_name))
             return True
         else:
-            self.log.warn('proc start time (%s) is older than provided mtime '
-                          '(%s), service did not restart' % (proc_start_time,
-                                                             mtime))
+            self.log.warn('Proc start time (%s) is older than provided mtime '
+                          '(%s) on %s, service did not '
+                          'restart' % (proc_start_time, mtime, unit_name))
             return False
 
     def config_updated_since(self, sentry_unit, filename, mtime,
@@ -364,8 +407,9 @@ class AmuletUtils(object):
             return False
 
     def validate_service_config_changed(self, sentry_unit, mtime, service,
-                                        filename, pgrep_full=False,
-                                        sleep_time=20, retry_count=2):
+                                        filename, pgrep_full=None,
+                                        sleep_time=20, retry_count=2,
+                                        retry_sleep_time=30):
         """Check service and file were updated after mtime
 
         Args:
@@ -373,9 +417,10 @@ class AmuletUtils(object):
           mtime (float): The epoch time to check against
           service (string): service name to look for in process table
           filename (string): The file to check mtime of
-          pgrep_full (boolean): Use full command line search mode with pgrep
-          sleep_time (int): Seconds to sleep before looking for process
+          pgrep_full: [Deprecated] Use full command line search mode with pgrep
+          sleep_time (int): Initial sleep in seconds to pass to test helpers
           retry_count (int): If service is not found, how many times to retry
+          retry_sleep_time (int): Time in seconds to wait between retries
 
         Typical Usage:
             u = OpenStackAmuletUtils(ERROR)
@@ -392,15 +437,25 @@ class AmuletUtils(object):
                 mtime, False if service is older than mtime or if service was
                 not found or if filename was modified before mtime.
         """
-        self.log.debug('Checking %s restarted since %s' % (service, mtime))
-        time.sleep(sleep_time)
-        service_restart = self.service_restarted_since(sentry_unit, mtime,
-                                                       service,
-                                                       pgrep_full=pgrep_full,
-                                                       sleep_time=0,
-                                                       retry_count=retry_count)
-        config_update = self.config_updated_since(sentry_unit, filename, mtime,
-                                                  sleep_time=0)
+
+        # NOTE(beisner) pgrep_full is no longer implemented, as pidof is now
+        # used instead of pgrep.  pgrep_full is still passed through to ensure
+        # deprecation WARNS.  lp1474030
+
+        service_restart = self.service_restarted_since(
+            sentry_unit, mtime,
+            service,
+            pgrep_full=pgrep_full,
+            sleep_time=sleep_time,
+            retry_count=retry_count,
+            retry_sleep_time=retry_sleep_time)
+
+        config_update = self.config_updated_since(
+            sentry_unit,
+            filename,
+            mtime,
+            sleep_time=0)
+
         return service_restart and config_update
 
     def get_sentry_time(self, sentry_unit):
@@ -418,7 +473,6 @@ class AmuletUtils(object):
         """Return a list of all Ubuntu releases in order of release."""
         _d = distro_info.UbuntuDistroInfo()
         _release_list = _d.all
-        self.log.debug('Ubuntu release list: {}'.format(_release_list))
         return _release_list
 
     def file_to_url(self, file_rel_path):
@@ -450,15 +504,20 @@ class AmuletUtils(object):
                                         cmd, code, output))
         return None
 
-    def get_process_id_list(self, sentry_unit, process_name):
+    def get_process_id_list(self, sentry_unit, process_name,
+                            expect_success=True):
         """Get a list of process ID(s) from a single sentry juju unit
         for a single process name.
 
-        :param sentry_unit: Pointer to amulet sentry instance (juju unit)
+        :param sentry_unit: Amulet sentry instance (juju unit)
         :param process_name: Process name
+        :param expect_success: If False, expect the PID to be missing,
+            raise if it is present.
         :returns: List of process IDs
         """
-        cmd = 'pidof {}'.format(process_name)
+        cmd = 'pidof -x {}'.format(process_name)
+        if not expect_success:
+            cmd += " || exit 0 && exit 1"
         output, code = sentry_unit.run(cmd)
         if code != 0:
             msg = ('{} `{}` returned {} '
@@ -467,14 +526,23 @@ class AmuletUtils(object):
             amulet.raise_status(amulet.FAIL, msg=msg)
         return str(output).split()
 
-    def get_unit_process_ids(self, unit_processes):
+    def get_unit_process_ids(self, unit_processes, expect_success=True):
         """Construct a dict containing unit sentries, process names, and
-        process IDs."""
+        process IDs.
+
+        :param unit_processes: A dictionary of Amulet sentry instance
+            to list of process names.
+        :param expect_success: if False expect the processes to not be
+            running, raise if they are.
+        :returns: Dictionary of Amulet sentry instance to dictionary
+            of process names to PIDs.
+        """
         pid_dict = {}
-        for sentry_unit, process_list in unit_processes.iteritems():
+        for sentry_unit, process_list in six.iteritems(unit_processes):
             pid_dict[sentry_unit] = {}
             for process in process_list:
-                pids = self.get_process_id_list(sentry_unit, process)
+                pids = self.get_process_id_list(
+                    sentry_unit, process, expect_success=expect_success)
                 pid_dict[sentry_unit].update({process: pids})
         return pid_dict
 
@@ -488,7 +556,7 @@ class AmuletUtils(object):
             return ('Unit count mismatch.  expected, actual: {}, '
                     '{} '.format(len(expected), len(actual)))
 
-        for (e_sentry, e_proc_names) in expected.iteritems():
+        for (e_sentry, e_proc_names) in six.iteritems(expected):
             e_sentry_name = e_sentry.info['unit_name']
             if e_sentry in actual.keys():
                 a_proc_names = actual[e_sentry]
@@ -507,11 +575,23 @@ class AmuletUtils(object):
                             '{}'.format(e_proc_name, a_proc_name))
 
                 a_pids_length = len(a_pids)
-                if e_pids_length != a_pids_length:
-                    return ('PID count mismatch. {} ({}) expected, actual: '
+                fail_msg = ('PID count mismatch. {} ({}) expected, actual: '
                             '{}, {} ({})'.format(e_sentry_name, e_proc_name,
                                                  e_pids_length, a_pids_length,
                                                  a_pids))
+
+                # If expected is not bool, ensure PID quantities match
+                if not isinstance(e_pids_length, bool) and \
+                        a_pids_length != e_pids_length:
+                    return fail_msg
+                # If expected is bool True, ensure 1 or more PIDs exist
+                elif isinstance(e_pids_length, bool) and \
+                        e_pids_length is True and a_pids_length < 1:
+                    return fail_msg
+                # If expected is bool False, ensure 0 PIDs exist
+                elif isinstance(e_pids_length, bool) and \
+                        e_pids_length is False and a_pids_length != 0:
+                    return fail_msg
                 else:
                     self.log.debug('PID check OK: {} {} {}: '
                                    '{}'.format(e_sentry_name, e_proc_name,
@@ -531,3 +611,30 @@ class AmuletUtils(object):
             return 'Dicts within list are not identical'
 
         return None
+
+    def run_action(self, unit_sentry, action,
+                   _check_output=subprocess.check_output):
+        """Run the named action on a given unit sentry.
+
+        _check_output parameter is used for dependency injection.
+
+        @return action_id.
+        """
+        unit_id = unit_sentry.info["unit_name"]
+        command = ["juju", "action", "do", "--format=json", unit_id, action]
+        self.log.info("Running command: %s\n" % " ".join(command))
+        output = _check_output(command, universal_newlines=True)
+        data = json.loads(output)
+        action_id = data[u'Action queued with id']
+        return action_id
+
+    def wait_on_action(self, action_id, _check_output=subprocess.check_output):
+        """Wait for a given action, returning if it completed or not.
+
+        _check_output parameter is used for dependency injection.
+        """
+        command = ["juju", "action", "fetch", "--format=json", "--wait=0",
+                   action_id]
+        output = _check_output(command, universal_newlines=True)
+        data = json.loads(output)
+        return data.get(u"status") == "completed"
