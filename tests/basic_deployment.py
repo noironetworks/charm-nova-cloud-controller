@@ -101,7 +101,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
 
         # Add some rate-limiting options to the charm. These will noop before
         # icehouse.
-        nova_cc_config['api-rate-limit-rules'] = "( POST, '*', .*, 9999, MINUTE )"
+        nova_cc_config['api-rate-limit-rules'] = "( POST, '*', .*, 9999, MINUTE );"
         keystone_config = {'admin-password': 'openstack',
                            'admin-token': 'ubuntutesting'}
         configs = {'nova-cloud-controller': nova_cc_config,
