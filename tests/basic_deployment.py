@@ -665,7 +665,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
 
         if self._get_openstack_release() >= self.precise_icehouse:
             expected = {"paste.filter_factory": factory,
-                        "limits": "( POST, *, .*, 9999, MINUTE );"}
+                        "limits": "( POST, '*', .*, 9999, MINUTE );"}
         else:
             expected = {"paste.filter_factory": factory}
 
