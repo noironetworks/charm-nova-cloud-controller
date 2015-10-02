@@ -199,7 +199,8 @@ BASE_RESOURCE_MAP = OrderedDict([
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in BASE_SERVICES if 'api' in s],
-        'contexts': [nova_cc_context.IdentityServiceContext()],
+        'contexts': [nova_cc_context.IdentityServiceContext(),
+                     nova_cc_context.APIRateLimitingContext()],
     }),
     (QUANTUM_CONF, {
         'services': ['quantum-server'],

@@ -98,6 +98,10 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             }
             nova_cc_config['openstack-origin-git'] = yaml.dump(openstack_origin_git)
             nova_config['openstack-origin-git'] = yaml.dump(openstack_origin_git)
+
+        # Add some rate-limiting options to the charm. These will noop before
+        # icehouse.
+        nova_cc_config['api-rate-limit-rules'] = "( POST, '*', .*, 9999, MINUTE )"
         keystone_config = {'admin-password': 'openstack',
                            'admin-token': 'ubuntutesting'}
         configs = {'nova-cloud-controller': nova_cc_config,
@@ -647,3 +651,25 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
 
         u.delete_image(self.glance, image)
         u.delete_instance(self.nova_demo, instance)
+
+    def test_api_rate_limiting_is_enabled_for_icehouse_or_more(self):
+        """
+        The API rate limiting is enabled for icehouse or more. Otherwise the
+        api-paste.ini file is left untouched.
+        """
+        unit = self.nova_cc_sentry
+        conf = '/etc/nova/api-paste.ini'
+        section = "filter:ratelimit"
+        factory = ("nova.api.openstack.compute.limits:RateLimitingMiddleware"
+                   ".factory")
+
+        if self._get_openstack_release() >= self.precise_icehouse:
+            expected = {"paste.filter_factory": factory,
+                        "limits": "( POST, *, .*, 9999, MINUTE );"}
+        else:
+            expected = {"paste.filter_factory": factory}
+
+        ret = u.validate_config_data(unit, conf, section, expected)
+        if ret:
+            message = "api paste config error: {}".format(ret)
+            amulet.raise_status(amulet.FAIL, msg=message)
