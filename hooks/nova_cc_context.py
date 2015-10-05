@@ -409,3 +409,12 @@ class ConsoleSSLContext(context.OSContextGenerator):
                 ctxt['html5proxy_base_url'] = url
 
         return ctxt
+
+
+class APIRateLimitingContext(context.OSContextGenerator):
+    def __call__(self):
+        ctxt = {}
+        rate_rules = config('api-rate-limit-rules')
+        if rate_rules:
+            ctxt['api_rate_limit_rules'] = rate_rules
+        return ctxt
