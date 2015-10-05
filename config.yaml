@@ -411,3 +411,12 @@ options:
     description: |
       List of filter class names to use for filtering hosts when not specified in
       the request.
+  api-rate-limit-rules:
+    type: string
+    default:
+    description: |
+      The API rate-limit rules to use for the deployed nova API, if any.
+      Contents of this config options will be inserted in the api-paste.ini file
+      under the "filter:ratelimit" section as "limits". The syntax for these
+      rules is documented at
+      http://docs.openstack.org/kilo/config-reference/content/configuring-compute-API.html
