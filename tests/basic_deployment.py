@@ -66,7 +66,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
 
     def _configure_services(self):
         """Configure all of the services."""
-        nova_cc_config = nova_config = {}
+        nova_cc_config = {}
+        nova_config = {}
+
         if self.git:
             amulet_http_proxy = os.environ.get('AMULET_HTTP_PROXY')
 
