@@ -602,6 +602,16 @@ class NovaCCUtilsTests(CharmTestCase):
         _known_hosts.assert_called_with('bar', None)
 
     @patch.object(utils, 'known_hosts')
+    @patch('subprocess.check_output')
+    def test_ssh_known_host_key_bug1500589(self, _check_output, _known_hosts):
+        """On precise ssh-keygen does not error if host not found in file. So
+         check charm processes empty output properly"""
+        _known_hosts.return_value = '/foo/known_hosts'
+        _check_output.return_value = ''
+        key = utils.ssh_known_host_key('test')
+        self.assertEquals(key, None)
+
+    @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_call')
     def test_remove_known_host(self, _check_call, _known_hosts):
         _known_hosts.return_value = '/foo/known_hosts'
