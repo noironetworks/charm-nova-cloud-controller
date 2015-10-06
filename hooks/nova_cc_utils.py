@@ -728,13 +728,16 @@ def ssh_known_host_key(host, unit=None, user=None):
         # The first line of output is like '# Host xx found: line 1 type RSA',
         # which should be excluded.
         output = subprocess.check_output(cmd).strip()
-        # Bug #1500589 cmd has 0 rc on precise if entry not present
-        if output and len(output) > 1:
-            return output.split('\n')[1]
-        else:
-            return None
     except subprocess.CalledProcessError:
         return None
+
+    if output:
+        # Bug #1500589 cmd has 0 rc on precise if entry not present
+        lines = output.split('\n')
+        if len(lines) > 1:
+            return lines[1]
+
+    return None
 
 
 def remove_known_host(host, unit=None, user=None):
