@@ -729,7 +729,7 @@ def ssh_known_host_key(host, unit=None, user=None):
         # which should be excluded.
         output = subprocess.check_output(cmd).strip()
         # Bug #1500589 cmd has 0 rc on precise if entry not present
-        if output and len(output) > 0:
+        if output and len(output) > 1:
             return output.split('\n')[1]
         else:
             return None
