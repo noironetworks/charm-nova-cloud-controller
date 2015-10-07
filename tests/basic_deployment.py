@@ -166,9 +166,10 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                                                   password='password',
                                                   tenant=self.demo_tenant)
 
-    def test_services(self):
+    def test_100_services(self):
         """Verify the expected services are running on the corresponding
            service units."""
+        u.log.debug('Checking system services on units...')
         commands = {
             self.mysql_sentry: ['status mysql'],
             self.rabbitmq_sentry: ['sudo service rabbitmq-server status'],
@@ -190,8 +191,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         if ret:
             amulet.raise_status(amulet.FAIL, msg=ret)
 
-    def test_service_catalog(self):
+    def test_102_service_catalog(self):
         """Verify that the service catalog endpoint data is valid."""
+        u.log.debug('Checking keystone service catalog...')
         endpoint_vol = {'adminURL': u.valid_url,
                         'region': 'RegionOne',
                         'publicURL': u.valid_url,
@@ -214,8 +216,10 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         if ret:
             amulet.raise_status(amulet.FAIL, msg=ret)
 
-    def test_openstack_compute_api_endpoint(self):
+    def test_104_openstack_compute_api_endpoint(self):
         """Verify the openstack compute api (osapi) endpoint data."""
+        u.log.debug('Checking compute endpoint data...')
+
         endpoints = self.keystone.endpoints.list()
         admin_port = internal_port = public_port = '8774'
 
@@ -234,11 +238,12 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = 'osapi endpoint: {}'.format(ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
-    def test_ec2_api_endpoint(self):
+    def test_106_ec2_api_endpoint(self):
         """Verify the EC2 api endpoint data."""
         if self._get_openstack_release() >= self.trusty_kilo:
             return
 
+        u.log.debug('Checking ec2 endpoint data...')
         endpoints = self.keystone.endpoints.list()
         admin_port = internal_port = public_port = '8773'
 
@@ -257,11 +262,12 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = 'EC2 endpoint: {}'.format(ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
-    def test_s3_api_endpoint(self):
+    def test_108_s3_api_endpoint(self):
         """Verify the S3 api endpoint data."""
         if self._get_openstack_release() >= self.trusty_kilo:
             return
 
+        u.log.debug('Checking s3 endpoint data...')
         endpoints = self.keystone.endpoints.list()
         admin_port = internal_port = public_port = '3333'
         expected = {
@@ -279,8 +285,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = 'S3 endpoint: {}'.format(ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
-    def test_nova_cc_shared_db_relation(self):
+    def test_200_nova_cc_shared_db_relation(self):
         """Verify the nova-cc to mysql shared-db relation data"""
+        u.log.debug('Checking n-c-c:mysql db relation data...')
         unit = self.nova_cc_sentry
         relation = ['shared-db', 'mysql:shared-db']
 
@@ -296,8 +303,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = u.relation_error('nova-cc shared-db', ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
-    def test_mysql_shared_db_relation(self):
+    def test_202_mysql_shared_db_relation(self):
         """Verify the mysql to nova-cc shared-db relation data"""
+        u.log.debug('Checking mysql:n-c-c db relation data...')
         unit = self.mysql_sentry
         relation = ['shared-db', 'nova-cloud-controller:shared-db']
         expected = {
@@ -311,8 +319,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = u.relation_error('mysql shared-db', ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
-    def test_nova_cc_identity_service_relation(self):
+    def test_204_nova_cc_identity_service_relation(self):
         """Verify the nova-cc to keystone identity-service relation data"""
+        u.log.debug('Checking n-c-c:keystone identity relation data...')
         unit = self.nova_cc_sentry
         relation = ['identity-service', 'keystone:identity-service']
         expected = {
@@ -340,8 +349,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = u.relation_error('nova-cc identity-service', ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
-    def test_keystone_identity_service_relation(self):
+    def test_206_keystone_identity_service_relation(self):
         """Verify the keystone to nova-cc identity-service relation data"""
+        u.log.debug('Checking keystone:n-c-c identity relation data...')
         unit = self.keystone_sentry
         relation = ['identity-service',
                     'nova-cloud-controller:identity-service']
@@ -367,8 +377,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = u.relation_error('keystone identity-service', ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
-    def test_nova_cc_amqp_relation(self):
+    def test_208_nova_cc_amqp_relation(self):
         """Verify the nova-cc to rabbitmq-server amqp relation data"""
+        u.log.debug('Checking n-c-c:rmq amqp relation data...')
         unit = self.nova_cc_sentry
         relation = ['amqp', 'rabbitmq-server:amqp']
         expected = {
@@ -382,8 +393,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = u.relation_error('nova-cc amqp', ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
-    def test_rabbitmq_amqp_relation(self):
+    def test_210_rabbitmq_amqp_relation(self):
         """Verify the rabbitmq-server to nova-cc amqp relation data"""
+        u.log.debug('Checking rmq:n-c-c amqp relation data...')
         unit = self.rabbitmq_sentry
         relation = ['amqp', 'nova-cloud-controller:amqp']
         expected = {
@@ -397,8 +409,11 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = u.relation_error('rabbitmq amqp', ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
-    def test_nova_cc_cloud_compute_relation(self):
+    def test_212_nova_cc_cloud_compute_relation(self):
         """Verify the nova-cc to nova-compute cloud-compute relation data"""
+        u.log.debug('Checking n-c-c:nova-compute '
+                    'cloud-compute relation data...')
+
         unit = self.nova_cc_sentry
         relation = ['cloud-compute', 'nova-compute:cloud-compute']
         expected = {
@@ -416,8 +431,11 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = u.relation_error('nova-cc cloud-compute', ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
-    def test_nova_cloud_compute_relation(self):
+    def test_214_nova_cloud_compute_relation(self):
         """Verify the nova-compute to nova-cc cloud-compute relation data"""
+        u.log.debug('Checking nova-compute:n-c-c '
+                    'cloud-compute relation data...')
+
         unit = self.nova_compute_sentry
         relation = ['cloud-compute', 'nova-cloud-controller:cloud-compute']
         expected = {
@@ -429,8 +447,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = u.relation_error('nova-compute cloud-compute', ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
-    def test_nova_cc_image_service_relation(self):
+    def test_216_nova_cc_image_service_relation(self):
         """Verify the nova-cc to glance image-service relation data"""
+        u.log.debug('Checking n-c-c:glance image-service relation data...')
         unit = self.nova_cc_sentry
         relation = ['image-service', 'glance:image-service']
         expected = {
@@ -442,8 +461,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = u.relation_error('nova-cc image-service', ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
-    def test_glance_image_service_relation(self):
+    def test_218_glance_image_service_relation(self):
         """Verify the glance to nova-cc image-service relation data"""
+        u.log.debug('Checking glance:n-c-c image-service relation data...')
         unit = self.glance_sentry
         relation = ['image-service', 'nova-cloud-controller:image-service']
         expected = {
@@ -456,55 +476,14 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = u.relation_error('glance image-service', ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
-    def test_z_restart_on_config_change(self):
-        """Verify that the specified services are restarted when the config
-           is changed.
-
-           Note(coreycb): The method name with the _z_ is a little odd
-           but it forces the test to run last.  It just makes things
-           easier because restarting services requires re-authorization.
-           """
-        # NOTE(coreycb): Skipping failing test on essex until resolved.
-        #                config-flags don't take effect on essex.
-        if self._get_openstack_release() == self.precise_essex:
-            u.log.error("Skipping failing test until resolved")
-            return
-
-        flags_set = 'quota_cores=20,quota_instances=40,quota_ram=102400'
-        flags_reset = 'quota_cores=10,quota_instances=20,quota_ram=51200'
-
-        services = [
-            'nova-api-ec2',
-            'nova-api-os-compute',
-            'nova-objectstore',
-            'nova-cert',
-            'nova-scheduler',
-            'nova-conductor'
-        ]
-
-        self.d.configure('nova-cloud-controller', {'config-flags': flags_set})
-
-        time = 20
-        conf = '/etc/nova/nova.conf'
-        for s in services:
-            if not u.service_restarted(self.nova_cc_sentry, s, conf,
-                                       pgrep_full=True, sleep_time=time):
-                self.d.configure('nova-cloud-controller',
-                                 {'config-flags': flags_reset})
-                msg = "service {} didn't restart after config change".format(s)
-                amulet.raise_status(amulet.FAIL, msg=msg)
-            time = 0
-
-        self.d.configure('nova-cloud-controller',
-                         {'config-flags': flags_reset})
-
-    def test_nova_default_config(self):
+    def test_300_nova_default_config(self):
         """Verify the data in the nova config file's default section."""
         # NOTE(coreycb): Currently no way to test on essex because config file
         #                has no section headers.
         if self._get_openstack_release() == self.precise_essex:
             return
 
+        u.log.debug('Checking nova config file data...')
         unit = self.nova_cc_sentry
         conf = '/etc/nova/nova.conf'
 
@@ -654,7 +633,35 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 message = "nova config error: {}".format(ret)
                 amulet.raise_status(amulet.FAIL, msg=message)
 
-    def test_image_instance_create(self):
+    def test_400_api_checks(self):
+        u.log.debug('Checking basic api functionality...')
+        pass
+
+    def test_302_api_rate_limiting_is_enabled_for_icehouse_or_more(self):
+        """
+        The API rate limiting is enabled for icehouse or more. Otherwise the
+        api-paste.ini file is left untouched.
+        """
+        u.log.debug('Checking api-paste config file data...')
+
+        unit = self.nova_cc_sentry
+        conf = '/etc/nova/api-paste.ini'
+        section = "filter:ratelimit"
+        factory = ("nova.api.openstack.compute.limits:RateLimitingMiddleware"
+                   ".factory")
+
+        if self._get_openstack_release() >= self.precise_icehouse:
+            expected = {"paste.filter_factory": factory,
+                        "limits": "( POST, '*', .*, 9999, MINUTE );"}
+        else:
+            expected = {"paste.filter_factory": factory}
+
+        ret = u.validate_config_data(unit, conf, section, expected)
+        if ret:
+            message = "api paste config error: {}".format(ret)
+            amulet.raise_status(amulet.FAIL, msg=message)
+
+    def test_402_image_instance_create(self):
         """Create an image/instance, verify they exist, and delete them."""
         # NOTE(coreycb): Skipping failing test on essex until resolved. essex
         #                nova API calls are getting "Malformed request url
@@ -662,6 +669,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         if self._get_openstack_release() == self.precise_essex:
             u.log.error("Skipping failing test until resolved")
             return
+
+        u.log.debug('Checking nova instance creation...')
 
         image = u.create_cirros_image(self.glance, "cirros-image")
         if not image:
@@ -687,24 +696,44 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         u.delete_image(self.glance, image)
         u.delete_instance(self.nova_demo, instance)
 
-    def test_api_rate_limiting_is_enabled_for_icehouse_or_more(self):
-        """
-        The API rate limiting is enabled for icehouse or more. Otherwise the
-        api-paste.ini file is left untouched.
-        """
-        unit = self.nova_cc_sentry
-        conf = '/etc/nova/api-paste.ini'
-        section = "filter:ratelimit"
-        factory = ("nova.api.openstack.compute.limits:RateLimitingMiddleware"
-                   ".factory")
+    def test_900_restart_on_config_change(self):
+        """Verify that the specified services are restarted when the config
+           is changed.
 
-        if self._get_openstack_release() >= self.precise_icehouse:
-            expected = {"paste.filter_factory": factory,
-                        "limits": "( POST, '*', .*, 9999, MINUTE );"}
-        else:
-            expected = {"paste.filter_factory": factory}
+           Note(coreycb): The method name with the _z_ is a little odd
+           but it forces the test to run last.  It just makes things
+           easier because restarting services requires re-authorization.
+           """
+        # NOTE(coreycb): Skipping failing test on essex until resolved.
+        #                config-flags don't take effect on essex.
+        if self._get_openstack_release() == self.precise_essex:
+            u.log.error("Skipping failing test until resolved")
+            return
 
-        ret = u.validate_config_data(unit, conf, section, expected)
-        if ret:
-            message = "api paste config error: {}".format(ret)
-            amulet.raise_status(amulet.FAIL, msg=message)
+        flags_set = 'quota_cores=20,quota_instances=40,quota_ram=102400'
+        flags_reset = 'quota_cores=10,quota_instances=20,quota_ram=51200'
+
+        services = [
+            'nova-api-ec2',
+            'nova-api-os-compute',
+            'nova-objectstore',
+            'nova-cert',
+            'nova-scheduler',
+            'nova-conductor'
+        ]
+
+        self.d.configure('nova-cloud-controller', {'config-flags': flags_set})
+
+        time = 20
+        conf = '/etc/nova/nova.conf'
+        for s in services:
+            if not u.service_restarted(self.nova_cc_sentry, s, conf,
+                                       pgrep_full=True, sleep_time=time):
+                self.d.configure('nova-cloud-controller',
+                                 {'config-flags': flags_reset})
+                msg = "service {} didn't restart after config change".format(s)
+                amulet.raise_status(amulet.FAIL, msg=msg)
+            time = 0
+
+        self.d.configure('nova-cloud-controller',
+                         {'config-flags': flags_reset})
