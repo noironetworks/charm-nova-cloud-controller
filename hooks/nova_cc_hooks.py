@@ -26,6 +26,7 @@ from charmhelpers.core.hookenv import (
     related_units,
     open_port,
     unit_get,
+    status_set,
 )
 
 from charmhelpers.core.host import (
@@ -49,7 +50,8 @@ from charmhelpers.contrib.openstack.utils import (
     openstack_upgrade_available,
     os_release,
     os_requires_version,
-    sync_db_with_multi_ipv6_addresses
+    sync_db_with_multi_ipv6_addresses,
+    os_workload_status,
 )
 
 from charmhelpers.contrib.openstack.neutron import (
@@ -101,6 +103,8 @@ from nova_cc_utils import (
     guard_map,
     get_topics,
     setup_ipv6,
+    REQUIRED_INTERFACES,
+    check_optional_relations,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -145,10 +149,14 @@ NOVA_CONSOLEAUTH_OVERRIDE = '/etc/init/nova-consoleauth.override'
 
 
 @hooks.hook('install.real')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 def install():
+    status_set('maintenance', 'Executing pre-install')
     execd_preinstall()
     configure_installation_source(config('openstack-origin'))
 
+    status_set('maintenance', 'Installing apt packages')
     apt_update()
     apt_install(determine_packages(), fatal=True)
 
@@ -162,17 +170,22 @@ def install():
                 log('Installing %s to /usr/bin' % f)
                 shutil.copy2(f, '/usr/bin')
     [open_port(port) for port in determine_ports()]
-    log('Disabling services into db relation joined')
+    msg = 'Disabling services into db relation joined'
+    log(msg)
+    status_set('maintenance', msg)
     disable_services()
     cmd_all_services('stop')
 
 
 @hooks.hook('config-changed')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 @restart_on_change(restart_map(), stopstart=True)
 def config_changed():
     if config('prefer-ipv6'):
+        status_set('maintenance', 'configuring ipv6')
         setup_ipv6()
         sync_db_with_multi_ipv6_addresses(config('database'),
                                           config('database-user'),
@@ -180,10 +193,12 @@ def config_changed():
 
     global CONFIGS
     if git_install_requested():
+        status_set('maintenance', 'Running Git install')
         if config_value_changed('openstack-origin-git'):
             git_install(config('openstack-origin-git'))
     elif not config('action-managed-upgrade'):
         if openstack_upgrade_available('nova-common'):
+            status_set('maintenance', 'Running openstack upgrade')
             CONFIGS = do_openstack_upgrade(CONFIGS)
             [neutron_api_relation_joined(rid=rid, remote_restart=True)
                 for rid in relation_ids('neutron-api')]
@@ -192,6 +207,7 @@ def config_changed():
     CONFIGS.write_all()
     if console_attributes('protocol'):
         if not git_install_requested():
+            status_set('maintenance', 'Configuring guest console access')
             apt_update()
             packages = console_attributes('packages') or []
             filtered = filter_installed_packages(packages)
@@ -212,6 +228,8 @@ def config_changed():
 
 
 @hooks.hook('amqp-relation-joined')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 def amqp_joined(relation_id=None):
     relation_set(relation_id=relation_id,
                  username=config('rabbit-user'), vhost=config('rabbit-vhost'))
@@ -219,6 +237,8 @@ def amqp_joined(relation_id=None):
 
 @hooks.hook('amqp-relation-changed')
 @hooks.hook('amqp-relation-departed')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 @restart_on_change(restart_map())
@@ -244,6 +264,7 @@ def conditional_neutron_migration():
         log('Not running neutron database migration as migrations are by '
             'the neutron-api charm.')
     else:
+        status_set('maintenance', 'Running neutron db migration')
         migrate_neutron_database()
         # neutron-api service may have appeared while the migration was
         # running so prod it just in case
@@ -254,6 +275,8 @@ def conditional_neutron_migration():
 
 
 @hooks.hook('shared-db-relation-joined')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 def db_joined():
     if is_relation_made('pgsql-nova-db') or \
             is_relation_made('pgsql-neutron-db'):
@@ -291,6 +314,8 @@ def db_joined():
 
 
 @hooks.hook('pgsql-nova-db-relation-joined')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 def pgsql_nova_db_joined():
     if is_relation_made('shared-db'):
         # raise error
@@ -303,6 +328,8 @@ def pgsql_nova_db_joined():
 
 
 @hooks.hook('pgsql-neutron-db-relation-joined')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 def pgsql_neutron_db_joined():
     if is_relation_made('shared-db'):
         # raise error
@@ -315,6 +342,8 @@ def pgsql_neutron_db_joined():
 
 
 @hooks.hook('shared-db-relation-changed')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 @restart_on_change(restart_map())
@@ -330,6 +359,7 @@ def db_changed():
         # permitted units then check if we're in the list.
         allowed_units = relation_get('nova_allowed_units')
         if allowed_units and local_unit() in allowed_units.split():
+            status_set('maintenance', 'Running nova db migration')
             migrate_nova_database()
             log('Triggering remote cloud-compute restarts.')
             [compute_joined(rid=rid, remote_restart=True)
@@ -344,6 +374,8 @@ def db_changed():
 
 
 @hooks.hook('pgsql-nova-db-relation-changed')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 @restart_on_change(restart_map())
@@ -354,6 +386,7 @@ def postgresql_nova_db_changed():
     CONFIGS.write_all()
 
     if is_elected_leader(CLUSTER_RES):
+        status_set('maintenance', 'Running nova db migration')
         migrate_nova_database()
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
@@ -362,6 +395,8 @@ def postgresql_nova_db_changed():
 
 
 @hooks.hook('pgsql-neutron-db-relation-changed')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 @restart_on_change(restart_map())
@@ -373,6 +408,8 @@ def postgresql_neutron_db_changed():
 
 
 @hooks.hook('image-service-relation-changed')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 @restart_on_change(restart_map())
@@ -385,6 +422,8 @@ def image_service_changed():
 
 
 @hooks.hook('identity-service-relation-joined')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 def identity_joined(rid=None):
     public_url = canonical_url(CONFIGS, PUBLIC)
     internal_url = canonical_url(CONFIGS, INTERNAL)
@@ -395,6 +434,8 @@ def identity_joined(rid=None):
 
 
 @hooks.hook('identity-service-relation-changed')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 @restart_on_change(restart_map())
@@ -420,6 +461,8 @@ def identity_changed():
 
 @hooks.hook('nova-volume-service-relation-joined',
             'cinder-volume-service-relation-joined')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 @restart_on_change(restart_map())
@@ -553,6 +596,8 @@ def console_settings():
 
 
 @hooks.hook('cloud-compute-relation-joined')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 def compute_joined(rid=None, remote_restart=False):
     cons_settings = console_settings()
     relation_set(relation_id=rid, **cons_settings)
@@ -573,11 +618,14 @@ def compute_joined(rid=None, remote_restart=False):
 
 
 @hooks.hook('cloud-compute-relation-changed')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 def compute_changed(rid=None, unit=None):
     rel_settings = relation_get(rid=rid, unit=unit)
     if 'migration_auth_type' not in rel_settings:
         return
     if rel_settings['migration_auth_type'] == 'ssh':
+        status_set('maintenance', 'configuring live migration')
         key = rel_settings.get('ssh_public_key')
         if not key:
             log('SSH migration set but peer did not publish key.')
@@ -633,12 +681,16 @@ def compute_changed(rid=None, unit=None):
 
 
 @hooks.hook('cloud-compute-relation-departed')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 def compute_departed():
     ssh_compute_remove(public_key=relation_get('ssh_public_key'))
 
 
 @hooks.hook('neutron-network-service-relation-joined',
             'quantum-network-service-relation-joined')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 def quantum_joined(rid=None):
     rel_settings = neutron_settings()
 
@@ -654,6 +706,8 @@ def quantum_joined(rid=None):
 
 
 @hooks.hook('cluster-relation-joined')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 def cluster_joined(relation_id=None):
     for addr_type in ADDRESS_TYPES:
         address = get_address_in_network(
@@ -673,6 +727,8 @@ def cluster_joined(relation_id=None):
 @hooks.hook('cluster-relation-changed',
             'cluster-relation-departed',
             'leader-settings-changed')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 @restart_on_change(restart_map(), stopstart=True)
@@ -691,6 +747,8 @@ def cluster_changed():
 
 
 @hooks.hook('ha-relation-joined')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 def ha_joined():
     cluster_config = get_hacluster_config()
     resources = {
@@ -753,6 +811,8 @@ def ha_joined():
 
 
 @hooks.hook('ha-relation-changed')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 def ha_changed():
     clustered = relation_get('clustered')
     if not clustered or clustered in [None, 'None', '']:
@@ -776,6 +836,8 @@ def ha_changed():
 
 @hooks.hook('shared-db-relation-broken',
             'pgsql-nova-db-relation-broken')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 def db_departed():
@@ -793,6 +855,8 @@ def db_departed():
             'nova-volume-service-relation-broken',
             'pgsql-neutron-db-relation-broken',
             'quantum-network-service-relation-broken')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 def relation_broken():
@@ -849,6 +913,8 @@ def nova_vmware_relation_changed():
 
 
 @hooks.hook('upgrade-charm')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 def upgrade_charm():
     apt_install(filter_installed_packages(determine_packages()),
                 fatal=True)
@@ -890,6 +956,8 @@ def get_cell_type():
 
 
 @hooks.hook('neutron-api-relation-joined')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 def neutron_api_relation_joined(rid=None, remote_restart=False):
     with open('/etc/init/neutron-server.override', 'wb') as out:
         out.write('manual\n')
@@ -910,6 +978,8 @@ def neutron_api_relation_joined(rid=None, remote_restart=False):
 
 
 @hooks.hook('neutron-api-relation-changed')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 @restart_on_change(restart_map())
@@ -922,6 +992,8 @@ def neutron_api_relation_changed():
 
 
 @hooks.hook('neutron-api-relation-broken')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 @restart_on_change(restart_map())
@@ -936,6 +1008,8 @@ def neutron_api_relation_broken():
 
 
 @hooks.hook('zeromq-configuration-relation-joined')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 @os_requires_version('kilo', 'nova-common')
 def zeromq_configuration_relation_joined(relid=None):
     relation_set(relation_id=relid,
@@ -945,6 +1019,8 @@ def zeromq_configuration_relation_joined(relid=None):
 
 @hooks.hook('nrpe-external-master-relation-joined',
             'nrpe-external-master-relation-changed')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 def update_nrpe_config():
     # python-dbus is used by check_upstart_job
     apt_install('python-dbus')
@@ -961,12 +1037,16 @@ def update_nrpe_config():
             'memcache-relation-departed',
             'memcache-relation-changed',
             'memcache-relation-broken')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 @restart_on_change(restart_map())
 def memcached_joined():
     CONFIGS.write(NOVA_CONF)
 
 
 @hooks.hook('zeromq-configuration-relation-changed')
+@os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                    charm_func=check_optional_relations)
 @restart_on_change(restart_map(), stopstart=True)
 def zeromq_configuration_relation_changed():
     CONFIGS.write(NOVA_CONF)
