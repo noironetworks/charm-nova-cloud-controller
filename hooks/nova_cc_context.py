@@ -81,7 +81,20 @@ class NovaCellContext(context.OSContextGenerator):
         return {}
 
 
+class CloudComputeContext(context.OSContextGenerator):
+    "Dummy context used by service status to check relation exists"
+    interfaces = ['nova-compute']
+
+    def __call__(self):
+        ctxt = {}
+        rids = [rid for rid in relation_ids('cloud-compute')]
+        if rids:
+            ctxt['rids'] = rids
+        return ctxt
+
+
 class NeutronAPIContext(context.OSContextGenerator):
+    interfaces = ['neutron-api']
 
     def __call__(self):
         log('Generating template context from neutron api relation')
@@ -102,7 +115,7 @@ class NeutronAPIContext(context.OSContextGenerator):
 
 
 class VolumeServiceContext(context.OSContextGenerator):
-    interfaces = []
+    interfaces = ['nova-volume-service', 'cinder-volume-service']
 
     def __call__(self):
         ctxt = {}
@@ -228,7 +241,7 @@ def use_local_neutron_api():
 
 
 class NeutronCCContext(context.NeutronContext):
-    interfaces = []
+    interfaces = ['quantum-network-service', 'neutron-network-service']
 
     @property
     def plugin(self):
