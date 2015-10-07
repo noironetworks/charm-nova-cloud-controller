@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 import amulet
 import os
 import yaml
@@ -10,8 +8,8 @@ from charmhelpers.contrib.openstack.amulet.deployment import (
 
 from charmhelpers.contrib.openstack.amulet.utils import (
     OpenStackAmuletUtils,
-    DEBUG, # flake8: noqa
-    ERROR
+    DEBUG,
+    # ERROR
 )
 
 # Use DEBUG to turn on debug logging
@@ -24,7 +22,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
     def __init__(self, series=None, openstack=None, source=None, git=False,
                  stable=False):
         """Deploy the entire test environment."""
-        super(NovaCCBasicDeployment, self).__init__(series, openstack, source, stable)
+        super(NovaCCBasicDeployment, self).__init__(series, openstack,
+                                                    source, stable)
         self.git = git
         self._add_services()
         self._add_relations()
@@ -40,27 +39,31 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
            compatible with the local charm (e.g. stable or next).
            """
         this_service = {'name': 'nova-cloud-controller'}
-        other_services = [{'name': 'mysql'}, {'name': 'rabbitmq-server'},
+        other_services = [{'name': 'mysql'},
+                          {'name': 'rabbitmq-server'},
                           {'name': 'nova-compute', 'units': 2},
-                          {'name': 'keystone'}, {'name': 'glance'}]
+                          {'name': 'keystone'},
+                          {'name': 'glance'}]
         super(NovaCCBasicDeployment, self)._add_services(this_service,
                                                          other_services)
 
     def _add_relations(self):
         """Add all of the relations for the services."""
         relations = {
-          'nova-cloud-controller:shared-db': 'mysql:shared-db',
-          'nova-cloud-controller:identity-service': 'keystone:identity-service',
-          'nova-cloud-controller:amqp': 'rabbitmq-server:amqp',
-          'nova-cloud-controller:cloud-compute': 'nova-compute:cloud-compute',
-          'nova-cloud-controller:image-service': 'glance:image-service',
-          'nova-compute:image-service': 'glance:image-service',
-          'nova-compute:shared-db': 'mysql:shared-db',
-          'nova-compute:amqp': 'rabbitmq-server:amqp',
-          'keystone:shared-db': 'mysql:shared-db',
-          'glance:identity-service': 'keystone:identity-service',
-          'glance:shared-db': 'mysql:shared-db',
-          'glance:amqp': 'rabbitmq-server:amqp'
+            'nova-cloud-controller:shared-db': 'mysql:shared-db',
+            'nova-cloud-controller:identity-service': 'keystone:'
+                                                      'identity-service',
+            'nova-cloud-controller:amqp': 'rabbitmq-server:amqp',
+            'nova-cloud-controller:cloud-compute': 'nova-compute:'
+                                                   'cloud-compute',
+            'nova-cloud-controller:image-service': 'glance:image-service',
+            'nova-compute:image-service': 'glance:image-service',
+            'nova-compute:shared-db': 'mysql:shared-db',
+            'nova-compute:amqp': 'rabbitmq-server:amqp',
+            'keystone:shared-db': 'mysql:shared-db',
+            'glance:identity-service': 'keystone:identity-service',
+            'glance:shared-db': 'mysql:shared-db',
+            'glance:amqp': 'rabbitmq-server:amqp'
         }
         super(NovaCCBasicDeployment, self)._add_relations(relations)
 
@@ -98,16 +101,24 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 'http_proxy': amulet_http_proxy,
                 'https_proxy': amulet_http_proxy,
             }
-            nova_cc_config['openstack-origin-git'] = yaml.dump(openstack_origin_git)
-            nova_config['openstack-origin-git'] = yaml.dump(openstack_origin_git)
+
+            nova_cc_config['openstack-origin-git'] = \
+                yaml.dump(openstack_origin_git)
+
+            nova_config['openstack-origin-git'] = \
+                yaml.dump(openstack_origin_git)
 
         # Add some rate-limiting options to the charm. These will noop before
         # icehouse.
-        nova_cc_config['api-rate-limit-rules'] = "( POST, '*', .*, 9999, MINUTE );"
+        nova_cc_config['api-rate-limit-rules'] = \
+            "( POST, '*', .*, 9999, MINUTE );"
+
         keystone_config = {'admin-password': 'openstack',
                            'admin-token': 'ubuntutesting'}
+
         configs = {'nova-cloud-controller': nova_cc_config,
                    'keystone': keystone_config, 'nova-compute': nova_config}
+
         super(NovaCCBasicDeployment, self)._configure_services(configs)
 
     def _initialize_tests(self):
@@ -207,12 +218,15 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         """Verify the openstack compute api (osapi) endpoint data."""
         endpoints = self.keystone.endpoints.list()
         admin_port = internal_port = public_port = '8774'
-        expected = {'id': u.not_null,
-                    'region': 'RegionOne',
-                    'adminurl': u.valid_url,
-                    'internalurl': u.valid_url,
-                    'publicurl': u.valid_url,
-                    'service_id': u.not_null}
+
+        expected = {
+            'id': u.not_null,
+            'region': 'RegionOne',
+            'adminurl': u.valid_url,
+            'internalurl': u.valid_url,
+            'publicurl': u.valid_url,
+            'service_id': u.not_null
+        }
 
         ret = u.validate_endpoint_data(endpoints, admin_port, internal_port,
                                        public_port, expected)
@@ -227,12 +241,15 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
 
         endpoints = self.keystone.endpoints.list()
         admin_port = internal_port = public_port = '8773'
-        expected = {'id': u.not_null,
-                    'region': 'RegionOne',
-                    'adminurl': u.valid_url,
-                    'internalurl': u.valid_url,
-                    'publicurl': u.valid_url,
-                    'service_id': u.not_null}
+
+        expected = {
+            'id': u.not_null,
+            'region': 'RegionOne',
+            'adminurl': u.valid_url,
+            'internalurl': u.valid_url,
+            'publicurl': u.valid_url,
+            'service_id': u.not_null
+        }
 
         ret = u.validate_endpoint_data(endpoints, admin_port, internal_port,
                                        public_port, expected)
@@ -247,12 +264,14 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
 
         endpoints = self.keystone.endpoints.list()
         admin_port = internal_port = public_port = '3333'
-        expected = {'id': u.not_null,
-                    'region': 'RegionOne',
-                    'adminurl': u.valid_url,
-                    'internalurl': u.valid_url,
-                    'publicurl': u.valid_url,
-                    'service_id': u.not_null}
+        expected = {
+            'id': u.not_null,
+            'region': 'RegionOne',
+            'adminurl': u.valid_url,
+            'internalurl': u.valid_url,
+            'publicurl': u.valid_url,
+            'service_id': u.not_null
+        }
 
         ret = u.validate_endpoint_data(endpoints, admin_port, internal_port,
                                        public_port, expected)
@@ -264,6 +283,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         """Verify the nova-cc to mysql shared-db relation data"""
         unit = self.nova_cc_sentry
         relation = ['shared-db', 'mysql:shared-db']
+
         expected = {
             'private-address': u.valid_ip,
             'nova_database': 'nova',
@@ -453,10 +473,16 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         flags_set = 'quota_cores=20,quota_instances=40,quota_ram=102400'
         flags_reset = 'quota_cores=10,quota_instances=20,quota_ram=51200'
 
-        services = ['nova-api-ec2', 'nova-api-os-compute', 'nova-objectstore',
-                    'nova-cert', 'nova-scheduler', 'nova-conductor']
+        services = [
+            'nova-api-ec2',
+            'nova-api-os-compute',
+            'nova-objectstore',
+            'nova-cert',
+            'nova-scheduler',
+            'nova-conductor'
+        ]
+
         self.d.configure('nova-cloud-controller', {'config-flags': flags_set})
-        pgrep_full = True
 
         time = 20
         conf = '/etc/nova/nova.conf'
@@ -469,7 +495,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 amulet.raise_status(amulet.FAIL, msg=msg)
             time = 0
 
-        self.d.configure('nova-cloud-controller', {'config-flags': flags_reset})
+        self.d.configure('nova-cloud-controller',
+                         {'config-flags': flags_reset})
 
     def test_nova_default_config(self):
         """Verify the data in the nova config file's default section."""
@@ -480,28 +507,34 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
 
         unit = self.nova_cc_sentry
         conf = '/etc/nova/nova.conf'
-        rabbitmq_relation = self.rabbitmq_sentry.relation('amqp',
-                                                   'nova-cloud-controller:amqp')
-        glance_relation = self.glance_sentry.relation('image-service',
-                                          'nova-cloud-controller:image-service')
-        keystone_ep = self.keystone_demo.service_catalog.url_for(\
-                                                      service_type='identity',
-                                                      endpoint_type='publicURL')
+
+        rabbitmq_relation = self.rabbitmq_sentry.relation(
+            'amqp', 'nova-cloud-controller:amqp')
+
+        gl_ncc_rel = self.glance_sentry.relation(
+            'image-service', 'nova-cloud-controller:image-service')
+
+        keystone_ep = self.keystone_demo.service_catalog.url_for(
+            service_type='identity', endpoint_type='publicURL')
+
         keystone_ec2 = "{}/ec2tokens".format(keystone_ep)
 
-        keystone_relation = self.keystone_sentry.relation('identity-service',
-                                       'nova-cloud-controller:identity-service')
-        keystone_uri = "http://{}:{}/".format(keystone_relation['service_host'],
-                                              keystone_relation['service_port'])
-        identity_uri = "{}://{}:{}/".format(keystone_relation['auth_protocol'],
-                                            keystone_relation['service_host'],
-                                            keystone_relation['auth_port'])
+        ks_ncc_rel = self.keystone_sentry.relation(
+            'identity-service', 'nova-cloud-controller:identity-service')
 
-        mysql_relation = self.mysql_sentry.relation('shared-db',
-                                              'nova-cloud-controller:shared-db')
+        keystone_uri = "http://{}:{}/".format(ks_ncc_rel['service_host'],
+                                              ks_ncc_rel['service_port'])
+
+        identity_uri = "{}://{}:{}/".format(ks_ncc_rel['auth_protocol'],
+                                            ks_ncc_rel['service_host'],
+                                            ks_ncc_rel['auth_port'])
+
+        db_ncc_rel = self.mysql_sentry.relation(
+            'shared-db', 'nova-cloud-controller:shared-db')
+
         db_uri = "mysql://{}:{}@{}/{}".format('nova',
-                                              mysql_relation['nova_password'],
-                                              mysql_relation['db_host'],
+                                              db_ncc_rel['nova_password'],
+                                              db_ncc_rel['db_host'],
                                               'nova')
 
         expected = {
@@ -543,12 +576,12 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 keystone_authtoken = {
                     'keystone_authtoken': {
                         'auth_uri': keystone_uri,
-                        'auth_host': keystone_relation['service_host'],
-                        'auth_port': keystone_relation['auth_port'],
-                        'auth_protocol': keystone_relation['auth_protocol'],
-                        'admin_tenant_name': keystone_relation['service_tenant'],
-                        'admin_user': keystone_relation['service_username'],
-                        'admin_password': keystone_relation['service_password'],
+                        'auth_host': ks_ncc_rel['service_host'],
+                        'auth_port': ks_ncc_rel['auth_port'],
+                        'auth_protocol': ks_ncc_rel['auth_protocol'],
+                        'admin_tenant_name': ks_ncc_rel['service_tenant'],
+                        'admin_user': ks_ncc_rel['service_username'],
+                        'admin_password': ks_ncc_rel['service_password'],
                     }
                 }
                 expected.update(database)
@@ -560,7 +593,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             expected[d]['rabbit_virtual_host'] = 'openstack'
             expected[d]['rabbit_password'] = rabbitmq_relation['password']
             expected[d]['rabbit_host'] = rabbitmq_relation['hostname']
-            expected[d]['glance_api_servers'] = glance_relation['glance-api-server']
+            expected[d]['glance_api_servers'] = gl_ncc_rel['glance-api-server']
 
         else:
             database = {
@@ -571,16 +604,16 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             }
             glance = {
                 'glance': {
-                    'api_servers': glance_relation['glance-api-server'],
+                    'api_servers': gl_ncc_rel['glance-api-server'],
                 }
             }
             keystone_authtoken = {
                 'keystone_authtoken': {
                     'identity_uri': identity_uri,
                     'auth_uri': keystone_uri,
-                    'admin_tenant_name': keystone_relation['service_tenant'],
-                    'admin_user': keystone_relation['service_username'],
-                    'admin_password': keystone_relation['service_password'],
+                    'admin_tenant_name': ks_ncc_rel['service_tenant'],
+                    'admin_user': ks_ncc_rel['service_username'],
+                    'admin_password': ks_ncc_rel['service_password'],
                     'signing_dir': '/var/cache/nova',
                 }
             }
@@ -624,8 +657,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
     def test_image_instance_create(self):
         """Create an image/instance, verify they exist, and delete them."""
         # NOTE(coreycb): Skipping failing test on essex until resolved. essex
-        #                nova API calls are getting "Malformed request url (HTTP
-        #                400)".
+        #                nova API calls are getting "Malformed request url
+        #                (HTTP 400)".
         if self._get_openstack_release() == self.precise_essex:
             u.log.error("Skipping failing test until resolved")
             return
