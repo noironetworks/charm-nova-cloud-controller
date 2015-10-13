@@ -26,6 +26,7 @@ from charmhelpers.core.hookenv import (
     related_units,
     open_port,
     unit_get,
+    status_set,
 )
 
 from charmhelpers.core.host import (
@@ -49,7 +50,8 @@ from charmhelpers.contrib.openstack.utils import (
     openstack_upgrade_available,
     os_release,
     os_requires_version,
-    sync_db_with_multi_ipv6_addresses
+    sync_db_with_multi_ipv6_addresses,
+    set_os_workload_status,
 )
 
 from charmhelpers.contrib.openstack.neutron import (
@@ -101,6 +103,8 @@ from nova_cc_utils import (
     guard_map,
     get_topics,
     setup_ipv6,
+    REQUIRED_INTERFACES,
+    check_optional_relations,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -146,9 +150,11 @@ NOVA_CONSOLEAUTH_OVERRIDE = '/etc/init/nova-consoleauth.override'
 
 @hooks.hook('install.real')
 def install():
+    status_set('maintenance', 'Executing pre-install')
     execd_preinstall()
     configure_installation_source(config('openstack-origin'))
 
+    status_set('maintenance', 'Installing apt packages')
     apt_update()
     apt_install(determine_packages(), fatal=True)
 
@@ -162,7 +168,9 @@ def install():
                 log('Installing %s to /usr/bin' % f)
                 shutil.copy2(f, '/usr/bin')
     [open_port(port) for port in determine_ports()]
-    log('Disabling services into db relation joined')
+    msg = 'Disabling services into db relation joined'
+    log(msg)
+    status_set('maintenance', msg)
     disable_services()
     cmd_all_services('stop')
 
@@ -173,6 +181,7 @@ def install():
 @restart_on_change(restart_map(), stopstart=True)
 def config_changed():
     if config('prefer-ipv6'):
+        status_set('maintenance', 'configuring ipv6')
         setup_ipv6()
         sync_db_with_multi_ipv6_addresses(config('database'),
                                           config('database-user'),
@@ -180,10 +189,12 @@ def config_changed():
 
     global CONFIGS
     if git_install_requested():
+        status_set('maintenance', 'Running Git install')
         if config_value_changed('openstack-origin-git'):
             git_install(config('openstack-origin-git'))
     elif not config('action-managed-upgrade'):
         if openstack_upgrade_available('nova-common'):
+            status_set('maintenance', 'Running openstack upgrade')
             CONFIGS = do_openstack_upgrade(CONFIGS)
             [neutron_api_relation_joined(rid=rid, remote_restart=True)
                 for rid in relation_ids('neutron-api')]
@@ -192,6 +203,7 @@ def config_changed():
     CONFIGS.write_all()
     if console_attributes('protocol'):
         if not git_install_requested():
+            status_set('maintenance', 'Configuring guest console access')
             apt_update()
             packages = console_attributes('packages') or []
             filtered = filter_installed_packages(packages)
@@ -244,6 +256,7 @@ def conditional_neutron_migration():
         log('Not running neutron database migration as migrations are by '
             'the neutron-api charm.')
     else:
+        status_set('maintenance', 'Running neutron db migration')
         migrate_neutron_database()
         # neutron-api service may have appeared while the migration was
         # running so prod it just in case
@@ -330,6 +343,7 @@ def db_changed():
         # permitted units then check if we're in the list.
         allowed_units = relation_get('nova_allowed_units')
         if allowed_units and local_unit() in allowed_units.split():
+            status_set('maintenance', 'Running nova db migration')
             migrate_nova_database()
             log('Triggering remote cloud-compute restarts.')
             [compute_joined(rid=rid, remote_restart=True)
@@ -354,6 +368,7 @@ def postgresql_nova_db_changed():
     CONFIGS.write_all()
 
     if is_elected_leader(CLUSTER_RES):
+        status_set('maintenance', 'Running nova db migration')
         migrate_nova_database()
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
@@ -578,6 +593,7 @@ def compute_changed(rid=None, unit=None):
     if 'migration_auth_type' not in rel_settings:
         return
     if rel_settings['migration_auth_type'] == 'ssh':
+        status_set('maintenance', 'configuring live migration')
         key = rel_settings.get('ssh_public_key')
         if not key:
             log('SSH migration set but peer did not publish key.')
@@ -1039,7 +1055,8 @@ def main():
         hooks.execute(sys.argv)
     except UnregisteredHookError as e:
         log('Unknown hook {} - skipping.'.format(e))
-
+    set_os_workload_status(CONFIGS, REQUIRED_INTERFACES,
+                           charm_func=check_optional_relations)
 
 if __name__ == '__main__':
     main()

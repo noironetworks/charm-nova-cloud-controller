@@ -73,6 +73,7 @@ TO_PATCH = [
     'update_nrpe_config',
     'git_install',
     'git_install_requested',
+    'status_set',
 ]
 
 

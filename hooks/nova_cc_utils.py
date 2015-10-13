@@ -11,7 +11,10 @@ from charmhelpers.contrib.openstack import context, templating
 from charmhelpers.contrib.openstack.neutron import (
     network_manager, neutron_plugin_attribute)
 
-from charmhelpers.contrib.hahelpers.cluster import is_elected_leader
+from charmhelpers.contrib.hahelpers.cluster import (
+    is_elected_leader,
+    get_hacluster_config,
+)
 
 from charmhelpers.contrib.peerstorage import peer_store
 
@@ -31,7 +34,9 @@ from charmhelpers.contrib.openstack.utils import (
     git_yaml_value,
     is_ip,
     os_release,
-    save_script_rc as _save_script_rc)
+    save_script_rc as _save_script_rc,
+    set_os_workload_status,
+)
 
 from charmhelpers.fetch import (
     apt_upgrade,
@@ -50,6 +55,7 @@ from charmhelpers.core.hookenv import (
     is_relation_made,
     INFO,
     ERROR,
+    status_get,
 )
 
 from charmhelpers.core.host import (
@@ -79,6 +85,16 @@ import nova_cc_context
 TEMPLATES = 'templates/'
 
 CLUSTER_RES = 'grp_nova_vips'
+
+# The interface is said to be satisfied if anyone of the interfaces in the
+# list has a complete context.
+REQUIRED_INTERFACES = {
+    'database': ['shared-db', 'pgsql-db'],
+    'messaging': ['amqp', 'zeromq-configuration'],
+    'identity': ['identity-service'],
+    'image': ['image-service'],
+    'compute': ['nova-compute'],
+}
 
 # removed from original: charm-helper-sh
 BASE_PACKAGES = [
@@ -195,7 +211,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.NovaConfigContext(),
                      nova_cc_context.InstanceConsoleContext(),
-                     nova_cc_context.ConsoleSSLContext()],
+                     nova_cc_context.ConsoleSSLContext(),
+                     nova_cc_context.CloudComputeContext()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in BASE_SERVICES if 'api' in s],
@@ -1328,3 +1345,26 @@ def git_post_install(projects_yaml):
 
     apt_update()
     apt_install(LATE_GIT_PACKAGES, fatal=True)
+
+
+def check_optional_relations(configs):
+    required_interfaces = {}
+    if relation_ids('ha'):
+        required_interfaces['ha'] = ['cluster']
+        try:
+            get_hacluster_config()
+        except:
+            return ('blocked',
+                    'hacluster missing configuration: '
+                    'vip, vip_iface, vip_cidr')
+    if relation_ids('quantum-network-service'):
+        required_interfaces['quantum'] = ['quantum-network-service']
+    if relation_ids('cinder-volume-service'):
+        required_interfaces['cinder'] = ['cinder-volume-service']
+    if relation_ids('neutron-api'):
+        required_interfaces['neutron-api'] = ['neutron-api']
+    if required_interfaces:
+        set_os_workload_status(configs, required_interfaces)
+        return status_get()
+    else:
+        return 'unknown', 'No optional relations'
