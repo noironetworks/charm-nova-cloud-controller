@@ -180,7 +180,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         assert self.nova_demo.keypairs.list() == []
         assert self.keystone.services.list() != []
 
-    # Will curate this as a local helper in n-c-c and n-c, validate and
+    # NOTE(beisner):  Will curate this as a local helper, validate and
     # adjust as local helpers until ready to propose @ charmhelpers:
     def _expect_method_success(self, my_method, msg="method check(s)",
                                my_kwargs=None, min_success=10,
@@ -236,6 +236,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             self.rabbitmq_sentry: ['rabbitmq-server'],
             self.nova_cc_sentry: ['nova-api-ec2',
                                   'nova-api-os-compute',
+                                  'nova-conductor',
                                   'nova-objectstore',
                                   'nova-cert',
                                   'nova-scheduler'],
@@ -245,10 +246,6 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             self.keystone_sentry: ['keystone'],
             self.glance_sentry: ['glance-registry', 'glance-api']
         }
-
-# Erroneous?  Inverted comparison?   Was this for essex?
-#        if self._get_openstack_release() >= self.precise_grizzly:
-#            commands[self.nova_cc_sentry] = ['nova-conductor']
 
         ret = u.validate_services_by_name(services)
         if ret:
