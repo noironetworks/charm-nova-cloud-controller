@@ -1,6 +1,5 @@
 import amulet
 import os
-import time
 import yaml
 
 from charmhelpers.contrib.openstack.amulet.deployment import (
@@ -30,8 +29,12 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         self._add_relations()
         self._configure_services()
         self._deploy()
+
+        u.log.info('Waiting on extended status checks...')
+        exclude_services = ['mysql']
+        self._auto_wait_for_status(exclude_services=exclude_services)
+
         self._initialize_tests()
-        self._expect_method_success(self._api_checks, 'API check(s)')
 
     def _add_services(self):
         """Add services
@@ -167,65 +170,6 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                                                   user=self.demo_user,
                                                   password='password',
                                                   tenant=self.demo_tenant)
-
-    def _api_checks(self, something=None):
-        """Check basic api functionality for this deployment topology."""
-        u.log.debug('Checking APIs... {}'.format(something))
-
-        # glance api returns a generator whereas other apis return a list
-        assert list(self.glance.images.list()) == []
-        assert self.nova_demo.servers.list() == []
-        assert self.nova_demo.flavors.list() != []
-        assert self.nova_demo.floating_ips.list() == []
-        assert self.nova_demo.keypairs.list() == []
-        assert self.keystone.services.list() != []
-
-    # NOTE(beisner):  Will curate this as a local helper, validate and
-    # adjust as local helpers until ready to propose @ charmhelpers:
-    def _expect_method_success(self, my_method, msg="method check(s)",
-                               my_kwargs=None, min_success=10,
-                               max_wait=300, interval=5):
-        """Call a method/function with exception trapping and retry
-        thresholds.  Expect a minimum number of successful consecutive calls
-        within a maximum total time.  Useful to confirm that the method
-        starts to pass, and continues to pass until the threshold is met,
-        such as waiting for api services to become functional.
-
-        :param my_method: method or function to call
-        :param msg: description of what type of thing is being exercised
-        :param min_success: minimum consecutive successful calls
-        :param max_wait: maximum wait in seconds before raising
-        :param interval: time in seconds to wait between retries
-        :returns: the method's return value if successful, raises otherwise
-        """
-        if not my_kwargs:
-            my_kwargs = {}
-
-        successful_calls = time_elapsed = 0
-        time_start = time.time()
-        while successful_calls < min_success and time_elapsed <= max_wait:
-            time_elapsed = time.time() - time_start
-            try:
-                my_return = my_method(**my_kwargs)
-                successful_calls += 1
-                u.log.debug('Consecutive successful {}: {} ({} required)'
-                            '...'.format(msg, successful_calls,
-                                         min_success))
-            except Exception as e:
-                successful_calls = 0
-                u.log.debug('{} failed after {}s, retrying until {}s...'
-                            '\n{}'.format(msg, time_elapsed, max_wait, e))
-            time.sleep(interval)
-
-        if successful_calls < min_success:
-            raise_msg = ('{} not satisfied with {} successful checks '
-                         '({} consecutive required within '
-                         '{}s)'.format(msg, successful_calls,
-                                       min_success, max_wait))
-            amulet.raise_status(amulet.FAIL, msg=raise_msg)
-        else:
-            u.log.debug('OK')
-            return my_return
 
     def test_100_services(self):
         """Verify the expected services are running on the corresponding
