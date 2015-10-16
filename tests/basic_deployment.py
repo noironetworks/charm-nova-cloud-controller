@@ -136,6 +136,11 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         self.nova_compute_sentry = self.d.sentry.unit['nova-compute/0']
         self.glance_sentry = self.d.sentry.unit['glance/0']
 
+        u.log.debug('openstack release val: {}'.format(
+            self._get_openstack_release()))
+        u.log.debug('openstack release str: {}'.format(
+            self._get_openstack_release_string()))
+
         # Authenticate admin with keystone
         self.keystone = u.authenticate_keystone_admin(self.keystone_sentry,
                                                       user='admin',
@@ -664,7 +669,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = "api paste config error: {}".format(ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
-    def test_402_image_instance_create(self):
+    def test_400_image_instance_create(self):
         """Create an image/instance, verify they exist, and delete them."""
         # NOTE(coreycb): Skipping failing test on essex until resolved. essex
         #                nova API calls are getting "Malformed request url
@@ -696,8 +701,11 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = "nova cirros instance does not exist"
             amulet.raise_status(amulet.FAIL, msg=message)
 
-        u.delete_image(self.glance, image)
-        u.delete_instance(self.nova_demo, instance)
+        u.delete_resource(self.glance.images, image.id,
+                          msg="glance image")
+
+        u.delete_resource(self.nova_demo.servers, instance.id,
+                          msg="nova instance")
 
     def test_900_restart_on_config_change(self):
         """Verify that the specified services are restarted when the config
