@@ -11,7 +11,10 @@ from charmhelpers.contrib.openstack import context, templating
 from charmhelpers.contrib.openstack.neutron import (
     network_manager, neutron_plugin_attribute)
 
-from charmhelpers.contrib.hahelpers.cluster import is_elected_leader
+from charmhelpers.contrib.hahelpers.cluster import (
+    is_elected_leader,
+    get_hacluster_config,
+)
 
 from charmhelpers.contrib.peerstorage import peer_store
 
@@ -31,7 +34,9 @@ from charmhelpers.contrib.openstack.utils import (
     git_yaml_value,
     is_ip,
     os_release,
-    save_script_rc as _save_script_rc)
+    save_script_rc as _save_script_rc,
+    set_os_workload_status,
+)
 
 from charmhelpers.fetch import (
     apt_upgrade,
@@ -50,6 +55,7 @@ from charmhelpers.core.hookenv import (
     is_relation_made,
     INFO,
     ERROR,
+    status_get,
 )
 
 from charmhelpers.core.host import (
@@ -79,6 +85,16 @@ import nova_cc_context
 TEMPLATES = 'templates/'
 
 CLUSTER_RES = 'grp_nova_vips'
+
+# The interface is said to be satisfied if anyone of the interfaces in the
+# list has a complete context.
+REQUIRED_INTERFACES = {
+    'database': ['shared-db', 'pgsql-db'],
+    'messaging': ['amqp', 'zeromq-configuration'],
+    'identity': ['identity-service'],
+    'image': ['image-service'],
+    'compute': ['nova-compute'],
+}
 
 # removed from original: charm-helper-sh
 BASE_PACKAGES = [
@@ -195,11 +211,13 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.NeutronCCContext(),
                      nova_cc_context.NovaConfigContext(),
                      nova_cc_context.InstanceConsoleContext(),
-                     nova_cc_context.ConsoleSSLContext()],
+                     nova_cc_context.ConsoleSSLContext(),
+                     nova_cc_context.CloudComputeContext()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in BASE_SERVICES if 'api' in s],
-        'contexts': [nova_cc_context.IdentityServiceContext()],
+        'contexts': [nova_cc_context.IdentityServiceContext(),
+                     nova_cc_context.APIRateLimitingContext()],
     }),
     (QUANTUM_CONF, {
         'services': ['quantum-server'],
@@ -624,7 +642,7 @@ def _do_openstack_upgrade(new_src):
     return configs
 
 
-def do_openstack_upgrade():
+def do_openstack_upgrade(configs):
     new_src = config('openstack-origin')
     if new_src[:6] != 'cloud:':
         raise ValueError("Unable to perform upgrade to %s" % new_src)
@@ -724,15 +742,35 @@ def authorized_keys(unit=None, user=None):
 def ssh_known_host_key(host, unit=None, user=None):
     cmd = ['ssh-keygen', '-f', known_hosts(unit, user), '-H', '-F', host]
     try:
-        return subprocess.check_output(cmd).strip()
+        # The first line of output is like '# Host xx found: line 1 type RSA',
+        # which should be excluded.
+        output = subprocess.check_output(cmd).strip()
     except subprocess.CalledProcessError:
         return None
+
+    if output:
+        # Bug #1500589 cmd has 0 rc on precise if entry not present
+        lines = output.split('\n')
+        if len(lines) > 1:
+            return lines[1]
+
+    return None
 
 
 def remove_known_host(host, unit=None, user=None):
     log('Removing SSH known host entry for compute host at %s' % host)
     cmd = ['ssh-keygen', '-f', known_hosts(unit, user), '-R', host]
     subprocess.check_call(cmd)
+
+
+def is_same_key(key_1, key_2):
+    # The key format get will be like '|1|2rUumCavEXWVaVyB5uMl6m85pZo=|Cp'
+    # 'EL6l7VTY37T/fg/ihhNb/GPgs= ssh-rsa AAAAB', we only need to compare
+    # the part start with 'ssh-rsa' followed with '= ', because the hash
+    # value in the beginning will change each time.
+    k_1 = key_1.split('= ')[1]
+    k_2 = key_2.split('= ')[1]
+    return k_1 == k_2
 
 
 def add_known_host(host, unit=None, user=None):
@@ -745,8 +783,8 @@ def add_known_host(host, unit=None, user=None):
         raise e
 
     current_key = ssh_known_host_key(host, unit, user)
-    if current_key:
-        if remote_key == current_key:
+    if current_key and remote_key:
+        if is_same_key(remote_key, current_key):
             log('Known host key for compute host %s up to date.' % host)
             return
         else:
@@ -787,8 +825,7 @@ def ssh_compute_add(public_key, rid=None, unit=None, user=None):
             hosts.append(hn.split('.')[0])
 
     for host in list(set(hosts)):
-        if not ssh_known_host_key(host, unit, user):
-            add_known_host(host, unit, user)
+        add_known_host(host, unit, user)
 
     if not ssh_authorized_key_exists(public_key, unit, user):
         log('Saving SSH authorized key for compute host at %s.' %
@@ -1044,12 +1081,11 @@ def setup_ipv6():
         raise Exception("IPv6 is not supported in the charms for Ubuntu "
                         "versions less than Trusty 14.04")
 
-    # NOTE(xianghui): Need to install haproxy(1.5.3) from trusty-backports
-    # to support ipv6 address, so check is required to make sure not
-    # breaking other versions, IPv6 only support for >= Trusty
-    if ubuntu_rel == 'trusty':
-        add_source('deb http://archive.ubuntu.com/ubuntu trusty-backports'
-                   ' main')
+    # Need haproxy >= 1.5.3 for ipv6 so for Trusty if we are <= Kilo we need to
+    # use trusty-backports otherwise we can use the UCA.
+    if ubuntu_rel == 'trusty' and os_release('nova-api') < 'liberty':
+        add_source('deb http://archive.ubuntu.com/ubuntu trusty-backports '
+                   'main')
         apt_update()
         apt_install('haproxy/trusty-backports', fatal=True)
 
@@ -1309,3 +1345,26 @@ def git_post_install(projects_yaml):
 
     apt_update()
     apt_install(LATE_GIT_PACKAGES, fatal=True)
+
+
+def check_optional_relations(configs):
+    required_interfaces = {}
+    if relation_ids('ha'):
+        required_interfaces['ha'] = ['cluster']
+        try:
+            get_hacluster_config()
+        except:
+            return ('blocked',
+                    'hacluster missing configuration: '
+                    'vip, vip_iface, vip_cidr')
+    if relation_ids('quantum-network-service'):
+        required_interfaces['quantum'] = ['quantum-network-service']
+    if relation_ids('cinder-volume-service'):
+        required_interfaces['cinder'] = ['cinder-volume-service']
+    if relation_ids('neutron-api'):
+        required_interfaces['neutron-api'] = ['neutron-api']
+    if required_interfaces:
+        set_os_workload_status(configs, required_interfaces)
+        return status_get()
+    else:
+        return 'unknown', 'No optional relations'

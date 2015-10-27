@@ -11,6 +11,7 @@ from charmhelpers.core.hookenv import (
     related_units,
     relations_for_id,
     relation_get,
+    is_relation_made,
     unit_get,
 )
 from charmhelpers.fetch import (
@@ -80,7 +81,20 @@ class NovaCellContext(context.OSContextGenerator):
         return {}
 
 
+class CloudComputeContext(context.OSContextGenerator):
+    "Dummy context used by service status to check relation exists"
+    interfaces = ['nova-compute']
+
+    def __call__(self):
+        ctxt = {}
+        rids = [rid for rid in relation_ids('cloud-compute')]
+        if rids:
+            ctxt['rids'] = rids
+        return ctxt
+
+
 class NeutronAPIContext(context.OSContextGenerator):
+    interfaces = ['neutron-api']
 
     def __call__(self):
         log('Generating template context from neutron api relation')
@@ -101,7 +115,7 @@ class NeutronAPIContext(context.OSContextGenerator):
 
 
 class VolumeServiceContext(context.OSContextGenerator):
-    interfaces = []
+    interfaces = ['nova-volume-service', 'cinder-volume-service']
 
     def __call__(self):
         ctxt = {}
@@ -185,13 +199,14 @@ class HAProxyContext(context.HAProxyContext):
             })
             listen_ports['osapi_volume_listen_port'] = nvol_api
 
-        if neutron.network_manager() in ['neutron', 'quantum']:
-            port_mapping.update({
-                'neutron-server': [
-                    api_port('neutron-server'), a_neutron_api]
-            })
-            # quantum/neutron.conf listening port, set separte from nova's.
-            ctxt['neutron_bind_port'] = neutron_api
+        if not is_relation_made('neutron-api'):
+            if neutron.network_manager() in ['neutron', 'quantum']:
+                port_mapping.update({
+                    'neutron-server': [
+                        api_port('neutron-server'), a_neutron_api]
+                })
+                # quantum/neutron.conf listening port, set separte from nova's.
+                ctxt['neutron_bind_port'] = neutron_api
 
         # for haproxy.conf
         ctxt['service_ports'] = port_mapping
@@ -226,7 +241,7 @@ def use_local_neutron_api():
 
 
 class NeutronCCContext(context.NeutronContext):
-    interfaces = []
+    interfaces = ['quantum-network-service', 'neutron-network-service']
 
     @property
     def plugin(self):
@@ -304,6 +319,7 @@ class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
 class NovaConfigContext(context.WorkerConfigContext):
     def __call__(self):
         ctxt = super(NovaConfigContext, self).__call__()
+        ctxt['scheduler_default_filters'] = config('scheduler-default-filters')
         ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
         ctxt['ram_allocation_ratio'] = config('ram-allocation-ratio')
         addr = resolve_address(INTERNAL)
@@ -405,4 +421,13 @@ class ConsoleSSLContext(context.OSContextGenerator):
             elif _proto == 'spice':
                 ctxt['html5proxy_base_url'] = url
 
+        return ctxt
+
+
+class APIRateLimitingContext(context.OSContextGenerator):
+    def __call__(self):
+        ctxt = {}
+        rate_rules = config('api-rate-limit-rules')
+        if rate_rules:
+            ctxt['api_rate_limit_rules'] = rate_rules
         return ctxt
