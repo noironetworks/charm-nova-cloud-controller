@@ -201,7 +201,7 @@ options:
     description: |
       SSL certificate to install and use for API ports.  Setting this value
       and ssl_key will enable reverse proxying, point Nova's entry in the
-      Keystone catalog to use https, and override any certficiate and key
+      Keystone catalog to use https, and override any certificate and key
       issued by Keystone (if it is configured to do so).
   ssl_key:
     type: string
@@ -396,3 +396,28 @@ options:
       
       If memcached is being used to store the tokens, then it's recommended to
       change this configuration to False.
+  action-managed-upgrade:
+    type: boolean
+    default: False
+    description: |
+      If True enables openstack upgrades for this charm via juju actions.
+      You will still need to set openstack-origin to the new repository but
+      instead of an upgrade running automatically across all units, it will
+      wait for you to execute the openstack-upgrade action for this charm on
+      each unit. If False it will revert to existing behavior of upgrading
+      all units on config change.
+  scheduler-default-filters:
+    type: string
+    default: "RetryFilter,AvailabilityZoneFilter,CoreFilter,RamFilter,ComputeFilter,ComputeCapabilitiesFilter,ImagePropertiesFilter,ServerGroupAntiAffinityFilter,ServerGroupAffinityFilter"
+    description: |
+      List of filter class names to use for filtering hosts when not specified in
+      the request.
+  api-rate-limit-rules:
+    type: string
+    default:
+    description: |
+      The API rate-limit rules to use for the deployed nova API, if any.
+      Contents of this config options will be inserted in the api-paste.ini file
+      under the "filter:ratelimit" section as "limits". The syntax for these
+      rules is documented at
+      http://docs.openstack.org/kilo/config-reference/content/configuring-compute-API.html
