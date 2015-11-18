@@ -1,9 +1,18 @@
 name: nova-cloud-controller
-maintainer: Adam Gandelman <adamg@canonical.com>
-summary: "Openstack nova controller node."
+summary: OpenStack Compute - Nova cloud controller service
+maintainer: OpenStack Charmers <openstack-charmers@lists.ubuntu.com>
 description: |
-  Cloud controller node for Openstack nova.  Contains nova-schedule,
-  nova-api, nova-network and nova-objectstore.
+ OpenStack is a reliable cloud infrastructure. Its mission is to produce
+ the ubiquitous cloud computing platform that will meet the needs of public
+ and private cloud providers regardless of size, by being simple to implement
+ and massively scalable.
+ .
+ OpenStack Compute, codenamed Nova, is a cloud computing fabric controller. In
+ addition to its "native" API (the OpenStack API), it also supports the Amazon
+ EC2 API.
+ .
+ This charm provides the cloud controller service for OpenStack Nova and includes
+ nova-scheduler, nova-api and nova-conductor services.
 tags:
   - openstack
 provides:
