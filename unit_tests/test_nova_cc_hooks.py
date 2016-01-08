@@ -441,17 +441,22 @@ class NovaCCHooksTests(CharmTestCase):
         configs.write = MagicMock()
         hooks.postgresql_nova_db_changed()
 
+    @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'conditional_neutron_migration')
     @patch.object(hooks, 'CONFIGS')
-    def test_db_changed(self, configs, cond_neutron_mig):
+    def test_db_changed(self, configs, cond_neutron_mig,
+                        mock_is_db_initialised):
+        mock_is_db_initialised.return_value = False
         'No database migration is attempted when ACL list is not present'
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
         self.assertFalse(self.migrate_nova_database.called)
         self.assertFalse(cond_neutron_mig.called)
 
+    @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'CONFIGS')
-    def test_db_changed_allowed(self, configs):
+    def test_db_changed_allowed(self, configs, mock_is_db_initialised):
+        mock_is_db_initialised.return_value = False
         allowed_units = 'nova-cloud-controller/0 nova-cloud-controller/3'
         self.test_relation.set({
             'nova_allowed_units': allowed_units,
@@ -461,8 +466,10 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(configs.write_all.called)
         self.migrate_nova_database.assert_called_with()
 
+    @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'CONFIGS')
-    def test_db_changed_not_allowed(self, configs):
+    def test_db_changed_not_allowed(self, configs, mock_is_db_initialised):
+        mock_is_db_initialised.return_value = False
         allowed_units = 'nova-cloud-controller/0 nova-cloud-controller/3'
         self.test_relation.set({
             'nova_allowed_units': allowed_units,
@@ -472,17 +479,22 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(configs.write_all.called)
         self.assertFalse(self.migrate_nova_database.called)
 
+    @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'CONFIGS')
-    def test_postgresql_db_changed(self, configs):
+    def test_postgresql_db_changed(self, configs, mock_is_db_initialised):
+        mock_is_db_initialised.return_value = False
         self._postgresql_db_test(configs)
         self.assertTrue(configs.write_all.called)
         self.migrate_nova_database.assert_called_with()
 
+    @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'nova_cell_relation_joined')
     @patch.object(hooks, 'compute_joined')
     @patch.object(hooks, 'CONFIGS')
     def test_db_changed_remote_restarts(self, configs, comp_joined,
-                                        cell_joined):
+                                        cell_joined, mock_is_db_initialised):
+        mock_is_db_initialised.return_value = False
+
         def _relation_ids(rel):
             relid = {
                 'cloud-compute': ['nova-compute/0'],
