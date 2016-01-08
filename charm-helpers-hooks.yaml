@@ -8,7 +8,7 @@ include:
     - contrib.storage
     - contrib.peerstorage
     - contrib.hahelpers
-    - payload.execd
+    - payload
     - contrib.network.ip
     - contrib.peerstorage
     - contrib.python.packages
