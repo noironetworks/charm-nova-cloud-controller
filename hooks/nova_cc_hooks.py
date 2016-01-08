@@ -19,6 +19,7 @@ from charmhelpers.core.hookenv import (
     is_relation_made,
     log,
     local_unit,
+    DEBUG,
     ERROR,
     relation_get,
     relation_ids,
@@ -105,6 +106,7 @@ from nova_cc_utils import (
     setup_ipv6,
     REQUIRED_INTERFACES,
     check_optional_relations,
+    is_db_initialised,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -146,6 +148,43 @@ COLO_CONSOLEAUTH = 'inf: res_nova_consoleauth grp_nova_vips'
 AGENT_CONSOLEAUTH = 'ocf:openstack:nova-consoleauth'
 AGENT_CA_PARAMS = 'op monitor interval="5s"'
 NOVA_CONSOLEAUTH_OVERRIDE = '/etc/init/nova-consoleauth.override'
+
+
+def leader_init_db_if_ready(skip_acl_check=False, skip_cells_restarts=False,
+                            db_rid=None, unit=None):
+    """Initialise db if leader and db not yet intialised.
+
+    NOTE: must be called from database context.
+    """
+    if not is_elected_leader(CLUSTER_RES):
+        log("Not leader - skipping db init", level=DEBUG)
+        return
+
+    if is_db_initialised():
+        log("Database already initialised - skipping db init", level=DEBUG)
+        return
+
+    # Bugs 1353135 & 1187508. Dbs can appear to be ready before the units
+    # acl entry has been added. So, if the db supports passing a list of
+    # permitted units then check if we're in the list.
+    allowed_units = relation_get('nova_allowed_units', rid=db_rid, unit=unit)
+    if skip_acl_check or (allowed_units and local_unit() in
+                          allowed_units.split()):
+        status_set('maintenance', 'Running nova db migration')
+        migrate_nova_database()
+        log('Triggering remote cloud-compute restarts.')
+        [compute_joined(rid=rid, remote_restart=True)
+            for rid in relation_ids('cloud-compute')]
+
+        if not skip_cells_restarts:
+            log('Triggering remote cell restarts.')
+            [nova_cell_relation_joined(rid=rid, remote_restart=True)
+             for rid in relation_ids('cell')]
+
+        conditional_neutron_migration()
+    else:
+        log('allowed_units either not presented, or local unit '
+            'not in acl list: %s' % repr(allowed_units))
 
 
 @hooks.hook('install.real')
@@ -340,26 +379,9 @@ def db_changed():
     if 'shared-db' not in CONFIGS.complete_contexts():
         log('shared-db relation incomplete. Peer not ready?')
         return
-    CONFIGS.write_all()
 
-    if is_elected_leader(CLUSTER_RES):
-        # Bugs 1353135 & 1187508. Dbs can appear to be ready before the units
-        # acl entry has been added. So, if the db supports passing a list of
-        # permitted units then check if we're in the list.
-        allowed_units = relation_get('nova_allowed_units')
-        if allowed_units and local_unit() in allowed_units.split():
-            status_set('maintenance', 'Running nova db migration')
-            migrate_nova_database()
-            log('Triggering remote cloud-compute restarts.')
-            [compute_joined(rid=rid, remote_restart=True)
-                for rid in relation_ids('cloud-compute')]
-            log('Triggering remote cell restarts.')
-            [nova_cell_relation_joined(rid=rid, remote_restart=True)
-                for rid in relation_ids('cell')]
-            conditional_neutron_migration()
-        else:
-            log('allowed_units either not presented, or local unit '
-                'not in acl list: %s' % repr(allowed_units))
+    CONFIGS.write_all()
+    leader_init_db_if_ready()
 
 
 @hooks.hook('pgsql-nova-db-relation-changed')
@@ -370,15 +392,9 @@ def postgresql_nova_db_changed():
     if 'pgsql-nova-db' not in CONFIGS.complete_contexts():
         log('pgsql-nova-db relation incomplete. Peer not ready?')
         return
-    CONFIGS.write_all()
 
-    if is_elected_leader(CLUSTER_RES):
-        status_set('maintenance', 'Running nova db migration')
-        migrate_nova_database()
-        log('Triggering remote cloud-compute restarts.')
-        [compute_joined(rid=rid, remote_restart=True)
-         for rid in relation_ids('cloud-compute')]
-        conditional_neutron_migration()
+    CONFIGS.write_all()
+    leader_init_db_if_ready(skip_acl_check=True, skip_cells_restarts=True)
 
 
 @hooks.hook('pgsql-neutron-db-relation-changed')
@@ -880,6 +896,18 @@ def upgrade_charm():
     for r_id in relation_ids('cloud-compute'):
         for unit in related_units(r_id):
             compute_changed(r_id, unit)
+
+    rels = ['shared-db', 'pgsql-nova-db']
+    for rname in rels:
+        for rid in relation_ids(rname):
+            for unit in related_units(rid):
+                if rname == 'pgsql-nova-db':
+                    leader_init_db_if_ready(skip_acl_check=True,
+                                            skip_cells_restarts=True,
+                                            db_rid=rid, unit=unit)
+                else:
+                    leader_init_db_if_ready(db_rid=rid)
+
     update_nrpe_config()
     update_nova_consoleauth_config()
 
