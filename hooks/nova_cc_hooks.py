@@ -906,7 +906,7 @@ def upgrade_charm():
                                             skip_cells_restarts=True,
                                             db_rid=rid, unit=unit)
                 else:
-                    leader_init_db_if_ready(db_rid=rid)
+                    leader_init_db_if_ready(db_rid=rid, unit=unit)
 
     update_nrpe_config()
     update_nova_consoleauth_config()
