@@ -16,7 +16,10 @@ from charmhelpers.contrib.hahelpers.cluster import (
     get_hacluster_config,
 )
 
-from charmhelpers.contrib.peerstorage import peer_store
+from charmhelpers.contrib.peerstorage import (
+    peer_retrieve,
+    peer_store,
+)
 
 from charmhelpers.contrib.python.packages import (
     pip_install,
@@ -53,9 +56,11 @@ from charmhelpers.core.hookenv import (
     relation_ids,
     remote_unit,
     is_relation_made,
+    DEBUG,
     INFO,
     ERROR,
     status_get,
+    status_set,
 )
 
 from charmhelpers.core.host import (
@@ -591,6 +596,17 @@ def ml2_migration():
             subprocess.check_call(cmd)
 
 
+def is_db_initialised():
+    if relation_ids('cluster'):
+        dbsync_state = peer_retrieve('dbsync_state')
+        if dbsync_state == 'complete':
+            log("Database is initialised", level=DEBUG)
+            return True
+
+    log("Database is NOT initialised", level=DEBUG)
+    return False
+
+
 def _do_openstack_upgrade(new_src):
     enable_policy_rcd()
     cur_os_rel = os_release('nova-common')
@@ -634,6 +650,7 @@ def _do_openstack_upgrade(new_src):
         ml2_migration()
 
     if is_elected_leader(CLUSTER_RES):
+        status_set('maintenance', 'Running nova db migration')
         migrate_nova_database()
     [service_start(s) for s in services()]
 
