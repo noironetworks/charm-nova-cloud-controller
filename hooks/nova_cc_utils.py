@@ -35,6 +35,7 @@ from charmhelpers.contrib.openstack.utils import (
     git_src_dir,
     git_pip_venv_dir,
     git_yaml_value,
+    incomplete_relation_data,
     is_ip,
     os_release,
     save_script_rc as _save_script_rc,
@@ -1385,3 +1386,7 @@ def check_optional_relations(configs):
         return status_get()
     else:
         return 'unknown', 'No optional relations'
+
+
+def is_api_ready(configs):
+    return (not incomplete_relation_data(configs, REQUIRED_INTERFACES))

@@ -1140,3 +1140,17 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertTrue(self.apt_update.called)
         self.apt_install.assert_called_with(['novnc', 'spice-html5',
                                              'websockify'], fatal=True)
+
+    def _test_is_api_ready(self, tgt):
+        fake_config = MagicMock()
+        with patch.object(utils, 'incomplete_relation_data') as ird:
+            ird.return_value = (not tgt)
+            self.assertEqual(utils.is_api_ready(fake_config), tgt)
+            ird.assert_called_with(
+                fake_config, utils.REQUIRED_INTERFACES)
+
+    def test_is_api_ready_true(self):
+        self._test_is_api_ready(True)
+
+    def test_is_api_ready_false(self):
+        self._test_is_api_ready(False)

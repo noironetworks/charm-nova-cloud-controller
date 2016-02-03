@@ -81,6 +81,7 @@ from nova_cc_utils import (
     do_openstack_upgrade,
     enable_services,
     git_install,
+    is_api_ready,
     keystone_ca_cert_b64,
     migrate_neutron_database,
     migrate_nova_database,
@@ -286,6 +287,9 @@ def amqp_changed():
     [nova_cell_relation_joined(rid=rid)
         for rid in relation_ids('cell')]
 
+    for r_id in relation_ids('nova-api'):
+        nova_api_relation_joined(rid=r_id)
+
 
 def conditional_neutron_migration():
     if os_release('nova-common') <= 'icehouse':
@@ -396,6 +400,9 @@ def postgresql_nova_db_changed():
     CONFIGS.write_all()
     leader_init_db_if_ready(skip_acl_check=True, skip_cells_restarts=True)
 
+    for r_id in relation_ids('nova-api'):
+        nova_api_relation_joined(rid=r_id)
+
 
 @hooks.hook('pgsql-neutron-db-relation-changed')
 @service_guard(guard_map(), CONFIGS,
@@ -418,6 +425,12 @@ def image_service_changed():
         return
     CONFIGS.write(NOVA_CONF)
     # TODO: special case config flag for essex (strip protocol)
+
+    for r_id in relation_ids('nova-api'):
+        nova_api_relation_joined(rid=r_id)
+
+    for r_id in relation_ids('nova-api'):
+        nova_api_relation_joined(rid=r_id)
 
 
 @hooks.hook('identity-service-relation-joined')
@@ -452,6 +465,9 @@ def identity_changed():
     [nova_vmware_relation_joined(rid) for rid in relation_ids('nova-vmware')]
     [neutron_api_relation_joined(rid) for rid in relation_ids('neutron-api')]
     configure_https()
+
+    for r_id in relation_ids('nova-api'):
+        nova_api_relation_joined(rid=r_id)
 
 
 @hooks.hook('nova-volume-service-relation-joined',
@@ -610,6 +626,9 @@ def compute_joined(rid=None, remote_restart=False):
 
 @hooks.hook('cloud-compute-relation-changed')
 def compute_changed(rid=None, unit=None):
+    for r_id in relation_ids('nova-api'):
+        nova_api_relation_joined(rid=r_id)
+
     rel_settings = relation_get(rid=rid, unit=unit)
     if 'migration_auth_type' not in rel_settings:
         return
@@ -1081,6 +1100,13 @@ def update_nova_consoleauth_config():
             os.remove(NOVA_CONSOLEAUTH_OVERRIDE)
         except FileNotFoundError as e:
             log(str(e), level='DEBUG')
+
+
+def nova_api_relation_joined(rid=None):
+    rel_data = {
+        'nova-api-ready': 'yes' if is_api_ready(CONFIGS) else 'no'
+    }
+    relation_set(rid, **rel_data)
 
 
 def main():
