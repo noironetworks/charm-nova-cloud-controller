@@ -429,9 +429,6 @@ def image_service_changed():
     for r_id in relation_ids('nova-api'):
         nova_api_relation_joined(rid=r_id)
 
-    for r_id in relation_ids('nova-api'):
-        nova_api_relation_joined(rid=r_id)
-
 
 @hooks.hook('identity-service-relation-joined')
 def identity_joined(rid=None):
