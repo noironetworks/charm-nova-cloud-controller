@@ -198,7 +198,7 @@ def resolve_services():
     os_rel = get_os_codename_install_source(config('openstack-origin'))
     for release in SERVICE_BLACKLIST:
         if os_rel >= release:
-            _services -= SERVICE_BLACKLIST[release]
+            [_services.pop(service) for service in  SERVICE_BLACKLIST[release]]
     return _services
 
 
