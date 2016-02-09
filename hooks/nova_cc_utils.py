@@ -61,6 +61,7 @@ from charmhelpers.core.hookenv import (
     ERROR,
     status_get,
     status_set,
+    cached,
 )
 
 from charmhelpers.core.host import (
@@ -162,6 +163,10 @@ BASE_SERVICES = [
     'nova-scheduler',
 ]
 
+SERVICE_BLACKLIST = {
+    'liberty': ['nova-api-ec2', 'nova-objectstore']
+}
+
 API_PORTS = {
     'nova-api-ec2': 8773,
     'nova-api-os-compute': 8774,
@@ -186,9 +191,20 @@ APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
 NEUTRON_DEFAULT = '/etc/default/neutron-server'
 QUANTUM_DEFAULT = '/etc/default/quantum-server'
 
+
+@cached
+def resolve_services():
+    _services = deepcopy(BASE_SERVICES)
+    os_rel = get_os_codename_install_source(config('openstack-origin'))
+    for release in SERVICE_BLACKLIST:
+        if os_rel >= release:
+            _services -= SERVICE_BLACKLIST[release]
+    return _services
+
+
 BASE_RESOURCE_MAP = OrderedDict([
     (NOVA_CONF, {
-        'services': BASE_SERVICES,
+        'services': resolve_services(),
         'contexts': [context.AMQPContext(ssl_dir=NOVA_CONF_DIR),
                      context.SharedDBContext(
                          relation_prefix='nova', ssl_dir=NOVA_CONF_DIR),
@@ -220,7 +236,7 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.CloudComputeContext()],
     }),
     (NOVA_API_PASTE, {
-        'services': [s for s in BASE_SERVICES if 'api' in s],
+        'services': [s for s in resolve_services() if 'api' in s],
         'contexts': [nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.APIRateLimitingContext()],
     }),
@@ -1010,7 +1026,7 @@ def guard_map():
     '''Map of services and required interfaces that must be present before
     the service should be allowed to start'''
     gmap = {}
-    nova_services = deepcopy(BASE_SERVICES)
+    nova_services = resolve_services()
     if os_release('nova-common') not in ['essex', 'folsom']:
         nova_services.append('nova-conductor')
 
