@@ -1061,8 +1061,8 @@ def update_nova_consoleauth_config():
                 fp.write('manual\n')
                 fp.flush()
 
-    elif (not config('single-nova-consoleauth')
-          and console_attributes('protocol')):
+    elif (not config('single-nova-consoleauth') and
+          console_attributes('protocol')):
         for item in ['vip_consoleauth', 'res_nova_consoleauth']:
             if item not in data['delete_resources']:
                 data['delete_resources'].append(item)

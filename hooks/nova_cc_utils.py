@@ -61,7 +61,6 @@ from charmhelpers.core.hookenv import (
     ERROR,
     status_get,
     status_set,
-    cached,
 )
 
 from charmhelpers.core.host import (
@@ -192,13 +191,13 @@ NEUTRON_DEFAULT = '/etc/default/neutron-server'
 QUANTUM_DEFAULT = '/etc/default/quantum-server'
 
 
-@cached
 def resolve_services():
     _services = deepcopy(BASE_SERVICES)
     os_rel = get_os_codename_install_source(config('openstack-origin'))
     for release in SERVICE_BLACKLIST:
         if os_rel >= release:
-            [_services.remove(service) for service in SERVICE_BLACKLIST[release]]
+            [_services.remove(service)
+             for service in SERVICE_BLACKLIST[release]]
     return _services
 
 
@@ -364,8 +363,7 @@ def resource_map():
         if plugin:
             conf = neutron_plugin_attribute(plugin, 'config', net_manager)
             ctxts = (neutron_plugin_attribute(plugin, 'contexts',
-                                              net_manager)
-                     or [])
+                                              net_manager) or [])
             services = neutron_plugin_attribute(plugin, 'server_services',
                                                 net_manager)
             resource_map[conf] = {}
