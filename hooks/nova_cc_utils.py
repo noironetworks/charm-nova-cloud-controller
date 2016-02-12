@@ -348,8 +348,8 @@ def resource_map():
         if plugin:
             conf = neutron_plugin_attribute(plugin, 'config', net_manager)
             ctxts = (neutron_plugin_attribute(plugin, 'contexts',
-                                              net_manager)
-                     or [])
+                                              net_manager) or
+                     [])
             services = neutron_plugin_attribute(plugin, 'server_services',
                                                 net_manager)
             resource_map[conf] = {}
