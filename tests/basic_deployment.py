@@ -195,6 +195,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             self.keystone_sentry: ['keystone'],
             self.glance_sentry: ['glance-registry', 'glance-api']
         }
+        if self._get_openstack_release_string() >= 'liberty':
+            services[self.nova_cc_sentry].remove('nova-api-ec2')
+            services[self.nova_cc_sentry].remove('nova-objectstore')
 
         ret = u.validate_services_by_name(services)
         if ret:
