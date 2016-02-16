@@ -734,6 +734,10 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             'nova-conductor': conf_file
         }
 
+        if self._get_openstack_release_string() >= 'liberty':
+            del services['nova-api-ec2']
+            del services['nova-objectstore']
+
         # Expected default and alternate values
         flags_default = 'quota_cores=20,quota_instances=40,quota_ram=102400'
         flags_alt = 'quota_cores=10,quota_instances=20,quota_ram=51200'
