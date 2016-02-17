@@ -219,6 +219,12 @@ def install():
                active=config('service-guard'))
 @restart_on_change(restart_map(), stopstart=True)
 def config_changed():
+    # neutron-server runs if < juno. Neutron-server creates mysql tables
+    # which will subsequently cause db migratoins to fail if >= juno.
+    # Disable neutron-server if >= juno
+    if os_release('nova-common') >= 'juno':
+        with open('/etc/init/neutron-server.override', 'wb') as out:
+            out.write('manual\n')
     if config('prefer-ipv6'):
         status_set('maintenance', 'configuring ipv6')
         setup_ipv6()

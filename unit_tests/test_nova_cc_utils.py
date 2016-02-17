@@ -794,6 +794,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.relation_ids.return_value = []
         self.network_manager.return_value = 'neutron'
         self.os_release.return_value = 'icehouse'
+        self.get_os_codename_install_source.return_value = 'icehouse'
         self.is_relation_made.return_value = False
         self.assertEqual(
             {'neutron-server': ['identity-service', 'amqp', 'shared-db'],
@@ -807,6 +808,7 @@ class NovaCCUtilsTests(CharmTestCase):
         )
         self.network_manager.return_value = 'quantum'
         self.os_release.return_value = 'grizzly'
+        self.get_os_codename_install_source.return_value = 'grizzly'
         self.assertEqual(
             {'quantum-server': ['identity-service', 'amqp', 'shared-db'],
              'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
@@ -814,6 +816,17 @@ class NovaCCUtilsTests(CharmTestCase):
              'nova-cert': ['identity-service', 'amqp', 'shared-db'],
              'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
              'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
+             'nova-scheduler': ['identity-service', 'amqp', 'shared-db'], },
+            utils.guard_map()
+        )
+        self.network_manager.return_value = 'neutron'
+        self.os_release.return_value = 'mitaka'
+        self.get_os_codename_install_source.return_value = 'mitaka'
+        self.assertEqual(
+            {'neutron-server': ['identity-service', 'amqp', 'shared-db'],
+             'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
+             'nova-cert': ['identity-service', 'amqp', 'shared-db'],
+             'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
              'nova-scheduler': ['identity-service', 'amqp', 'shared-db'], },
             utils.guard_map()
         )

@@ -195,6 +195,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             self.keystone_sentry: ['keystone'],
             self.glance_sentry: ['glance-registry', 'glance-api']
         }
+        if self._get_openstack_release_string() >= 'liberty':
+            services[self.nova_cc_sentry].remove('nova-api-ec2')
+            services[self.nova_cc_sentry].remove('nova-objectstore')
 
         ret = u.validate_services_by_name(services)
         if ret:
@@ -730,6 +733,10 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             'nova-scheduler': conf_file,
             'nova-conductor': conf_file
         }
+
+        if self._get_openstack_release_string() >= 'liberty':
+            del services['nova-api-ec2']
+            del services['nova-objectstore']
 
         # Expected default and alternate values
         flags_default = 'quota_cores=20,quota_instances=40,quota_ram=102400'
