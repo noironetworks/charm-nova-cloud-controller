@@ -438,8 +438,6 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             'private-address': u.valid_ip,
             'restart_trigger': u.not_null
         }
-        if self._get_openstack_release() == self.precise_essex:
-            expected['volume_service'] = 'nova-volume'
 
         ret = u.validate_relation_data(unit, relation, expected)
         if ret:
@@ -493,11 +491,6 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
 
     def test_300_nova_default_config(self):
         """Verify the data in the nova config file's default section."""
-        # NOTE(coreycb): Currently no way to test on essex because config file
-        #                has no section headers.
-        if self._get_openstack_release() == self.precise_essex:
-            return
-
         u.log.debug('Checking nova config file data...')
         unit = self.nova_cc_sentry
         conf = '/etc/nova/nova.conf'
@@ -557,90 +550,74 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 'ec2_listen_port': '8763'
             }
         }
-        if self._get_openstack_release() < self.trusty_kilo:
-            d = 'DEFAULT'
-            if self._get_openstack_release() < self.precise_icehouse:
-                expected[d]['sql_connection'] = db_uri
-            else:
-                database = {
-                    'database': {
-                        'connection': db_uri
-                    }
-                }
-                keystone_authtoken = {
-                    'keystone_authtoken': {
-                        'auth_uri': ks_uri,
-                        'auth_host': ks_ncc_rel['service_host'],
-                        'auth_port': ks_ncc_rel['auth_port'],
-                        'auth_protocol': ks_ncc_rel['auth_protocol'],
-                        'admin_tenant_name': ks_ncc_rel['service_tenant'],
-                        'admin_user': ks_ncc_rel['service_username'],
-                        'admin_password': ks_ncc_rel['service_password'],
-                    }
-                }
-                expected.update(database)
-                expected.update(keystone_authtoken)
-            expected[d]['lock_path'] = '/var/lock/nova'
-            expected[d]['libvirt_use_virtio_for_bridges'] = 'True'
-            expected[d]['compute_driver'] = 'libvirt.LibvirtDriver'
-            expected[d]['rabbit_userid'] = 'nova'
-            expected[d]['rabbit_virtual_host'] = 'openstack'
-            expected[d]['rabbit_password'] = rmq_ncc_rel['password']
-            expected[d]['rabbit_host'] = rmq_ncc_rel['hostname']
-            expected[d]['glance_api_servers'] = gl_ncc_rel['glance-api-server']
 
+        if self._get_openstack_release() < self.trusty_kilo:
+            # Juno and earlier
+            expected['database'] = {
+                'connection': db_uri
+            }
+            expected['keystone_authtoken'] = {
+                'auth_uri': ks_uri,
+                'auth_host': ks_ncc_rel['service_host'],
+                'auth_port': ks_ncc_rel['auth_port'],
+                'auth_protocol': ks_ncc_rel['auth_protocol'],
+                'admin_tenant_name': ks_ncc_rel['service_tenant'],
+                'admin_user': ks_ncc_rel['service_username'],
+                'admin_password': ks_ncc_rel['service_password'],
+            }
+            expected['DEFAULT'].update({
+                'lock_path': '/var/lock/nova',
+                'libvirt_use_virtio_for_bridges': 'True',
+                'compute_driver': 'libvirt.LibvirtDriver',
+                'rabbit_userid': 'nova',
+                'rabbit_virtual_host': 'openstack',
+                'rabbit_password': rmq_ncc_rel['password'],
+                'rabbit_host': rmq_ncc_rel['hostname'],
+                'glance_api_servers': gl_ncc_rel['glance-api-server']
+            })
         else:
-            database = {
-                'database': {
-                    'connection': db_uri,
-                    'max_pool_size': '2',
-                }
+            # Kilo and later
+            expected['database'] = {
+                'connection': db_uri,
+                'max_pool_size': '2',
             }
-            glance = {
-                'glance': {
-                    'api_servers': gl_ncc_rel['glance-api-server'],
-                }
+            expected['glance'] = {
+                'api_servers': gl_ncc_rel['glance-api-server'],
             }
-            keystone_authtoken = {
-                'keystone_authtoken': {
-                    'identity_uri': id_uri,
-                    'auth_uri': ks_uri,
-                    'admin_tenant_name': ks_ncc_rel['service_tenant'],
-                    'admin_user': ks_ncc_rel['service_username'],
-                    'admin_password': ks_ncc_rel['service_password'],
-                    'signing_dir': '/var/cache/nova',
-                }
+            expected['keystone_authtoken'] = {
+                'identity_uri': id_uri,
+                'auth_uri': ks_uri,
+                'admin_tenant_name': ks_ncc_rel['service_tenant'],
+                'admin_user': ks_ncc_rel['service_username'],
+                'admin_password': ks_ncc_rel['service_password'],
+                'signing_dir': '/var/cache/nova',
             }
-            osapi_v3 = {
-                'osapi_v3': {
-                    'enabled': 'True',
-                }
+            expected['osapi_v3'] = {
+                'enabled': 'True',
             }
-            conductor = {
-                'conductor': {
-                    'workers': '2',
-                }
+            expected['conductor'] = {
+                'workers': '2',
             }
-            oslo_messaging_rabbit = {
-                'oslo_messaging_rabbit': {
-                    'rabbit_userid': 'nova',
-                    'rabbit_virtual_host': 'openstack',
-                    'rabbit_password': rmq_ncc_rel['password'],
-                    'rabbit_host': rmq_ncc_rel['hostname'],
-                }
+            expected['oslo_messaging_rabbit'] = {
+                'rabbit_userid': 'nova',
+                'rabbit_virtual_host': 'openstack',
+                'rabbit_password': rmq_ncc_rel['password'],
+                'rabbit_host': rmq_ncc_rel['hostname'],
             }
-            oslo_concurrency = {
-                'oslo_concurrency': {
-                    'lock_path': '/var/lock/nova',
-                }
+            expected['oslo_concurrency'] = {
+                'lock_path': '/var/lock/nova',
             }
-            expected.update(database)
-            expected.update(glance)
-            expected.update(keystone_authtoken)
-            expected.update(osapi_v3)
-            expected.update(conductor)
-            expected.update(oslo_messaging_rabbit)
-            expected.update(oslo_concurrency)
+
+        if self._get_openstack_release() >= self.trusty_mitaka:
+            # Mitaka
+            expected['keystone_authtoken'] = {
+                'auth_type': 'password',
+                'project_name': 'services',
+                'username': 'nova',
+                'password': ks_ncc_rel['service_password'],
+                'auth_url': id_uri.rstrip('/'),
+                'region': 'RegionOne'
+            }
 
         for section, pairs in expected.iteritems():
             ret = u.validate_config_data(unit, conf, section, pairs)
@@ -648,16 +625,20 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 message = "nova config error: {}".format(ret)
                 amulet.raise_status(amulet.FAIL, msg=message)
 
-    def test_302_api_rate_limiting_is_enabled_for_icehouse_or_more(self):
+    def test_302_api_rate_limiting_is_enabled(self):
         """
-        The API rate limiting is enabled for icehouse or more. Otherwise the
-        api-paste.ini file is left untouched.
+        Check that API rate limiting is enabled.
         """
         u.log.debug('Checking api-paste config file data...')
 
         unit = self.nova_cc_sentry
         conf = '/etc/nova/api-paste.ini'
-        section = "filter:ratelimit"
+
+        if self._get_openstack_release() >= self.trusty_mitaka:
+            section = "filter:legacy_ratelimit"
+        else:
+            section = "filter:ratelimit"
+
         factory = ("nova.api.openstack.compute.limits:RateLimitingMiddleware"
                    ".factory")
 
@@ -674,13 +655,6 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
 
     def test_400_image_instance_create(self):
         """Create an image/instance, verify they exist, and delete them."""
-        # NOTE(coreycb): Skipping failing test on essex until resolved. essex
-        #                nova API calls are getting "Malformed request url
-        #                (HTTP 400)".
-        if self._get_openstack_release() == self.precise_essex:
-            u.log.error("Skipping test (due to Essex)")
-            return
-
         u.log.debug('Checking nova instance creation...')
 
         image = u.create_cirros_image(self.glance, "cirros-image")
@@ -713,10 +687,6 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
     def test_900_restart_on_config_change(self):
         """Verify that the specified services are restarted when the config
            is changed."""
-        if self._get_openstack_release() == self.precise_essex:
-            u.log.error("Skipping test (due to Essex)")
-            return
-
         u.log.info('Checking that conf files and system services respond '
                    'to a charm config change...')
 
