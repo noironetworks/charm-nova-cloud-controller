@@ -45,6 +45,7 @@ TO_PATCH = [
     'local_unit',
     'log',
     'os_release',
+    'related_units',
     'relation_get',
     'relation_set',
     'relation_ids',
@@ -211,10 +212,11 @@ class NovaCCHooksTests(CharmTestCase):
         self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = False
         self.config_value_changed.return_value = True
+        self.related_units.return_value = ['unit/0']
         self.relation_ids.side_effect = \
             lambda x: ['generic_rid'] if x == 'cloud-compute' else []
         hooks.config_changed()
-        mock_compute_changed.assert_has_calls([call('generic_rid')])
+        mock_compute_changed.assert_has_calls([call('generic_rid', 'unit/0')])
 
     def test_compute_changed_ssh_migration(self):
         self.test_relation.set({

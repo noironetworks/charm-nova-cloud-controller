@@ -269,7 +269,8 @@ def config_changed():
     # to ensure the value is propagated to the compute nodes.
     if config_value_changed('region'):
         for rid in relation_ids('cloud-compute'):
-            compute_changed(rid)
+            for unit in related_units(rid):
+                compute_changed(rid, unit)
 
     update_nova_consoleauth_config()
 
