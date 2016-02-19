@@ -153,6 +153,7 @@ class NovaComputeContextTests(CharmTestCase):
 
     @mock.patch.object(neutron, 'network_manager')
     @mock.patch('charmhelpers.contrib.hahelpers.cluster.https')
+    @mock.patch('charmhelpers.contrib.openstack.context.kv')
     @mock.patch('charmhelpers.contrib.openstack.context.'
                 'get_address_in_network')
     @mock.patch('charmhelpers.contrib.openstack.context.'
@@ -162,7 +163,7 @@ class NovaComputeContextTests(CharmTestCase):
     @mock.patch('charmhelpers.contrib.openstack.context.relation_ids')
     def test_haproxy_context(self, mock_relation_ids, mock_get_ipv6_addr,
                              mock_local_unit, mock_get_netmask_for_address,
-                             mock_get_address_in_network, mock_https,
+                             mock_get_address_in_network, mock_kv, mock_https,
                              mock_network_manager):
         mock_network_manager.return_value = 'neutron'
         mock_https.return_value = False
@@ -172,6 +173,7 @@ class NovaComputeContextTests(CharmTestCase):
 
     @mock.patch.object(neutron, 'network_manager')
     @mock.patch('charmhelpers.contrib.hahelpers.cluster.https')
+    @mock.patch('charmhelpers.contrib.openstack.context.kv')
     @mock.patch('charmhelpers.contrib.openstack.context.'
                 'get_address_in_network')
     @mock.patch('charmhelpers.contrib.openstack.context.'
@@ -183,7 +185,8 @@ class NovaComputeContextTests(CharmTestCase):
                                           mock_get_ipv6_addr, mock_local_unit,
                                           mock_get_netmask_for_address,
                                           mock_get_address_in_network,
-                                          mock_https, mock_network_manager):
+                                          mock_kv, mock_https,
+                                          mock_network_manager):
         mock_network_manager.return_value = 'neutron'
         mock_https.return_value = False
         self.is_relation_made.return_value = True

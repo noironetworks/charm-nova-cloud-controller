@@ -1,0 +1,5 @@
+{% if volume_service and volume_service == 'cinder' -%}
+[cinder]
+os_region_name = {{ region }}
+{% endif -%}
+

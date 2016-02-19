@@ -33,6 +33,7 @@ TO_PATCH = [
     'openstack_upgrade_available',
     'cmd_all_services',
     'config',
+    'config_value_changed',
     'determine_endpoints',
     'determine_packages',
     'determine_ports',
@@ -44,6 +45,7 @@ TO_PATCH = [
     'local_unit',
     'log',
     'os_release',
+    'related_units',
     'relation_get',
     'relation_set',
     'relation_ids',
@@ -155,9 +157,8 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(self.save_script_rc.called)
         mock_filter_packages.assert_called_with([])
 
-    @patch.object(hooks, 'config_value_changed')
     @patch.object(hooks, 'configure_https')
-    def test_config_changed_git(self, configure_https, config_val_changed):
+    def test_config_changed_git(self, configure_https):
         self.git_install_requested.return_value = True
         repo = 'cloud:trusty-juno'
         openstack_origin_git = {
@@ -202,10 +203,25 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(self.save_script_rc.called)
         mock_filter_packages.assert_called_with([])
 
+    @patch.object(hooks, 'filter_installed_packages')
+    @patch.object(hooks, 'configure_https')
+    @patch.object(hooks, 'compute_changed')
+    def test_config_changed_region_change(self, mock_compute_changed,
+                                          mock_config_https,
+                                          mock_filter_packages):
+        self.git_install_requested.return_value = False
+        self.openstack_upgrade_available.return_value = False
+        self.config_value_changed.return_value = True
+        self.related_units.return_value = ['unit/0']
+        self.relation_ids.side_effect = \
+            lambda x: ['generic_rid'] if x == 'cloud-compute' else []
+        hooks.config_changed()
+        mock_compute_changed.assert_has_calls([call('generic_rid', 'unit/0')])
+
     def test_compute_changed_ssh_migration(self):
         self.test_relation.set({
             'migration_auth_type': 'ssh', 'ssh_public_key': 'fookey',
-            'private-address': '10.0.0.1'})
+            'private-address': '10.0.0.1', 'region': 'RegionOne'})
         self.ssh_known_hosts_lines.return_value = [
             'k_h_0', 'k_h_1', 'k_h_2']
         self.ssh_authorized_keys_lines.return_value = [
@@ -233,7 +249,7 @@ class NovaCCHooksTests(CharmTestCase):
     def test_compute_changed_nova_public_key(self):
         self.test_relation.set({
             'migration_auth_type': 'sasl', 'nova_ssh_public_key': 'fookey',
-            'private-address': '10.0.0.1'})
+            'private-address': '10.0.0.1', 'region': 'RegionOne'})
         self.ssh_known_hosts_lines.return_value = [
             'k_h_0', 'k_h_1', 'k_h_2']
         self.ssh_authorized_keys_lines.return_value = [
@@ -861,6 +877,7 @@ class NovaCCHooksTests(CharmTestCase):
     def test_config_changed_single_consoleauth(self, mock_config,
                                                mock_configure_https,
                                                mock_filter_packages):
+        self.config_value_changed.return_value = False
         self.git_install_requested.return_value = False
         config.return_value = 'novnc'
         rids = {'ha': ['ha:1']}

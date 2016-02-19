@@ -265,6 +265,13 @@ def config_changed():
     [cluster_joined(rid) for rid in relation_ids('cluster')]
     update_nrpe_config()
 
+    # If the region value has changed, notify the cloud-compute relations
+    # to ensure the value is propagated to the compute nodes.
+    if config_value_changed('region'):
+        for rid in relation_ids('cloud-compute'):
+            for unit in related_units(rid):
+                compute_changed(rid, unit)
+
     update_nova_consoleauth_config()
 
 
@@ -604,6 +611,7 @@ def compute_joined(rid=None, remote_restart=False):
         # (comment from bash vers) XXX Should point to VIP if clustered, or
         # this may not even be needed.
         'ec2_host': unit_get('private-address'),
+        'region': config('region')
     }
     # update relation setting if we're attempting to restart remote
     # services
@@ -617,6 +625,8 @@ def compute_joined(rid=None, remote_restart=False):
 @hooks.hook('cloud-compute-relation-changed')
 def compute_changed(rid=None, unit=None):
     rel_settings = relation_get(rid=rid, unit=unit)
+    if not rel_settings.get('region', None) == config('region'):
+        relation_set(relation_id=rid, region=config('region'))
     if 'migration_auth_type' not in rel_settings:
         return
     if rel_settings['migration_auth_type'] == 'ssh':
