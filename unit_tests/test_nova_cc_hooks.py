@@ -218,6 +218,12 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.config_changed()
         mock_compute_changed.assert_has_calls([call('generic_rid', 'unit/0')])
 
+    @patch.object(hooks, 'nova_api_relation_joined')
+    def test_compute_changed_nova_api_trigger(self, api_joined):
+        self.relation_ids.return_value = ['nova-api/0']
+        hooks.compute_changed()
+        api_joined.assert_called_with(rid='nova-api/0')
+
     def test_compute_changed_ssh_migration(self):
         self.test_relation.set({
             'migration_auth_type': 'ssh', 'ssh_public_key': 'fookey',
@@ -457,17 +463,20 @@ class NovaCCHooksTests(CharmTestCase):
         configs.write = MagicMock()
         hooks.postgresql_nova_db_changed()
 
+    @patch.object(hooks, 'nova_api_relation_joined')
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'conditional_neutron_migration')
     @patch.object(hooks, 'CONFIGS')
     def test_db_changed(self, configs, cond_neutron_mig,
-                        mock_is_db_initialised):
+                        mock_is_db_initialised, api_joined):
+        self.relation_ids.return_value = ['nova-api/0']
         mock_is_db_initialised.return_value = False
         'No database migration is attempted when ACL list is not present'
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
         self.assertFalse(self.migrate_nova_database.called)
         self.assertFalse(cond_neutron_mig.called)
+        api_joined.asert_called_with(rid='nova-api/0')
 
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'CONFIGS')
@@ -495,13 +504,19 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(configs.write_all.called)
         self.assertFalse(self.migrate_nova_database.called)
 
+    @patch.object(hooks, 'nova_api_relation_joined')
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'CONFIGS')
-    def test_postgresql_db_changed(self, configs, mock_is_db_initialised):
+    def test_postgresql_db_changed(self, configs, mock_is_db_initialised,
+                                   api_joined):
+        self.relation_ids.side_effect = [
+            [],
+            ['nova-api/0']]
         mock_is_db_initialised.return_value = False
         self._postgresql_db_test(configs)
         self.assertTrue(configs.write_all.called)
         self.migrate_nova_database.assert_called_with()
+        api_joined.assert_called_with(rid='nova-api/0')
 
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'nova_cell_relation_joined')
@@ -540,9 +555,11 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(configs.write_all.called)
         cell_joined.assert_called_with(rid='nova-cell-api/0')
 
+    @patch.object(hooks, 'nova_api_relation_joined')
     @patch.object(hooks, 'nova_cell_relation_joined')
     @patch.object(hooks, 'CONFIGS')
-    def test_amqp_changed_api_rel(self, configs, cell_joined):
+    def test_amqp_changed_api_rel(self, configs, cell_joined, api_joined):
+        self.relation_ids.return_value = ['nova-api/0']
         configs.complete_contexts = MagicMock()
         configs.complete_contexts.return_value = ['amqp']
         configs.write = MagicMock()
@@ -550,14 +567,19 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.amqp_changed()
         self.assertEquals(configs.write.call_args_list,
                           [call('/etc/nova/nova.conf')])
+        api_joined.assert_called_with(rid='nova-api/0')
 
+    @patch.object(hooks, 'nova_api_relation_joined')
     @patch.object(hooks, 'nova_cell_relation_joined')
     @patch.object(hooks, 'CONFIGS')
-    def test_amqp_changed_noapi_rel(self, configs, cell_joined):
+    def test_amqp_changed_noapi_rel(self, configs, cell_joined, api_joined):
         configs.complete_contexts = MagicMock()
         configs.complete_contexts.return_value = ['amqp']
         configs.write = MagicMock()
-        self.relation_ids.return_value = ['nova-cell-api/0']
+        self.relation_ids.side_effect = [
+            ['nova-cell-api/0'],
+            ['nova-api/0'],
+        ]
         self.is_relation_made.return_value = False
         self.network_manager.return_value = 'neutron'
         hooks.amqp_changed()
@@ -565,6 +587,7 @@ class NovaCCHooksTests(CharmTestCase):
                           [call('/etc/nova/nova.conf'),
                            call('/etc/neutron/neutron.conf')])
         cell_joined.assert_called_with(rid='nova-cell-api/0')
+        api_joined.assert_called_with(rid='nova-api/0')
 
     @patch.object(hooks, 'canonical_url')
     def test_nova_cell_relation_joined(self, _canonical_url):
@@ -903,3 +926,17 @@ class NovaCCHooksTests(CharmTestCase):
         ])
 
         mock_filter_packages.assert_called_with([])
+
+    @patch.object(hooks, 'is_api_ready')
+    def _test_nova_api_relation_joined(self, tgt, is_api_ready):
+        is_api_ready.return_value = tgt
+        exp = 'yes' if tgt else 'no'
+        hooks.nova_api_relation_joined(rid='foo')
+        self.relation_set.assert_called_with(
+            'foo', **{'nova-api-ready': exp})
+
+    def test_nova_api_relation_joined_ready(self):
+        self._test_nova_api_relation_joined(True)
+
+    def test_nova_api_relation_joined_not_ready(self):
+        self._test_nova_api_relation_joined(False)
