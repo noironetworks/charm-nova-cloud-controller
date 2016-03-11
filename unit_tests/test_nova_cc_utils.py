@@ -40,7 +40,10 @@ TO_PATCH = [
     'service_start',
     'services',
     'service_running',
-    'service_stop'
+    'service_stop',
+    'related_units',
+    'local_unit',
+    'relation_get',
 ]
 
 SCRIPTRC_ENV_VARS = {
@@ -305,6 +308,32 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertEquals(_servs, vnc_servs)
         self.assertEquals(_pkgs, vnc_pkgs)
         self.assertEquals(_proxy_page, None)
+
+    def test_database_setup(self):
+        self.relation_ids.return_value = ['shared-db:12']
+        self.related_units.return_value = ['mysql/0']
+        self.relation_get.return_value = (
+            'nova-cloud-controller/0 nova-cloud-controller/1')
+        self.local_unit.return_value = 'nova-cloud-controller/0'
+        self.assertTrue(utils.database_setup(prefix='nova'))
+        self.relation_get.assert_called_with('nova_allowed_units',
+                                             rid='shared-db:12',
+                                             unit='mysql/0')
+
+    def test_database_not_setup(self):
+        self.relation_ids.return_value = ['shared-db:12']
+        self.related_units.return_value = ['mysql/0']
+        self.relation_get.return_value = 'nova-cloud-controller/1'
+        self.local_unit.return_value = 'nova-cloud-controller/0'
+        self.assertFalse(utils.database_setup(prefix='nova'))
+        self.relation_get.assert_called_with('nova_allowed_units',
+                                             rid='shared-db:12',
+                                             unit='mysql/0')
+        self.relation_get.return_value = None
+        self.assertFalse(utils.database_setup(prefix='nova'))
+        self.relation_get.assert_called_with('nova_allowed_units',
+                                             rid='shared-db:12',
+                                             unit='mysql/0')
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     @patch.object(utils, 'git_install_requested')
@@ -642,6 +671,20 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertTrue(self.enable_services.called)
         self.cmd_all_services.assert_called_with('start')
 
+    @patch('subprocess.check_output')
+    def test_migrate_nova_database_mitaka(self, check_output):
+        "Migrate database with nova-manage in a clustered env"
+        self.relation_ids.return_value = ['cluster:1']
+        self.os_release.return_value = 'mitaka'
+        utils.migrate_nova_database()
+        check_output.assert_has_calls([
+            call(['nova-manage', 'db', 'sync']),
+            call(['nova-manage', 'api_db', 'sync']),
+        ])
+        self.peer_store.assert_called_with('dbsync_state', 'complete')
+        self.assertTrue(self.enable_services.called)
+        self.cmd_all_services.assert_called_with('start')
+
     @patch.object(utils, 'get_step_upgrade_source')
     @patch.object(utils, 'migrate_nova_database')
     @patch.object(utils, 'determine_packages')
@@ -741,6 +784,33 @@ class NovaCCUtilsTests(CharmTestCase):
         self.register_configs.assert_called_with(release='kilo')
         self.assertEquals(self.ml2_migration.call_count, 0)
         self.assertTrue(migrate_nova_database.call_count, 1)
+
+    @patch.object(utils, 'database_setup')
+    @patch.object(utils, 'get_step_upgrade_source')
+    @patch.object(utils, 'migrate_nova_database')
+    @patch.object(utils, 'determine_packages')
+    def test_upgrade_liberty_mitaka(self, determine_packages,
+                                    migrate_nova_database,
+                                    get_step_upgrade_source,
+                                    database_setup):
+        "Simulate a call to do_openstack_upgrade() for liberty->mitaka"
+        self.test_config.set('openstack-origin', 'cloud:trusty-kilo')
+        get_step_upgrade_source.return_value = None
+        self.os_release.return_value = 'liberty'
+        self.get_os_codename_install_source.return_value = 'mitaka'
+        self.is_elected_leader.return_value = True
+        self.relation_ids.return_value = []
+        database_setup.return_value = False
+        utils.do_openstack_upgrade(self.register_configs())
+        self.assertEquals(self.neutron_db_manage.call_count, 0)
+        self.apt_update.assert_called_with(fatal=True)
+        self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
+                                            dist=True)
+        self.apt_install.assert_called_with(determine_packages(), fatal=True)
+        self.register_configs.assert_called_with(release='mitaka')
+        self.assertEquals(self.ml2_migration.call_count, 0)
+        self.assertFalse(migrate_nova_database.called)
+        database_setup.assert_called_with(prefix='novaapi')
 
     @patch.object(utils, '_do_openstack_upgrade')
     def test_upgrade_grizzly_icehouse_source(self, _do_openstack_upgrade):

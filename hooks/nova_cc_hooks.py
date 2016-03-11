@@ -244,6 +244,11 @@ def config_changed():
             CONFIGS = do_openstack_upgrade(CONFIGS)
             [neutron_api_relation_joined(rid=rid, remote_restart=True)
                 for rid in relation_ids('neutron-api')]
+            # NOTE(jamespage): Force re-fire of shared-db joined hook
+            # to ensure that nova_api database is setup if required.
+            [db_joined(relation_id=r_id)
+                for r_id in relation_ids('shared-db')]
+
     save_script_rc()
     configure_https()
     CONFIGS.write_all()
@@ -328,7 +333,7 @@ def conditional_neutron_migration():
 
 
 @hooks.hook('shared-db-relation-joined')
-def db_joined():
+def db_joined(relation_id=None):
     if is_relation_made('pgsql-nova-db') or \
             is_relation_made('pgsql-neutron-db'):
         # error, postgresql is used
@@ -347,6 +352,12 @@ def db_joined():
                                           config('database-user'),
                                           relation_prefix='nova')
 
+        if os_release('nova-common') >= 'mitaka':
+            # NOTE: mitaka uses a second nova-api database as well
+            sync_db_with_multi_ipv6_addresses('nova_api',
+                                              config('database-user'),
+                                              relation_prefix='novaapi')
+
         if config_neutron:
             sync_db_with_multi_ipv6_addresses(config('neutron-database'),
                                               config('neutron-database-user'),
@@ -355,13 +366,22 @@ def db_joined():
         host = unit_get('private-address')
         relation_set(nova_database=config('database'),
                      nova_username=config('database-user'),
-                     nova_hostname=host)
+                     nova_hostname=host,
+                     relation_id=relation_id)
+
+        if os_release('nova-common') >= 'mitaka':
+            # NOTE: mitaka uses a second nova-api database as well
+            relation_set(novaapi_database='nova_api',
+                         novaapi_username=config('database-user'),
+                         novaapi_hostname=host,
+                         relation_id=relation_id)
 
         if config_neutron:
             # XXX: Renaming relations from quantum_* to neutron_* here.
             relation_set(neutron_database=config('neutron-database'),
                          neutron_username=config('neutron-database-user'),
-                         neutron_hostname=host)
+                         neutron_hostname=host,
+                         relation_id=relation_id)
 
 
 @hooks.hook('pgsql-nova-db-relation-joined')
@@ -928,6 +948,8 @@ def upgrade_charm():
     for r_id in relation_ids('cloud-compute'):
         for unit in related_units(r_id):
             compute_changed(r_id, unit)
+    for r_id in relation_ids('shared-db'):
+        db_joined(relation_id=r_id)
 
     rels = ['shared-db', 'pgsql-nova-db']
     for rname in rels:

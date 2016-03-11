@@ -62,6 +62,8 @@ from charmhelpers.core.hookenv import (
     ERROR,
     status_get,
     status_set,
+    related_units,
+    local_unit,
 )
 
 from charmhelpers.core.host import (
@@ -389,6 +391,13 @@ def resource_map():
     if os_release('nova-common') not in ['essex', 'folsom']:
         resource_map['/etc/nova/nova.conf']['services'] += ['nova-conductor']
 
+    if os_release('nova-common') >= 'mitaka':
+        resource_map[NOVA_CONF]['contexts'].append(
+            nova_cc_context.NovaAPISharedDBContext(relation_prefix='novaapi',
+                                                   database='nova_api',
+                                                   ssl_dir=NOVA_CONF_DIR)
+        )
+
     if console_attributes('services'):
         resource_map['/etc/nova/nova.conf']['services'] += \
             console_attributes('services')
@@ -642,6 +651,8 @@ def _do_openstack_upgrade(new_src):
     apt_upgrade(options=dpkg_opts, fatal=True, dist=True)
     apt_install(determine_packages(), fatal=True)
 
+    disable_policy_rcd()
+
     if cur_os_rel == 'grizzly':
         # NOTE(jamespage) when upgrading from grizzly->havana, config
         # files need to be generated prior to performing the db upgrade
@@ -664,14 +675,39 @@ def _do_openstack_upgrade(new_src):
         # NOTE(jamespage) default plugin switch to ml2@icehouse
         ml2_migration()
 
+    if new_os_rel >= 'mitaka' and not database_setup(prefix='novaapi'):
+        # NOTE: Defer service restarts and database migrations for now
+        #       as nova_api database is not yet created
+        if (relation_ids('cluster') and
+                is_elected_leader(CLUSTER_RES)):
+            # NOTE: reset dbsync state so that migration will complete
+            #       when the nova_api database is setup.
+            peer_store('dbsync_state', None)
+        return configs
+
     if is_elected_leader(CLUSTER_RES):
         status_set('maintenance', 'Running nova db migration')
         migrate_nova_database()
     [service_start(s) for s in services()]
 
-    disable_policy_rcd()
-
     return configs
+
+
+def database_setup(prefix):
+    '''
+    Determine when a specific database is setup
+    and access is granted to the local unit.
+
+    This function only checks the MySQL shared-db
+    relation name using the provided prefix.
+    '''
+    key = '{}_allowed_units'.format(prefix)
+    for db_rid in relation_ids('shared-db'):
+        for unit in related_units(db_rid):
+            allowed_units = relation_get(key, rid=db_rid, unit=unit)
+            if allowed_units and local_unit() in allowed_units.split():
+                return True
+    return False
 
 
 def do_openstack_upgrade(configs):
@@ -704,6 +740,10 @@ def migrate_nova_database():
     log('Migrating the nova database.', level=INFO)
     cmd = ['nova-manage', 'db', 'sync']
     subprocess.check_output(cmd)
+    if os_release('nova-common') >= 'mitaka':
+        log('Migrating the nova-api database.', level=INFO)
+        cmd = ['nova-manage', 'api_db', 'sync']
+        subprocess.check_output(cmd)
     if relation_ids('cluster'):
         log('Informing peers that dbsync is complete', level=INFO)
         peer_store('dbsync_state', 'complete')
