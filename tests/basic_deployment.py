@@ -585,7 +585,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 'api_servers': gl_ncc_rel['glance-api-server'],
             }
             expected['keystone_authtoken'] = {
-                'identity_uri': id_uri,
+                'identity_uri': id_uri.rstrip('/'),
                 'auth_uri': ks_uri,
                 'admin_tenant_name': ks_ncc_rel['service_tenant'],
                 'admin_user': ks_ncc_rel['service_username'],
@@ -608,15 +608,18 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 'lock_path': '/var/lock/nova',
             }
 
-        if self._get_openstack_release() >= self.trusty_mitaka:
-            # Mitaka
+        if self._get_openstack_release() >= self.trusty_liberty:
+            # Liberty
             expected['keystone_authtoken'] = {
-                'auth_type': 'password',
+                'auth_uri': ks_uri.rstrip('/'),
+                'auth_url': id_uri.rstrip('/'),
+                'auth_plugin': 'password',
+                'project_domain_id': 'default',
+                'user_domain_id': 'default',
                 'project_name': 'services',
                 'username': 'nova',
                 'password': ks_ncc_rel['service_password'],
-                'auth_url': id_uri.rstrip('/'),
-                'region': 'RegionOne'
+                'signing_dir': '/var/cache/nova',
             }
 
         for section, pairs in expected.iteritems():

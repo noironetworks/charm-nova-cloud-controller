@@ -531,6 +531,8 @@ def _auth_config():
         # quantum-gateway interface deviates a bit.
         'keystone_host': ks_auth_host,
         'service_tenant': auth_token_config('admin_tenant_name'),
+        # add api version if found
+        'api_version': auth_token_config('api_version') or '2.0',
     }
     return cfg
 
@@ -538,8 +540,10 @@ def _auth_config():
 def save_novarc():
     auth = _auth_config()
     # XXX hard-coded http
-    ks_url = '%s://%s:%s/v2.0' % (auth['auth_protocol'],
-                                  auth['auth_host'], auth['auth_port'])
+    ks_url = '%s://%s:%s/v%s' % (auth['auth_protocol'],
+                                 auth['auth_host'],
+                                 auth['auth_port'],
+                                 auth['api_version'])
     with open('/etc/quantum/novarc', 'wb') as out:
         out.write('export OS_USERNAME=%s\n' % auth['service_username'])
         out.write('export OS_PASSWORD=%s\n' % auth['service_password'])
