@@ -431,3 +431,19 @@ class APIRateLimitingContext(context.OSContextGenerator):
         if rate_rules:
             ctxt['api_rate_limit_rules'] = rate_rules
         return ctxt
+
+
+class NovaAPISharedDBContext(context.SharedDBContext):
+    '''
+    Wrapper context to support multiple database connections being
+    represented to a single config file
+
+    ctxt values are namespaced with a nova_api_ prefix
+    '''
+    def __call__(self):
+        ctxt = super(NovaAPISharedDBContext, self).__call__()
+        prefix = 'nova_api_%s'
+        translated_ctxt = {}
+        for k, v in ctxt.iteritems():
+            translated_ctxt[prefix % k] = v
+        return translated_ctxt

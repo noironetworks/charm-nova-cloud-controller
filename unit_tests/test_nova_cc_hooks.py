@@ -180,6 +180,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.git_install.assert_called_with(projects_yaml)
         self.assertFalse(self.do_openstack_upgrade.called)
 
+    @patch.object(hooks, 'db_joined')
     @patch.object(hooks, 'filter_installed_packages')
     @patch('charmhelpers.contrib.openstack.ip.service_name',
            lambda *args: 'nova-cloud-controller')
@@ -189,7 +190,7 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'configure_https')
     def test_config_changed_with_upgrade(self, conf_https, neutron_api_joined,
                                          identity_joined, cluster_joined,
-                                         mock_filter_packages):
+                                         mock_filter_packages, db_joined):
         self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = True
         self.relation_ids.return_value = ['generic_rid']
@@ -200,6 +201,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(identity_joined.called)
         self.assertTrue(_zmq_joined.called)
         self.assertTrue(cluster_joined.called)
+        self.assertTrue(db_joined.called)
         self.assertTrue(self.save_script_rc.called)
         mock_filter_packages.assert_called_with([])
 
@@ -374,7 +376,26 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.db_joined()
         self.relation_set.assert_called_with(nova_database='nova',
                                              nova_username='nova',
-                                             nova_hostname='nova.foohost.com')
+                                             nova_hostname='nova.foohost.com',
+                                             relation_id=None)
+        self.unit_get.assert_called_with('private-address')
+
+    def test_db_joined_mitaka(self):
+        self.unit_get.return_value = 'nova.foohost.com'
+        self.os_release.return_value = 'mitaka'
+        self.is_relation_made.return_value = False
+        hooks.db_joined()
+        self.relation_set.assert_has_calls([
+            call(nova_database='nova',
+                 nova_username='nova',
+                 nova_hostname='nova.foohost.com',
+                 relation_id=None),
+            call(novaapi_database='nova_api',
+                 novaapi_username='nova',
+                 novaapi_hostname='nova.foohost.com',
+                 relation_id=None),
+        ])
+
         self.unit_get.assert_called_with('private-address')
 
     @patch('charmhelpers.contrib.openstack.ip.service_name',
