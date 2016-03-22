@@ -1,9 +1,8 @@
-from mock import patch, MagicMock
 import os
 
+from mock import patch, MagicMock
+
 os.environ['JUJU_UNIT_NAME'] = 'nova-cloud-controller'
-
-
 with patch('charmhelpers.core.hookenv.config') as config:
     config.return_value = 'nova'
     import nova_cc_utils as utils  # noqa
@@ -23,9 +22,7 @@ with patch('nova_cc_utils.guard_map') as gmap:
 utils.register_configs = _reg
 utils.restart_map = _map
 
-from test_utils import (
-    CharmTestCase
-)
+from test_utils import CharmTestCase
 
 TO_PATCH = [
     'do_openstack_upgrade',

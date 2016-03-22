@@ -433,3 +433,9 @@ options:
       under the "filter:ratelimit" section as "limits". The syntax for these
       rules is documented at
       http://docs.openstack.org/kilo/config-reference/content/configuring-compute-API.html
+  harden:
+    default:
+    type: string
+    description: |
+      Apply system hardening. Supports a space-delimited list of modules
+      to run. Supported modules currently include os, ssh, apache and mysql.

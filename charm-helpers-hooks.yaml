@@ -13,3 +13,4 @@ include:
     - contrib.peerstorage
     - contrib.python.packages
     - contrib.charmsupport
+    - contrib.hardening|inc=*

@@ -134,6 +134,7 @@ from charmhelpers.contrib.network.ip import (
 from charmhelpers.contrib.openstack.context import ADDRESS_TYPES
 
 from charmhelpers.contrib.charmsupport import nrpe
+from charmhelpers.contrib.hardening.harden import harden
 
 try:
     FileNotFoundError
@@ -187,6 +188,7 @@ def leader_init_db_if_ready(skip_acl_check=False, skip_cells_restarts=False,
 
 
 @hooks.hook('install.real')
+@harden()
 def install():
     status_set('maintenance', 'Executing pre-install')
     execd_preinstall()
@@ -217,6 +219,7 @@ def install():
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 @restart_on_change(restart_map(), stopstart=True)
+@harden()
 def config_changed():
     # neutron-server runs if < juno. Neutron-server creates mysql tables
     # which will subsequently cause db migratoins to fail if >= juno.
@@ -932,6 +935,7 @@ def nova_vmware_relation_changed():
 
 
 @hooks.hook('upgrade-charm')
+@harden()
 def upgrade_charm():
     apt_install(filter_installed_packages(determine_packages()),
                 fatal=True)
@@ -1136,6 +1140,12 @@ def nova_api_relation_joined(rid=None):
         'nova-api-ready': 'yes' if is_api_ready(CONFIGS) else 'no'
     }
     relation_set(rid, **rel_data)
+
+
+@hooks.hook('update-status')
+@harden()
+def update_status():
+    log('Updating status.')
 
 
 def main():

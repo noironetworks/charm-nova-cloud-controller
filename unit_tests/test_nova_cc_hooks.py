@@ -1,8 +1,10 @@
+import os
+import tempfile
+
+import yaml
+
 from mock import MagicMock, patch, call
 from test_utils import CharmTestCase, patch_open
-import os
-import yaml
-import tempfile
 
 with patch('charmhelpers.core.hookenv.config') as config:
     config.return_value = 'neutron'
@@ -14,11 +16,14 @@ _map = utils.restart_map
 utils.register_configs = MagicMock()
 utils.restart_map = MagicMock()
 
-with patch('nova_cc_utils.guard_map') as gmap:
-    with patch('charmhelpers.core.hookenv.config') as config:
-        config.return_value = False
-        gmap.return_value = {}
-        import nova_cc_hooks as hooks
+with patch('charmhelpers.contrib.hardening.harden.harden') as mock_dec:
+    mock_dec.side_effect = (lambda *dargs, **dkwargs: lambda f:
+                            lambda *args, **kwargs: f(*args, **kwargs))
+    with patch('nova_cc_utils.guard_map') as gmap:
+        with patch('charmhelpers.core.hookenv.config') as config:
+            config.return_value = False
+            gmap.return_value = {}
+            import nova_cc_hooks as hooks
 
 utils.register_configs = _reg
 utils.restart_map = _map

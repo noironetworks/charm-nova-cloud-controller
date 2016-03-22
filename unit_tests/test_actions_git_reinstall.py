@@ -1,27 +1,24 @@
+import sys
+
 from mock import patch, MagicMock
 
-with patch('charmhelpers.core.hookenv.config') as config:
-    config.return_value = 'nova'
-    import nova_cc_utils as utils  # noqa
+# python-apt is not installed as part of test-requirements but is imported by
+# some charmhelpers modules so create a fake import.
+sys.modules['apt'] = MagicMock()
+sys.modules['apt_pkg'] = MagicMock()
 
-_reg = utils.register_configs
-_map = utils.restart_map
+with patch('charmhelpers.contrib.hardening.harden.harden') as mock_dec:
+    mock_dec.side_effect = (lambda *dargs, **dkwargs: lambda f:
+                            lambda *args, **kwargs: f(*args, **kwargs))
+    with patch('nova_cc_utils.restart_map'):
+        with patch('nova_cc_utils.register_configs'):
+            with patch('nova_cc_utils.guard_map') as gmap:
+                with patch('charmhelpers.core.hookenv.config') as config:
+                    config.return_value = False
+                    gmap.return_value = {}
+                    import git_reinstall
 
-utils.register_configs = MagicMock()
-utils.restart_map = MagicMock()
-
-with patch('nova_cc_utils.guard_map') as gmap:
-    with patch('charmhelpers.core.hookenv.config') as config:
-        config.return_value = False
-        gmap.return_value = {}
-        import git_reinstall
-
-utils.register_configs = _reg
-utils.restart_map = _map
-
-from test_utils import (
-    CharmTestCase
-)
+from test_utils import CharmTestCase
 
 TO_PATCH = [
     'config',

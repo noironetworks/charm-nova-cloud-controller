@@ -1,16 +1,11 @@
 from collections import OrderedDict
 from mock import patch, MagicMock, call
 from copy import deepcopy
+
+with patch('charmhelpers.core.hookenv.config'):
+    import nova_cc_utils as utils
+
 from test_utils import CharmTestCase, patch_open
-
-from charmhelpers.core import hookenv
-
-_conf = hookenv.config
-hookenv.config = MagicMock()
-
-import nova_cc_utils as utils
-
-hookenv.config = _conf
 
 TO_PATCH = [
     'apt_update',
