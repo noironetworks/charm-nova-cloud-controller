@@ -163,6 +163,7 @@ BASE_SERVICES = [
     'nova-objectstore',
     'nova-cert',
     'nova-scheduler',
+    'nova-conductor',
 ]
 
 SERVICE_BLACKLIST = {
@@ -175,23 +176,18 @@ API_PORTS = {
     'nova-api-os-volume': 8776,
     'nova-objectstore': 3333,
     'neutron-server': 9696,
-    'quantum-server': 9696,
 }
 
 NOVA_CONF_DIR = "/etc/nova"
-QUANTUM_CONF_DIR = "/etc/quantum"
 NEUTRON_CONF_DIR = "/etc/neutron"
 
 NOVA_CONF = '%s/nova.conf' % NOVA_CONF_DIR
 NOVA_API_PASTE = '%s/api-paste.ini' % NOVA_CONF_DIR
-QUANTUM_CONF = '%s/quantum.conf' % QUANTUM_CONF_DIR
-QUANTUM_API_PASTE = '%s/api-paste.ini' % QUANTUM_CONF_DIR
 NEUTRON_CONF = '%s/neutron.conf' % NEUTRON_CONF_DIR
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
 NEUTRON_DEFAULT = '/etc/default/neutron-server'
-QUANTUM_DEFAULT = '/etc/default/quantum-server'
 
 
 def resolve_services():
@@ -241,30 +237,6 @@ BASE_RESOURCE_MAP = OrderedDict([
         'services': [s for s in resolve_services() if 'api' in s],
         'contexts': [nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.APIRateLimitingContext()],
-    }),
-    (QUANTUM_CONF, {
-        'services': ['quantum-server'],
-        'contexts': [context.AMQPContext(ssl_dir=QUANTUM_CONF_DIR),
-                     context.SharedDBContext(
-                         user=config('neutron-database-user'),
-                         database=config('neutron-database'),
-                         relation_prefix='neutron',
-                         ssl_dir=QUANTUM_CONF_DIR),
-                     nova_cc_context.NeutronPostgresqlDBContext(),
-                     nova_cc_context.HAProxyContext(),
-                     nova_cc_context.IdentityServiceContext(
-                         service='neutron',
-                         service_user='neutron'),
-                     nova_cc_context.NeutronCCContext(),
-                     context.SyslogContext()],
-    }),
-    (QUANTUM_DEFAULT, {
-        'services': ['quantum-server'],
-        'contexts': [nova_cc_context.NeutronCCContext()],
-    }),
-    (QUANTUM_API_PASTE, {
-        'services': ['quantum-server'],
-        'contexts': [nova_cc_context.IdentityServiceContext()],
     }),
     (NEUTRON_CONF, {
         'services': ['neutron-server'],
@@ -336,12 +308,6 @@ def resource_map():
     '''
     resource_map = deepcopy(BASE_RESOURCE_MAP)
 
-    if relation_ids('nova-volume-service'):
-        # if we have a relation to a nova-volume service, we're
-        # also managing the nova-volume API endpoint (legacy)
-        resource_map['/etc/nova/nova.conf']['services'].append(
-            'nova-api-os-volume')
-
     net_manager = network_manager()
 
     if os.path.exists('/etc/apache2/conf-available'):
@@ -353,15 +319,12 @@ def resource_map():
         nova_cc_context.NeutronCCContext())
     # pop out irrelevant resources from the OrderedDict (easier than adding
     # them late)
-    if net_manager != 'quantum':
-        [resource_map.pop(k) for k in list(resource_map.iterkeys())
-         if 'quantum' in k]
     if net_manager != 'neutron':
         [resource_map.pop(k) for k in list(resource_map.iterkeys())
          if 'neutron' in k]
     # add neutron plugin requirements. nova-c-c only needs the
     # neutron-server associated with configs, not the plugin agent.
-    if net_manager in ['quantum', 'neutron']:
+    if net_manager == 'neutron':
         plugin = neutron_plugin()
         if plugin:
             conf = neutron_plugin_attribute(plugin, 'config', net_manager)
@@ -382,14 +345,10 @@ def resource_map():
     if is_relation_made('neutron-api'):
         for k in list(resource_map.iterkeys()):
             # neutron-api runs neutron services
-            if 'quantum' in k or 'neutron' in k:
+            if 'neutron' in k:
                 resource_map[k]['services'] = []
         resource_map[NOVA_CONF]['contexts'].append(
             nova_cc_context.NeutronAPIContext())
-
-    # nova-conductor for releases >= G.
-    if os_release('nova-common') not in ['essex', 'folsom']:
-        resource_map['/etc/nova/nova.conf']['services'] += ['nova-conductor']
 
     if os_release('nova-common') >= 'mitaka':
         resource_map[NOVA_CONF]['contexts'].append(
@@ -399,7 +358,7 @@ def resource_map():
         )
 
     if console_attributes('services'):
-        resource_map['/etc/nova/nova.conf']['services'] += \
+        resource_map[NOVA_CONF]['services'] += \
             console_attributes('services')
 
     # also manage any configs that are being updated by subordinates.
@@ -480,7 +439,7 @@ def determine_packages():
     packages = [] + BASE_PACKAGES
     for v in resource_map().values():
         packages.extend(v['services'])
-    if network_manager() in ['neutron', 'quantum']:
+    if network_manager() == 'neutron':
         pkgs = neutron_plugin_attribute(neutron_plugin(), 'server_packages',
                                         network_manager())
         packages.extend(pkgs)
@@ -510,8 +469,6 @@ def save_script_rc():
     }
     if relation_ids('nova-volume-service'):
         env_vars['OPENSTACK_SERVICE_API_OS_VOL'] = 'nova-api-os-volume'
-    if network_manager() == 'quantum':
-        env_vars['OPENSTACK_SERVICE_API_QUANTUM'] = 'quantum-server'
     if network_manager() == 'neutron':
         env_vars['OPENSTACK_SERVICE_API_NEUTRON'] = 'neutron-server'
     _save_script_rc(**env_vars)
@@ -568,7 +525,6 @@ def disable_policy_rcd():
     os.unlink('/usr/sbin/policy-rc.d')
 
 
-QUANTUM_DB_MANAGE = "quantum-db-manage"
 NEUTRON_DB_MANAGE = "neutron-db-manage"
 
 
@@ -580,44 +536,23 @@ def reset_os_release():
 
 def neutron_db_manage(actions):
     net_manager = network_manager()
-    if net_manager in ['neutron', 'quantum']:
+    if net_manager == 'neutron':
         plugin = neutron_plugin()
         conf = neutron_plugin_attribute(plugin, 'config', net_manager)
-        if net_manager == 'quantum':
-            cmd = QUANTUM_DB_MANAGE
-        else:
-            cmd = NEUTRON_DB_MANAGE
         subprocess.check_call([
-            cmd, '--config-file=/etc/{mgr}/{mgr}.conf'.format(mgr=net_manager),
+            NEUTRON_DB_MANAGE,
+            '--config-file=/etc/{mgr}/{mgr}.conf'.format(mgr=net_manager),
             '--config-file={}'.format(conf)] + actions
         )
 
 
 def get_db_connection():
     config = ConfigParser.RawConfigParser()
-    config.read('/etc/neutron/neutron.conf')
+    config.read(NEUTRON_CONF)
     try:
         return config.get('database', 'connection')
     except:
         return None
-
-
-def ml2_migration():
-    reset_os_release()
-    net_manager = network_manager()
-    if net_manager == 'neutron':
-        plugin = neutron_plugin()
-        if plugin == 'ovs':
-            log('Migrating from openvswitch to ml2 plugin')
-            cmd = [
-                'python',
-                '/usr/lib/python2.7/dist-packages/neutron'
-                '/db/migration/migrate_to_ml2.py',
-                '--tunnel-type', 'gre',
-                '--release', 'icehouse',
-                'openvswitch', get_db_connection()
-            ]
-            subprocess.check_call(cmd)
 
 
 def is_db_initialised():
@@ -671,10 +606,6 @@ def _do_openstack_upgrade(new_src):
         configs = register_configs(release=new_os_rel)
         configs.write_all()
 
-    if new_os_rel == 'icehouse':
-        # NOTE(jamespage) default plugin switch to ml2@icehouse
-        ml2_migration()
-
     if new_os_rel >= 'mitaka' and not database_setup(prefix='novaapi'):
         # NOTE: Defer service restarts and database migrations for now
         #       as nova_api database is not yet created
@@ -721,17 +652,6 @@ def do_openstack_upgrade(configs):
     return _do_openstack_upgrade(new_src)
 
 
-def volume_service():
-    '''Specifies correct volume API for specific OS release'''
-    os_vers = os_release('nova-common')
-    if os_vers == 'essex':
-        return 'nova-volume'
-    elif os_vers == 'folsom':  # support both drivers in folsom.
-        if not relation_ids('cinder-volume-service'):
-            return 'nova-volume'
-    return 'cinder'
-
-
 # NOTE(jamespage): Retry deals with sync issues during one-shot HA deploys.
 #                  mysql might be restarting or suchlike.
 @retry_on_exception(5, base_delay=3, exc_type=subprocess.CalledProcessError)
@@ -761,6 +681,7 @@ def migrate_neutron_database():
     neutron_db_manage(['upgrade', 'head'])
 
 
+# TODO: refactor to use unit storage or related data
 def auth_token_config(setting):
     """
     Returns currently configured value for setting in api-paste.ini's
@@ -951,35 +872,18 @@ def determine_endpoints(public_url, internal_url, admin_url):
     region = config('region')
     os_rel = os_release('nova-common')
 
-    if os_rel >= 'grizzly':
-        nova_public_url = ('%s:%s/v2/$(tenant_id)s' %
-                           (public_url, api_port('nova-api-os-compute')))
-        nova_internal_url = ('%s:%s/v2/$(tenant_id)s' %
-                             (internal_url, api_port('nova-api-os-compute')))
-        nova_admin_url = ('%s:%s/v2/$(tenant_id)s' %
-                          (admin_url, api_port('nova-api-os-compute')))
-    else:
-        nova_public_url = ('%s:%s/v1.1/$(tenant_id)s' %
-                           (public_url, api_port('nova-api-os-compute')))
-        nova_internal_url = ('%s:%s/v1.1/$(tenant_id)s' %
-                             (internal_url, api_port('nova-api-os-compute')))
-        nova_admin_url = ('%s:%s/v1.1/$(tenant_id)s' %
-                          (admin_url, api_port('nova-api-os-compute')))
-
+    nova_public_url = ('%s:%s/v2/$(tenant_id)s' %
+                       (public_url, api_port('nova-api-os-compute')))
+    nova_internal_url = ('%s:%s/v2/$(tenant_id)s' %
+                         (internal_url, api_port('nova-api-os-compute')))
+    nova_admin_url = ('%s:%s/v2/$(tenant_id)s' %
+                      (admin_url, api_port('nova-api-os-compute')))
     ec2_public_url = '%s:%s/services/Cloud' % (
         public_url, api_port('nova-api-ec2'))
     ec2_internal_url = '%s:%s/services/Cloud' % (
         internal_url, api_port('nova-api-ec2'))
     ec2_admin_url = '%s:%s/services/Cloud' % (admin_url,
                                               api_port('nova-api-ec2'))
-
-    nova_volume_public_url = ('%s:%s/v1/$(tenant_id)s' %
-                              (public_url, api_port('nova-api-os-compute')))
-    nova_volume_internal_url = ('%s:%s/v1/$(tenant_id)s' %
-                                (internal_url,
-                                 api_port('nova-api-os-compute')))
-    nova_volume_admin_url = ('%s:%s/v1/$(tenant_id)s' %
-                             (admin_url, api_port('nova-api-os-compute')))
 
     neutron_public_url = '%s:%s' % (public_url, api_port('neutron-server'))
     neutron_internal_url = '%s:%s' % (internal_url, api_port('neutron-server'))
@@ -1008,15 +912,6 @@ def determine_endpoints(public_url, internal_url, admin_url):
         's3_internal_url': s3_internal_url,
     }
 
-    if relation_ids('nova-volume-service'):
-        endpoints.update({
-            'nova-volume_service': 'nova-volume',
-            'nova-volume_region': region,
-            'nova-volume_public_url': nova_volume_public_url,
-            'nova-volume_admin_url': nova_volume_admin_url,
-            'nova-volume_internal_url': nova_volume_internal_url,
-        })
-
     # XXX: Keep these relations named quantum_*??
     if relation_ids('neutron-api'):
         endpoints.update({
@@ -1026,7 +921,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
             'quantum_admin_url': None,
             'quantum_internal_url': None,
         })
-    elif network_manager() in ['quantum', 'neutron']:
+    elif network_manager() == 'neutron':
         endpoints.update({
             'quantum_service': 'quantum',
             'quantum_region': region,
@@ -1055,6 +950,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
     return endpoints
 
 
+# TODO: review to see if we can drop quantum-plugin
 def neutron_plugin():
     # quantum-plugin config setting can be safely overriden
     # as we only supported OVS in G/neutron
@@ -1079,17 +975,14 @@ def guard_map():
         gmap[svc] = nova_interfaces
 
     net_manager = network_manager()
-    if net_manager in ['neutron', 'quantum'] and \
+    if net_manager == 'neutron' and \
             not is_relation_made('neutron-api'):
         neutron_interfaces = ['identity-service', 'amqp']
         if relation_ids('pgsql-neutron-db'):
             neutron_interfaces.append('pgsql-neutron-db')
         else:
             neutron_interfaces.append('shared-db')
-        if network_manager() == 'quantum':
-            gmap['quantum-server'] = neutron_interfaces
-        else:
-            gmap['neutron-server'] = neutron_interfaces
+        gmap['neutron-server'] = neutron_interfaces
 
     return gmap
 

@@ -94,12 +94,9 @@ from nova_cc_utils import (
     ssh_authorized_keys_lines,
     register_configs,
     restart_map,
-    volume_service,
     CLUSTER_RES,
     NOVA_CONF,
-    QUANTUM_CONF,
     NEUTRON_CONF,
-    QUANTUM_API_PASTE,
     console_attributes,
     service_guard,
     guard_map,
@@ -298,8 +295,6 @@ def amqp_changed():
         return
     CONFIGS.write(NOVA_CONF)
     if not is_relation_made('neutron-api'):
-        if network_manager() == 'quantum':
-            CONFIGS.write(QUANTUM_CONF)
         if network_manager() == 'neutron':
             CONFIGS.write(NEUTRON_CONF)
     [nova_cell_relation_joined(rid=rid)
@@ -342,7 +337,7 @@ def db_joined(relation_id=None):
         log(e, level=ERROR)
         raise Exception(e)
 
-    if network_manager() in ['quantum', 'neutron']:
+    if network_manager() == 'neutron':
         config_neutron = True
     else:
         config_neutron = False
@@ -377,7 +372,6 @@ def db_joined(relation_id=None):
                          relation_id=relation_id)
 
         if config_neutron:
-            # XXX: Renaming relations from quantum_* to neutron_* here.
             relation_set(neutron_database=config('neutron-database'),
                          neutron_username=config('neutron-database-user'),
                          neutron_hostname=host,
@@ -442,7 +436,7 @@ def postgresql_nova_db_changed():
                active=config('service-guard'))
 @restart_on_change(restart_map())
 def postgresql_neutron_db_changed():
-    if network_manager() in ['neutron', 'quantum']:
+    if network_manager() == 'neutron':
         plugin = neutron_plugin()
         # DB config might have been moved to main neutron.conf in H?
         CONFIGS.write(neutron_plugin_attribute(plugin, 'config'))
@@ -484,10 +478,6 @@ def identity_changed():
     CONFIGS.write('/etc/nova/api-paste.ini')
     CONFIGS.write(NOVA_CONF)
     if not is_relation_made('neutron-api'):
-        if network_manager() == 'quantum':
-            CONFIGS.write(QUANTUM_API_PASTE)
-            CONFIGS.write(QUANTUM_CONF)
-            save_novarc()
         if network_manager() == 'neutron':
             CONFIGS.write(NEUTRON_CONF)
     [compute_joined(rid) for rid in relation_ids('cloud-compute')]
@@ -579,7 +569,7 @@ def keystone_compute_settings():
     ks_auth_config = _auth_config()
     rel_settings = {}
 
-    if network_manager() in ['quantum', 'neutron']:
+    if network_manager() == 'neutron':
         if ks_auth_config:
             rel_settings.update(ks_auth_config)
         rel_settings.update(neutron_settings())
@@ -640,7 +630,7 @@ def compute_joined(rid=None, remote_restart=False):
     relation_set(relation_id=rid, **cons_settings)
     rel_settings = {
         'network_manager': network_manager(),
-        'volume_service': volume_service(),
+        'volume_service': 'cinder',
         # (comment from bash vers) XXX Should point to VIP if clustered, or
         # this may not even be needed.
         'ec2_host': unit_get('private-address'),
@@ -850,8 +840,6 @@ def ha_changed():
 
     CONFIGS.write(NOVA_CONF)
     if not is_relation_made('neutron-api'):
-        if network_manager() == 'quantum':
-            CONFIGS.write(QUANTUM_CONF)
         if network_manager() == 'neutron':
             CONFIGS.write(NEUTRON_CONF)
 

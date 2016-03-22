@@ -60,7 +60,6 @@ TO_PATCH = [
     'services',
     'execd_preinstall',
     'network_manager',
-    'volume_service',
     'unit_get',
     'uuid',
     'is_elected_leader',
@@ -295,7 +294,6 @@ class NovaCCHooksTests(CharmTestCase):
         self.network_manager.return_value = 'neutron'
         self.is_elected_leader = True
         self.keystone_ca_cert_b64.return_value = 'foocert64'
-        self.volume_service.return_value = 'cinder'
         self.unit_get.return_value = 'nova-cc-host1'
         _canonical_url.return_value = 'http://nova-cc-host1'
         self.api_port.return_value = '9696'
@@ -334,7 +332,6 @@ class NovaCCHooksTests(CharmTestCase):
         self.network_manager.return_value = 'neutron'
         self.is_elected_leader = True
         self.keystone_ca_cert_b64.return_value = 'foocert64'
-        self.volume_service.return_value = 'cinder'
         self.unit_get.return_value = 'nova-cc-host1'
         _canonical_url.return_value = 'http://nova-cc-host1'
         self.api_port.return_value = '9696'

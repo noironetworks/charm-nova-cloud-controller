@@ -38,8 +38,6 @@ requires:
     interface: nova-compute
   cinder-volume-service:
     interface: cinder
-  nova-volume-service:
-    interface: nova-volume
   quantum-network-service:
     interface: quantum
   neutron-api:

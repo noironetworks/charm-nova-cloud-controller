@@ -22,8 +22,6 @@ from test_utils import CharmTestCase
 from charmhelpers.contrib.openstack import neutron
 
 TO_PATCH = [
-    'apt_install',
-    'filter_installed_packages',
     'relation_ids',
     'relation_get',
     'related_units',

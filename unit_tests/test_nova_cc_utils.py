@@ -26,7 +26,6 @@ TO_PATCH = [
     'get_os_codename_install_source',
     'is_relation_made',
     'log',
-    'ml2_migration',
     'network_manager',
     'neutron_db_manage',
     'neutron_plugin',
@@ -69,9 +68,9 @@ BASE_ENDPOINTS = {
     'ec2_public_url': 'http://foohost.com:8773/services/Cloud',
     'ec2_region': 'RegionOne',
     'ec2_service': 'ec2',
-    'nova_admin_url': 'http://foohost.com:8774/v1.1/$(tenant_id)s',
-    'nova_internal_url': 'http://foohost.com:8774/v1.1/$(tenant_id)s',
-    'nova_public_url': 'http://foohost.com:8774/v1.1/$(tenant_id)s',
+    'nova_admin_url': 'http://foohost.com:8774/v2/$(tenant_id)s',
+    'nova_internal_url': 'http://foohost.com:8774/v2/$(tenant_id)s',
+    'nova_public_url': 'http://foohost.com:8774/v2/$(tenant_id)s',
     'nova_region': 'RegionOne',
     'nova_service': 'nova',
     's3_admin_url': 'http://foohost.com:3333',
@@ -86,7 +85,7 @@ BASE_ENDPOINTS = {
 RESTART_MAP = OrderedDict([
     ('/etc/nova/nova.conf', [
         'nova-api-ec2', 'nova-api-os-compute', 'nova-objectstore',
-        'nova-cert', 'nova-scheduler', 'nova-api-os-volume', 'nova-conductor'
+        'nova-cert', 'nova-scheduler', 'nova-conductor'
     ]),
     ('/etc/nova/api-paste.ini', [
         'nova-api-ec2', 'nova-api-os-compute'
@@ -95,23 +94,19 @@ RESTART_MAP = OrderedDict([
     ('/etc/default/neutron-server', ['neutron-server']),
     ('/etc/haproxy/haproxy.cfg', ['haproxy']),
     ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
-    ('/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini',
-        ['quantum-server'])
+    ('/etc/neutron/plugins/ml2/ml2_conf.ini', ['neutron-server']),
 ])
 
 
 PLUGIN_ATTRIBUTES = {
     'ovs': {
-        'config': '/etc/quantum/plugins/openvswitch/'
-                  'ovs_quantum_plugin.ini',
-        'driver': 'quantum.plugins.openvswitch.ovs_quantum_plugin.'
-                  'OVSQuantumPluginV2',
+        'config': '/etc/neutron/plugins/ml2/ml2_conf.ini',
+        'driver': 'neutron.plugins.ml2.plugin.Ml2Plugin',
         'contexts': ['FakeDBContext'],
-        'services': ['quantum-plugin-openvswitch-agent'],
-        'packages': ['quantum-plugin-openvswitch-agent',
-                     'openvswitch-datapath-dkms'],
-        'server_packages': ['quantum-server', 'quantum-plugin-openvswitch'],
-        'server_services': ['quantum-server'],
+        'services': ['neutron-plugin-openvswitch-agent'],
+        'packages': ['neutron-plugin-openvswitch-agent'],
+        'server_packages': ['neutron-server', 'neutron-plugin-ml2'],
+        'server_services': ['neutron-server'],
     },
     'nvp': {
         'config': '/etc/quantum/plugins/nicira/nvp.ini',
@@ -153,31 +148,18 @@ class NovaCCUtilsTests(CharmTestCase):
     def setUp(self):
         super(NovaCCUtilsTests, self).setUp(utils, TO_PATCH)
         self.config.side_effect = self.test_config.get
+        self.maxDiff = None
 
-    def _resource_map(self, network_manager=None, volume_manager=None):
+    def _resource_map(self, network_manager=None):
         if network_manager:
             self.network_manager.return_value = network_manager
             self.test_config.set('network-manager', network_manager.title())
             self.neutron_plugin.return_value = 'ovs'
             self.neutron_plugin_attribute.side_effect = fake_plugin_attribute
-        if volume_manager == 'nova-volume':
-            self.relation_ids.return_value = 'nova-volume-service:0'
         with patch('charmhelpers.contrib.openstack.context.'
                    'SubordinateConfigContext'):
             _map = utils.resource_map()
             return _map
-
-    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    def test_resource_map_quantum(self, subcontext):
-        self.is_relation_made.return_value = False
-        self._resource_map(network_manager='quantum')
-        _map = utils.resource_map()
-        confs = [
-            '/etc/quantum/quantum.conf',
-            '/etc/quantum/api-paste.ini',
-            '/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini',
-        ]
-        [self.assertIn(q_conf, _map.keys()) for q_conf in confs]
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_resource_map_neutron(self, subcontext):
@@ -223,13 +205,6 @@ class NovaCCUtilsTests(CharmTestCase):
             self.assertNotIn('agent', svc)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    def test_resource_map_nova_volume(self, subcontext):
-        self.relation_ids.return_value = ['nova-volume-service:0']
-        _map = utils.resource_map()
-        self.assertIn('nova-api-os-volume',
-                      _map['/etc/nova/nova.conf']['services'])
-
-    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_resource_map_console_xvpvnc(self, subcontext):
         self.test_config.set('console-access-protocol', 'xvpvnc')
         self.relation_ids.return_value = []
@@ -271,10 +246,13 @@ class NovaCCUtilsTests(CharmTestCase):
         for service in console_services:
             self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
 
+    @patch('charmhelpers.contrib.openstack.neutron.os_release')
     @patch('os.path.exists')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    def test_restart_map_api_before_frontends(self, subcontext, _exists):
+    def test_restart_map_api_before_frontends(self, subcontext, _exists,
+                                              _os_release):
         self.is_relation_made.return_value = False
+        _os_release.return_value = 'icehouse'
         _exists.return_value = False
         self._resource_map(network_manager='neutron')
         _map = utils.restart_map()
@@ -337,28 +315,12 @@ class NovaCCUtilsTests(CharmTestCase):
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     @patch.object(utils, 'git_install_requested')
-    def test_determine_packages_quantum(self, git_requested, subcontext):
-        git_requested.return_value = False
-        self._resource_map(network_manager='quantum')
-        pkgs = utils.determine_packages()
-        self.assertIn('quantum-server', pkgs)
-
-    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    @patch.object(utils, 'git_install_requested')
     def test_determine_packages_neutron(self, git_requested, subcontext):
         git_requested.return_value = False
         self.is_relation_made.return_value = False
         self._resource_map(network_manager='neutron')
         pkgs = utils.determine_packages()
         self.assertIn('neutron-server', pkgs)
-
-    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    @patch.object(utils, 'git_install_requested')
-    def test_determine_packages_nova_volume(self, git_requested, subcontext):
-        git_requested.return_value = False
-        self.relation_ids.return_value = ['nova-volume-service:0']
-        pkgs = utils.determine_packages()
-        self.assertIn('nova-api-os-volume', pkgs)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     @patch.object(utils, 'git_install_requested')
@@ -376,29 +338,17 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_determine_packages_base(self, git_requested, subcontext):
         git_requested.return_value = False
         self.relation_ids.return_value = []
-        self.os_release.return_value = 'folsom'
+        self.os_release.return_value = 'icehouse'
         pkgs = utils.determine_packages()
         ex = list(set(utils.BASE_PACKAGES + utils.BASE_SERVICES))
         self.assertEquals(ex, pkgs)
-
-    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    @patch.object(utils, 'git_install_requested')
-    def test_determine_packages_base_grizzly_beyond(self, git_requested,
-                                                    subcontext):
-        git_requested.return_value = False
-        self.relation_ids.return_value = []
-        self.os_release.return_value = 'grizzly'
-        pkgs = utils.determine_packages()
-        ex = list(set(utils.BASE_PACKAGES + utils.BASE_SERVICES))
-        ex.append('nova-conductor')
-        self.assertEquals(sorted(ex), sorted(pkgs))
 
     @patch.object(utils, 'restart_map')
     def test_determine_ports(self, restart_map):
         restart_map.return_value = {
             '/etc/nova/nova.conf': ['nova-api-os-compute', 'nova-api-ec2'],
             '/etc/nova/api-paste.ini': ['nova-api-os-compute', 'nova-api-ec2'],
-            '/etc/quantum/quantum.conf': ['quantum-server'],
+            '/etc/neutron/neutron.conf': ['neutron-server'],
         }
         ports = utils.determine_ports()
         ex = [8773, 8774, 9696]
@@ -409,37 +359,13 @@ class NovaCCUtilsTests(CharmTestCase):
         utils.save_script_rc()
         self._save_script_rc.called_with(**SCRIPTRC_ENV_VARS)
 
-    def test_save_script_quantum(self):
+    def test_save_script_neutron(self):
         self.relation_ids.return_value = []
-        self.test_config.set('network-manager', 'Quantum')
+        self.test_config.set('network-manager', 'Neutron')
         utils.save_script_rc()
         _ex = deepcopy(SCRIPTRC_ENV_VARS)
-        _ex['OPENSTACK_SERVICE_API_QUANTUM'] = 'quantum-server'
+        _ex['OPENSTACK_SERVICE_API_NEUTRON'] = 'neutron-server'
         self._save_script_rc.called_with(**_ex)
-
-    def test_save_script_nova_volume(self):
-        self.relation_ids.return_value = ['nvol:0']
-        utils.save_script_rc()
-        _ex = deepcopy(SCRIPTRC_ENV_VARS)
-        _ex['OPENSTACK_SERVICE_API_OS_VOL'] = 'nova-api-os-volume'
-        self._save_script_rc.called_with(**_ex)
-
-    def test_determine_volume_service_essex(self):
-        self.os_release.return_value = 'essex'
-        self.assertEquals('nova-volume', utils.volume_service())
-
-    def test_determine_volume_service_folsom_cinder(self):
-        self.os_release.return_value = 'folsom'
-        self.relation_ids.return_value = ['cinder:0']
-        self.assertEquals('cinder', utils.volume_service())
-
-    def test_determine_volume_service_folsom_nova_vol(self):
-        self.os_release.return_value = 'folsom'
-        self.relation_ids.return_value = []
-        self.assertEquals('nova-volume', utils.volume_service())
-
-    def test_determine_volume_service_grizzly_and_beyond(self):
-        pass
 
     @patch.object(utils, 'remove_known_host')
     @patch.object(utils, 'ssh_known_host_key')
@@ -556,10 +482,6 @@ class NovaCCUtilsTests(CharmTestCase):
             utils.ssh_compute_remove(removed_key)
             _file.write.assert_called_with(keys_removed)
 
-    def test_network_manager_untranslated(self):
-        self.test_config.set('network-manager', 'foo')
-        self.os_release.return_value = 'folsom'
-
     def test_determine_endpoints_base(self):
         self.is_relation_made.return_value = False
         self.relation_ids.return_value = []
@@ -568,28 +490,10 @@ class NovaCCUtilsTests(CharmTestCase):
                                                       'http://foohost.com',
                                                       'http://foohost.com'))
 
-    def test_determine_endpoints_nova_volume(self):
-        self.is_relation_made.return_value = False
-        self.relation_ids.side_effect = [['nova-volume-service/0'], []]
-        endpoints = deepcopy(BASE_ENDPOINTS)
-        endpoints.update({
-            'nova-volume_admin_url':
-            'http://foohost.com:8774/v1/$(tenant_id)s',
-            'nova-volume_internal_url':
-            'http://foohost.com:8774/v1/$(tenant_id)s',
-            'nova-volume_public_url':
-            'http://foohost.com:8774/v1/$(tenant_id)s',
-            'nova-volume_region': 'RegionOne',
-            'nova-volume_service': 'nova-volume'})
-        self.assertEquals(
-            endpoints, utils.determine_endpoints('http://foohost.com',
-                                                 'http://foohost.com',
-                                                 'http://foohost.com'))
-
     def test_determine_endpoints_quantum_neutron(self):
         self.is_relation_made.return_value = False
         self.relation_ids.return_value = []
-        self.network_manager.return_value = 'quantum'
+        self.network_manager.return_value = 'neutron'
         endpoints = deepcopy(BASE_ENDPOINTS)
         endpoints.update({
             'quantum_admin_url': 'http://foohost.com:9696',
@@ -604,8 +508,8 @@ class NovaCCUtilsTests(CharmTestCase):
 
     def test_determine_endpoints_neutron_api_rel(self):
         self.is_relation_made.return_value = True
-        self.relation_ids.side_effect = [[], ['neutron-api:1']]
-        self.network_manager.return_value = 'quantum'
+        self.relation_ids.side_effect = [['neutron-api:1']]
+        self.network_manager.return_value = 'neutron'
         endpoints = deepcopy(BASE_ENDPOINTS)
         endpoints.update({
             'quantum_admin_url': None,
@@ -688,57 +592,6 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch.object(utils, 'get_step_upgrade_source')
     @patch.object(utils, 'migrate_nova_database')
     @patch.object(utils, 'determine_packages')
-    def test_upgrade_grizzly_icehouse(self, determine_packages,
-                                      migrate_nova_database,
-                                      get_step_upgrade_source):
-        "Simulate a call to do_openstack_upgrade() for grizzly->icehouse"
-        self.test_config.set('openstack-origin', 'cloud:precise-icehouse')
-        get_step_upgrade_source.return_value = 'cloud:precise-havana'
-        self.os_release.side_effect = ['grizzly', 'havana']
-        self.get_os_codename_install_source.side_effect = [
-            'havana',
-            'icehouse']
-        self.is_elected_leader.return_value = True
-        self.relation_ids.return_value = []
-        utils.do_openstack_upgrade(self.register_configs())
-        expected = [call(['stamp', 'grizzly']), call(['upgrade', 'head']),
-                    call(['stamp', 'havana']), call(['upgrade', 'head'])]
-        self.assertEquals(self.neutron_db_manage.call_args_list, expected)
-        self.apt_update.assert_called_with(fatal=True)
-        self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
-                                            dist=True)
-        self.apt_install.assert_called_with(determine_packages(), fatal=True)
-        expected = [call(), call(release='havana'), call(release='icehouse')]
-        self.assertEquals(self.register_configs.call_args_list, expected)
-        self.assertEquals(self.ml2_migration.call_count, 1)
-        self.assertTrue(migrate_nova_database.call_count, 2)
-
-    @patch.object(utils, 'get_step_upgrade_source')
-    @patch.object(utils, 'migrate_nova_database')
-    @patch.object(utils, 'determine_packages')
-    def test_upgrade_havana_icehouse(self, determine_packages,
-                                     migrate_nova_database,
-                                     get_step_upgrade_source):
-        "Simulate a call to do_openstack_upgrade() for havana->icehouse"
-        self.test_config.set('openstack-origin', 'cloud:precise-icehouse')
-        get_step_upgrade_source.return_value = None
-        self.os_release.return_value = 'havana'
-        self.get_os_codename_install_source.return_value = 'icehouse'
-        self.is_elected_leader.return_value = True
-        self.relation_ids.return_value = []
-        utils.do_openstack_upgrade(self.register_configs())
-        self.neutron_db_manage.assert_called_with(['upgrade', 'head'])
-        self.apt_update.assert_called_with(fatal=True)
-        self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
-                                            dist=True)
-        self.apt_install.assert_called_with(determine_packages(), fatal=True)
-        self.register_configs.assert_called_with(release='icehouse')
-        self.assertEquals(self.ml2_migration.call_count, 1)
-        self.assertTrue(migrate_nova_database.call_count, 1)
-
-    @patch.object(utils, 'get_step_upgrade_source')
-    @patch.object(utils, 'migrate_nova_database')
-    @patch.object(utils, 'determine_packages')
     def test_upgrade_icehouse_juno(self, determine_packages,
                                    migrate_nova_database,
                                    get_step_upgrade_source):
@@ -759,7 +612,6 @@ class NovaCCUtilsTests(CharmTestCase):
                                             dist=True)
         self.apt_install.assert_called_with(determine_packages(), fatal=True)
         self.register_configs.assert_called_with(release='juno')
-        self.assertEquals(self.ml2_migration.call_count, 0)
         self.assertTrue(migrate_nova_database.call_count, 1)
 
     @patch.object(utils, 'get_step_upgrade_source')
@@ -782,7 +634,6 @@ class NovaCCUtilsTests(CharmTestCase):
                                             dist=True)
         self.apt_install.assert_called_with(determine_packages(), fatal=True)
         self.register_configs.assert_called_with(release='kilo')
-        self.assertEquals(self.ml2_migration.call_count, 0)
         self.assertTrue(migrate_nova_database.call_count, 1)
 
     @patch.object(utils, 'database_setup')
@@ -808,53 +659,17 @@ class NovaCCUtilsTests(CharmTestCase):
                                             dist=True)
         self.apt_install.assert_called_with(determine_packages(), fatal=True)
         self.register_configs.assert_called_with(release='mitaka')
-        self.assertEquals(self.ml2_migration.call_count, 0)
         self.assertFalse(migrate_nova_database.called)
         database_setup.assert_called_with(prefix='novaapi')
 
-    @patch.object(utils, '_do_openstack_upgrade')
-    def test_upgrade_grizzly_icehouse_source(self, _do_openstack_upgrade):
-        "Verify get_step_upgrade_source() for grizzly->icehouse"
-        self.config.side_effect = None
-        self.config.return_value = 'cloud:precise-icehouse'
-        with patch_open() as (_open, _file):
-            _file.read = MagicMock()
-            _file.readline.return_value = ("deb url"
-                                           " precise-updates/grizzly main")
-            utils.do_openstack_upgrade(self.register_configs())
-            expected = [call('cloud:precise-havana'),
-                        call('cloud:precise-icehouse')]
-            self.assertEquals(_do_openstack_upgrade.call_args_list, expected)
-
-    @patch.object(utils, '_do_openstack_upgrade')
-    def test_upgrade_havana_icehouse_source(self, _do_openstack_upgrade):
-        "Verify get_step_upgrade_source() for havana->icehouse"
-        self.config.side_effect = None
-        self.config.return_value = 'cloud:precise-icehouse'
-        with patch_open() as (_open, _file):
-            _file.read = MagicMock()
-            _file.readline.return_value = "deb url precise-updates/havana main"
-            utils.do_openstack_upgrade(self.register_configs())
-            expected = [call('cloud:precise-icehouse')]
-            self.assertEquals(_do_openstack_upgrade.call_args_list, expected)
-
     def test_guard_map_nova(self):
         self.relation_ids.return_value = []
-        self.os_release.return_value = 'havana'
+        self.os_release.return_value = 'icehouse'
         self.assertEqual(
             {'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
              'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
              'nova-cert': ['identity-service', 'amqp', 'shared-db'],
              'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
-             'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
-             'nova-scheduler': ['identity-service', 'amqp', 'shared-db']},
-            utils.guard_map()
-        )
-        self.os_release.return_value = 'essex'
-        self.assertEqual(
-            {'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
-             'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
-             'nova-cert': ['identity-service', 'amqp', 'shared-db'],
              'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
              'nova-scheduler': ['identity-service', 'amqp', 'shared-db']},
             utils.guard_map()
@@ -868,19 +683,6 @@ class NovaCCUtilsTests(CharmTestCase):
         self.is_relation_made.return_value = False
         self.assertEqual(
             {'neutron-server': ['identity-service', 'amqp', 'shared-db'],
-             'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
-             'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
-             'nova-cert': ['identity-service', 'amqp', 'shared-db'],
-             'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
-             'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
-             'nova-scheduler': ['identity-service', 'amqp', 'shared-db'], },
-            utils.guard_map()
-        )
-        self.network_manager.return_value = 'quantum'
-        self.os_release.return_value = 'grizzly'
-        self.get_os_codename_install_source.return_value = 'grizzly'
-        self.assertEqual(
-            {'quantum-server': ['identity-service', 'amqp', 'shared-db'],
              'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
              'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
              'nova-cert': ['identity-service', 'amqp', 'shared-db'],

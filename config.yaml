@@ -97,7 +97,7 @@ options:
 
         FlatDHCPManager (nova-network) (default)
         FlatManager (nova-network)
-        Neutron|Quantum (Full SDN solution)
+        Neutron (Full SDN solution)
 
       When using the Neutron option you will most likely want to use
       the neutron-gateway charm to provide L3 routing and DHCP Services.

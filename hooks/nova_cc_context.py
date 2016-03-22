@@ -7,21 +7,15 @@ from charmhelpers.core.hookenv import (
     relation_set,
     log,
     DEBUG,
-    ERROR,
     related_units,
     relations_for_id,
     relation_get,
     is_relation_made,
     unit_get,
 )
-from charmhelpers.fetch import (
-    apt_install,
-    filter_installed_packages,
-)
 from charmhelpers.contrib.openstack import (
     context,
     neutron,
-    utils,
 )
 from charmhelpers.contrib.hahelpers.cluster import (
     determine_apache_port,
@@ -115,23 +109,11 @@ class NeutronAPIContext(context.OSContextGenerator):
 
 
 class VolumeServiceContext(context.OSContextGenerator):
-    interfaces = ['nova-volume-service', 'cinder-volume-service']
+    interfaces = ['cinder-volume-service']
 
     def __call__(self):
         ctxt = {}
-
-        if relation_ids('nova-volume-service'):
-            if utils.os_release('nova-common') not in ['essex', 'folsom']:
-                e = ('Attempting to relate a nova-volume service to an '
-                     'Nova version (%s).  Use cinder.')
-                log(e, level=ERROR)
-
-                raise context.OSContextError(e)
-            install_pkg = filter_installed_packages(['nova-api-os-volume'])
-            if install_pkg:
-                apt_install(install_pkg)
-            ctxt['volume_service'] = 'nova-volume'
-        elif relation_ids('cinder-volume-service'):
+        if relation_ids('cinder-volume-service'):
             ctxt['volume_service'] = 'cinder'
             # kick all compute nodes to know they should use cinder now.
             [relation_set(relation_id=rid, volume_service='cinder')
@@ -159,8 +141,6 @@ class HAProxyContext(context.HAProxyContext):
                                      singlenode_mode=True)
         s3_api = determine_api_port(api_port('nova-objectstore'),
                                     singlenode_mode=True)
-        nvol_api = determine_api_port(api_port('nova-api-os-volume'),
-                                      singlenode_mode=True)
         neutron_api = determine_api_port(api_port('neutron-server'),
                                          singlenode_mode=True)
 
@@ -171,8 +151,6 @@ class HAProxyContext(context.HAProxyContext):
                                           singlenode_mode=True)
         a_s3_api = determine_apache_port(api_port('nova-objectstore'),
                                          singlenode_mode=True)
-        a_nvol_api = determine_apache_port(api_port('nova-api-os-volume'),
-                                           singlenode_mode=True)
         a_neutron_api = determine_apache_port(api_port('neutron-server'),
                                               singlenode_mode=True)
 
@@ -192,20 +170,13 @@ class HAProxyContext(context.HAProxyContext):
                 api_port('nova-objectstore'), a_s3_api],
         }
 
-        if relation_ids('nova-volume-service'):
-            port_mapping.update({
-                'nova-api-ec2': [
-                    api_port('nova-api-ec2'), a_nvol_api],
-            })
-            listen_ports['osapi_volume_listen_port'] = nvol_api
-
         if not is_relation_made('neutron-api'):
-            if neutron.network_manager() in ['neutron', 'quantum']:
+            if neutron.network_manager() == 'neutron':
                 port_mapping.update({
                     'neutron-server': [
                         api_port('neutron-server'), a_neutron_api]
                 })
-                # quantum/neutron.conf listening port, set separte from nova's.
+                # neutron.conf listening port, set separte from nova's.
                 ctxt['neutron_bind_port'] = neutron_api
 
         # for haproxy.conf
@@ -254,6 +225,7 @@ class NeutronCCContext(context.NeutronContext):
 
     @property
     def neutron_security_groups(self):
+        # TODO: review use of this flag
         sec_groups = (config('neutron-security-groups') or
                       config('quantum-security-groups'))
         return sec_groups.lower() == 'yes'
