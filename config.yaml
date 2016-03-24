@@ -150,6 +150,13 @@ options:
     default: RegionOne
     type: string
     description: OpenStack Region
+  use-internal-endpoints:
+    default: False
+    type: boolean
+    description: |
+      Openstack mostly defaults to using public endpoints for
+      internal communication between services. If set to True this option will
+      configure services to use internal endpoints where possible.
   # HA configuration settings
   vip:
     type: string

@@ -235,7 +235,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.NovaConfigContext(),
                      nova_cc_context.InstanceConsoleContext(),
                      nova_cc_context.ConsoleSSLContext(),
-                     nova_cc_context.CloudComputeContext()],
+                     nova_cc_context.CloudComputeContext(),
+                     context.InternalEndpointContext()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in resolve_services() if 'api' in s],
