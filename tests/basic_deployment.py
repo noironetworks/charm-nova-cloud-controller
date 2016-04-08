@@ -206,6 +206,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             services[self.nova_cc_sentry].remove('nova-api-ec2')
             services[self.nova_cc_sentry].remove('nova-objectstore')
 
+        if self._get_openstack_release() >= self.trusty_liberty:
+            services[self.keystone_sentry] = ['apache2']
+
         ret = u.validate_services_by_name(services)
         if ret:
             amulet.raise_status(amulet.FAIL, msg=ret)
