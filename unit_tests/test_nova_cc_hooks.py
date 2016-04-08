@@ -4,7 +4,7 @@ import tempfile
 import yaml
 
 from mock import MagicMock, patch, call
-from test_utils import CharmTestCase, patch_open
+from test_utils import CharmTestCase
 
 with patch('charmhelpers.core.hookenv.config') as config:
     config.return_value = 'neutron'
@@ -29,7 +29,6 @@ utils.register_configs = _reg
 utils.restart_map = _map
 
 TO_PATCH = [
-    'api_port',
     'apt_update',
     'apt_install',
     'configure_installation_source',
@@ -59,9 +58,6 @@ TO_PATCH = [
     'ssh_authorized_keys_lines',
     'save_script_rc',
     'service_reload',
-    'service_restart',
-    'service_running',
-    'service_stop',
     'services',
     'execd_preinstall',
     'network_manager',
@@ -69,9 +65,7 @@ TO_PATCH = [
     'uuid',
     'is_elected_leader',
     'keystone_ca_cert_b64',
-    'neutron_plugin',
     'migrate_nova_database',
-    'migrate_neutron_database',
     'uuid',
     'get_hacluster_config',
     'get_iface_for_address',
@@ -301,22 +295,15 @@ class NovaCCHooksTests(CharmTestCase):
         self.keystone_ca_cert_b64.return_value = 'foocert64'
         self.unit_get.return_value = 'nova-cc-host1'
         _canonical_url.return_value = 'http://nova-cc-host1'
-        self.api_port.return_value = '9696'
-        self.neutron_plugin.return_value = 'nvp'
         auth_config.return_value = FAKE_KS_AUTH_CFG
         hooks.compute_joined()
 
         self.relation_set.assert_called_with(
             relation_id=None,
-            quantum_url='http://nova-cc-host1:9696',
             ca_cert='foocert64',
-            quantum_port=9696,
-            quantum_host='nova-cc-host1',
-            quantum_security_groups='no',
             region='RegionOne',
             volume_service='cinder',
             ec2_host='nova-cc-host1',
-            quantum_plugin='nvp',
             network_manager='neutron', **FAKE_KS_AUTH_CFG)
 
     @patch.object(hooks, 'canonical_url')
@@ -339,8 +326,6 @@ class NovaCCHooksTests(CharmTestCase):
         self.keystone_ca_cert_b64.return_value = 'foocert64'
         self.unit_get.return_value = 'nova-cc-host1'
         _canonical_url.return_value = 'http://nova-cc-host1'
-        self.api_port.return_value = '9696'
-        self.neutron_plugin.return_value = 'nvp'
         auth_config.return_value = FAKE_KS_AUTH_CFG
         hooks.compute_joined()
         self.relation_set.assert_called_with(
@@ -360,15 +345,12 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, '_auth_config')
     def test_nova_vmware_joined(self, auth_config, _canonical_url):
         auth_config.return_value = FAKE_KS_AUTH_CFG
-        # quantum-security-groups, plugin
-        self.neutron_plugin.return_value = 'nvp'
+        self.is_relation_made.return_value = False
         self.network_manager.return_value = 'neutron'
         _canonical_url.return_value = 'http://nova-cc-host1'
-        self.api_port.return_value = '9696'
         hooks.nova_vmware_relation_joined()
         self.relation_set.assert_called_with(
-            network_manager='neutron', quantum_security_groups='no',
-            quantum_url='http://nova-cc-host1:9696', quantum_plugin='nvp',
+            network_manager='neutron',
             relation_id=None,
             **FAKE_KS_AUTH_CFG)
 
@@ -424,11 +406,6 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.pgsql_nova_db_joined()
         self.relation_set.assert_called_with(database='nova')
 
-    def test_postgresql_neutron_db_joined(self):
-        self.is_relation_made.return_value = False
-        hooks.pgsql_neutron_db_joined()
-        self.relation_set.assert_called_with(database='neutron')
-
     def test_db_joined_with_postgresql(self):
         self.is_relation_made.return_value = True
 
@@ -443,15 +420,6 @@ class NovaCCHooksTests(CharmTestCase):
 
         with self.assertRaises(Exception) as context:
             hooks.pgsql_nova_db_joined()
-        self.assertEqual(context.exception.message,
-                         'Attempting to associate a postgresql database when'
-                         ' there is already associated a mysql one')
-
-    def test_postgresql_neutron_joined_with_db(self):
-        self.is_relation_made.return_value = True
-
-        with self.assertRaises(Exception) as context:
-            hooks.pgsql_neutron_db_joined()
         self.assertEqual(context.exception.message,
                          'Attempting to associate a postgresql database when'
                          ' there is already associated a mysql one')
@@ -488,9 +456,8 @@ class NovaCCHooksTests(CharmTestCase):
 
     @patch.object(hooks, 'nova_api_relation_joined')
     @patch.object(hooks, 'is_db_initialised')
-    @patch.object(hooks, 'conditional_neutron_migration')
     @patch.object(hooks, 'CONFIGS')
-    def test_db_changed(self, configs, cond_neutron_mig,
+    def test_db_changed(self, configs,
                         mock_is_db_initialised, api_joined):
         self.relation_ids.return_value = ['nova-api/0']
         mock_is_db_initialised.return_value = False
@@ -498,7 +465,6 @@ class NovaCCHooksTests(CharmTestCase):
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
         self.assertFalse(self.migrate_nova_database.called)
-        self.assertFalse(cond_neutron_mig.called)
         api_joined.asert_called_with(rid='nova-api/0')
 
     @patch.object(hooks, 'is_db_initialised')
@@ -607,8 +573,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.network_manager.return_value = 'neutron'
         hooks.amqp_changed()
         self.assertEquals(configs.write.call_args_list,
-                          [call('/etc/nova/nova.conf'),
-                           call('/etc/neutron/neutron.conf')])
+                          [call('/etc/nova/nova.conf')])
         cell_joined.assert_called_with(rid='nova-cell-api/0')
         api_joined.assert_called_with(rid='nova-api/0')
 
@@ -641,24 +606,19 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'get_cell_type')
     def test_neutron_api_relation_joined(self, get_cell_type, configs, isfile,
                                          rename, _canonical_url):
-        neutron_conf = '/etc/neutron/neutron.conf'
         nova_url = 'http://novaurl:8774/v2'
         isfile.return_value = True
-        self.service_running.return_value = True
         _identity_joined = self.patch('identity_joined')
         self.relation_ids.return_value = ['relid']
         _canonical_url.return_value = 'http://novaurl'
         get_cell_type.return_value = 'parent'
         self.uuid.uuid4.return_value = 'bob'
-        with patch_open() as (_open, _file):
-            hooks.neutron_api_relation_joined(remote_restart=True)
-            self.service_stop.assert_called_with('neutron-server')
-            rename.assert_called_with(neutron_conf, neutron_conf + '_unused')
-            self.assertTrue(_identity_joined.called)
-            self.relation_set.assert_called_with(relation_id=None,
-                                                 cell_type='parent',
-                                                 nova_url=nova_url,
-                                                 restart_trigger='bob')
+        hooks.neutron_api_relation_joined(remote_restart=True)
+        self.assertTrue(_identity_joined.called)
+        self.relation_set.assert_called_with(relation_id=None,
+                                             cell_type='parent',
+                                             nova_url=nova_url,
+                                             restart_trigger='bob')
 
     @patch.object(hooks, 'CONFIGS')
     def test_neutron_api_relation_changed(self, configs):
@@ -679,7 +639,6 @@ class NovaCCHooksTests(CharmTestCase):
         _compute_joined = self.patch('compute_joined')
         _quantum_joined = self.patch('quantum_joined')
         hooks.neutron_api_relation_broken()
-        remove.assert_called_with('/etc/init/neutron-server.override')
         self.assertTrue(configs.write_all.called)
         self.assertTrue(_compute_joined.called)
         self.assertTrue(_quantum_joined.called)
@@ -792,30 +751,6 @@ class NovaCCHooksTests(CharmTestCase):
             'console_keymap': 'en-us'
         }
         self.assertEqual(_con_sets, console_settings)
-
-    def test_conditional_neutron_migration(self):
-        self.os_release.return_value = 'juno'
-        self.services.return_value = ['neutron-server']
-        hooks.conditional_neutron_migration()
-        self.migrate_neutron_database.assert_called_with()
-        self.service_restart.assert_called_with('neutron-server')
-
-    def test_conditional_neutron_migration_juno(self):
-        self.os_release.return_value = 'icehouse'
-        hooks.conditional_neutron_migration()
-        self.log.assert_called_with(
-            'Not running neutron database migration as migrations are handled'
-            ' by the neutron-server process.'
-        )
-
-    def test_conditional_neutron_migration_kilo(self):
-        self.os_release.return_value = 'kilo'
-        self.relation_ids.return_value = []
-        hooks.conditional_neutron_migration()
-        self.log.assert_called_with(
-            'Not running neutron database migration as migrations are by the '
-            'neutron-api charm.'
-        )
 
     @patch('nova_cc_utils.config')
     def test_ha_relation_joined_no_bound_ip(self, config):

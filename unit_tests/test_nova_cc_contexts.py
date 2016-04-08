@@ -18,7 +18,6 @@ TO_PATCH = [
     'log',
     'relations_for_id',
     'https',
-    'is_relation_made',
 ]
 
 
@@ -78,13 +77,10 @@ class NovaComputeContextTests(CharmTestCase):
                          instance_console())
 
     @mock.patch('charmhelpers.contrib.openstack.neutron.os_release')
-    @mock.patch.object(context, 'use_local_neutron_api')
     @mock.patch('charmhelpers.contrib.openstack.ip.config')
     @mock.patch('charmhelpers.contrib.openstack.ip.is_clustered')
     def test_neutron_context_single_vip(self, mock_is_clustered, mock_config,
-                                        mock_use_local_neutron_api,
                                         _os_release):
-        mock_use_local_neutron_api.return_value = True
         self.https.return_value = False
         mock_is_clustered.return_value = True
         config = {'vip': '10.0.0.1',
@@ -93,22 +89,14 @@ class NovaComputeContextTests(CharmTestCase):
                   'os-public-network': '10.0.2.0/24'}
         mock_config.side_effect = lambda key: config.get(key)
 
-        mock_use_local_neutron_api.return_value = False
         ctxt = context.NeutronCCContext()()
         self.assertEqual(ctxt['nova_url'], 'http://10.0.0.1:8774/v2')
         self.assertFalse('neutron_url' in ctxt)
 
-        mock_use_local_neutron_api.return_value = True
-        ctxt = context.NeutronCCContext()()
-        self.assertEqual(ctxt['nova_url'], 'http://10.0.0.1:8774/v2')
-        self.assertEqual(ctxt['neutron_url'], 'http://10.0.0.1:9696')
-
     @mock.patch('charmhelpers.contrib.openstack.neutron.os_release')
-    @mock.patch.object(context, 'use_local_neutron_api')
     @mock.patch('charmhelpers.contrib.openstack.ip.config')
     @mock.patch('charmhelpers.contrib.openstack.ip.is_clustered')
     def test_neutron_context_multi_vip(self, mock_is_clustered, mock_config,
-                                       mock_use_local_neutron_api,
                                        _os_release):
         self.https.return_value = False
         mock_is_clustered.return_value = True
@@ -118,25 +106,9 @@ class NovaComputeContextTests(CharmTestCase):
                   'os-public-network': '10.0.2.0/24'}
         mock_config.side_effect = lambda key: config.get(key)
 
-        mock_use_local_neutron_api.return_value = False
         ctxt = context.NeutronCCContext()()
         self.assertEqual(ctxt['nova_url'], 'http://10.0.1.1:8774/v2')
         self.assertFalse('neutron_url' in ctxt)
-
-        mock_use_local_neutron_api.return_value = True
-        ctxt = context.NeutronCCContext()()
-        self.assertEqual(ctxt['nova_url'], 'http://10.0.1.1:8774/v2')
-        self.assertEqual(ctxt['neutron_url'], 'http://10.0.1.1:9696')
-
-    def test_use_local_neutron_api(self):
-        self.relation_ids.return_value = []
-        self.related_units.return_value = []
-        self.assertTrue(context.use_local_neutron_api())
-        self.relation_ids.return_value = ['rel:0']
-        self.related_units.return_value = []
-        self.assertTrue(context.use_local_neutron_api())
-        self.related_units.return_value = ['unit/0']
-        self.assertFalse(context.use_local_neutron_api())
 
     @mock.patch.object(neutron, 'network_manager')
     @mock.patch('charmhelpers.contrib.hahelpers.cluster.https')
@@ -154,31 +126,9 @@ class NovaComputeContextTests(CharmTestCase):
                              mock_network_manager):
         mock_network_manager.return_value = 'neutron'
         mock_https.return_value = False
-        self.is_relation_made.return_value = False
         ctxt = context.HAProxyContext()()
-        self.assertEqual(ctxt['service_ports']['neutron-server'], [9696, 9686])
-
-    @mock.patch.object(neutron, 'network_manager')
-    @mock.patch('charmhelpers.contrib.hahelpers.cluster.https')
-    @mock.patch('charmhelpers.contrib.openstack.context.kv')
-    @mock.patch('charmhelpers.contrib.openstack.context.'
-                'get_address_in_network')
-    @mock.patch('charmhelpers.contrib.openstack.context.'
-                'get_netmask_for_address')
-    @mock.patch('charmhelpers.contrib.openstack.context.local_unit')
-    @mock.patch('charmhelpers.contrib.openstack.context.get_ipv6_addr')
-    @mock.patch('charmhelpers.contrib.openstack.context.relation_ids')
-    def test_haproxy_context_api_relation(self, mock_relation_ids,
-                                          mock_get_ipv6_addr, mock_local_unit,
-                                          mock_get_netmask_for_address,
-                                          mock_get_address_in_network,
-                                          mock_kv, mock_https,
-                                          mock_network_manager):
-        mock_network_manager.return_value = 'neutron'
-        mock_https.return_value = False
-        self.is_relation_made.return_value = True
-        ctxt = context.HAProxyContext()()
-        self.assertEqual(ctxt['service_ports'].get('neutron-server'), None)
+        self.assertEqual(ctxt['service_ports']['nova-api-os-compute'],
+                         [8774, 8764])
 
     @mock.patch.object(context, 'config')
     def test_console_ssl_disabled(self, mock_config):
