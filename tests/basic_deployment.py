@@ -547,17 +547,13 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 'root_helper': 'sudo nova-rootwrap /etc/nova/rootwrap.conf',
                 'verbose': 'False',
                 'debug': 'False',
-                'ec2_private_dns_show_ip': 'True',
                 'api_paste_config': '/etc/nova/api-paste.ini',
                 'volumes_path': '/var/lib/nova/volumes',
-                'enabled_apis': 'ec2,osapi_compute,metadata',
                 'auth_strategy': 'keystone',
                 'compute_driver': 'libvirt.LibvirtDriver',
-                'keystone_ec2_url': ks_ec2,
                 'network_manager': 'nova.network.manager.FlatDHCPManager',
                 's3_listen_port': '3323',
                 'osapi_compute_listen_port': '8764',
-                'ec2_listen_port': '8763'
             }
         }
 
@@ -631,6 +627,18 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 'password': ks_ncc_rel['service_password'],
                 'signing_dir': '/var/cache/nova',
             }
+
+        if self._get_openstack_release() < self.trusty_mitaka:
+            expected['DEFAULT'].update({
+                'ec2_private_dns_show_ip': 'True',
+                'enabled_apis': 'ec2,osapi_compute,metadata',
+                'keystone_ec2_url': ks_ec2,
+                'ec2_listen_port': '8763'
+            })
+        elif self._get_openstack_release() >= self.trusty_mitaka:
+            expected['DEFAULT'].update({
+                'enabled_apis': 'osapi_compute,metadata',
+            })
 
         for section, pairs in expected.iteritems():
             ret = u.validate_config_data(unit, conf, section, pairs)
