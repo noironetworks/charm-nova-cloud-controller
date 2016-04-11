@@ -8,8 +8,6 @@ from collections import OrderedDict
 from copy import deepcopy
 
 from charmhelpers.contrib.openstack import context, templating
-from charmhelpers.contrib.openstack.neutron import (
-    network_manager, neutron_plugin_attribute)
 
 from charmhelpers.contrib.hahelpers.cluster import (
     is_elected_leader,
@@ -60,7 +58,6 @@ from charmhelpers.core.hookenv import (
     relation_get,
     relation_ids,
     remote_unit,
-    is_relation_made,
     DEBUG,
     INFO,
     ERROR,
@@ -179,7 +176,6 @@ API_PORTS = {
     'nova-api-os-compute': 8774,
     'nova-api-os-volume': 8776,
     'nova-objectstore': 3333,
-    'neutron-server': 9696,
 }
 
 NOVA_CONF_DIR = "/etc/nova"
@@ -187,11 +183,9 @@ NEUTRON_CONF_DIR = "/etc/neutron"
 
 NOVA_CONF = '%s/nova.conf' % NOVA_CONF_DIR
 NOVA_API_PASTE = '%s/api-paste.ini' % NOVA_CONF_DIR
-NEUTRON_CONF = '%s/neutron.conf' % NEUTRON_CONF_DIR
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
-NEUTRON_DEFAULT = '/etc/default/neutron-server'
 
 
 def resolve_services():
@@ -243,28 +237,6 @@ BASE_RESOURCE_MAP = OrderedDict([
         'contexts': [nova_cc_context.IdentityServiceContext(),
                      nova_cc_context.APIRateLimitingContext()],
     }),
-    (NEUTRON_CONF, {
-        'services': ['neutron-server'],
-        'contexts': [context.AMQPContext(ssl_dir=NEUTRON_CONF_DIR),
-                     context.SharedDBContext(
-                         user=config('neutron-database-user'),
-                         database=config('neutron-database'),
-                         relation_prefix='neutron',
-                         ssl_dir=NEUTRON_CONF_DIR),
-                     nova_cc_context.NeutronPostgresqlDBContext(),
-                     nova_cc_context.IdentityServiceContext(
-                         service='neutron',
-                         service_user='neutron'),
-                     nova_cc_context.NeutronCCContext(),
-                     nova_cc_context.HAProxyContext(),
-                     context.SyslogContext(),
-                     nova_cc_context.NovaConfigContext(),
-                     context.BindHostContext()],
-    }),
-    (NEUTRON_DEFAULT, {
-        'services': ['neutron-server'],
-        'contexts': [nova_cc_context.NeutronCCContext()],
-    }),
     (HAPROXY_CONF, {
         'contexts': [context.HAProxyContext(singlenode_mode=True),
                      nova_cc_context.HAProxyContext()],
@@ -313,8 +285,6 @@ def resource_map():
     '''
     resource_map = deepcopy(BASE_RESOURCE_MAP)
 
-    net_manager = network_manager()
-
     if os.path.exists('/etc/apache2/conf-available'):
         resource_map.pop(APACHE_CONF)
     else:
@@ -322,38 +292,6 @@ def resource_map():
 
     resource_map[NOVA_CONF]['contexts'].append(
         nova_cc_context.NeutronCCContext())
-    # pop out irrelevant resources from the OrderedDict (easier than adding
-    # them late)
-    if net_manager != 'neutron':
-        [resource_map.pop(k) for k in list(resource_map.iterkeys())
-         if 'neutron' in k]
-    # add neutron plugin requirements. nova-c-c only needs the
-    # neutron-server associated with configs, not the plugin agent.
-    if net_manager == 'neutron':
-        plugin = neutron_plugin()
-        if plugin:
-            conf = neutron_plugin_attribute(plugin, 'config', net_manager)
-            ctxts = (neutron_plugin_attribute(plugin, 'contexts',
-                                              net_manager) or [])
-            services = neutron_plugin_attribute(plugin, 'server_services',
-                                                net_manager)
-            resource_map[conf] = {}
-            resource_map[conf]['services'] = services
-            resource_map[conf]['contexts'] = ctxts
-            resource_map[conf]['contexts'].append(
-                nova_cc_context.NeutronCCContext())
-
-            # update for postgres
-            resource_map[conf]['contexts'].append(
-                nova_cc_context.NeutronPostgresqlDBContext())
-
-    if is_relation_made('neutron-api'):
-        for k in list(resource_map.iterkeys()):
-            # neutron-api runs neutron services
-            if 'neutron' in k:
-                resource_map[k]['services'] = []
-        resource_map[NOVA_CONF]['contexts'].append(
-            nova_cc_context.NeutronAPIContext())
 
     if os_release('nova-common') >= 'mitaka':
         resource_map[NOVA_CONF]['contexts'].append(
@@ -444,10 +382,6 @@ def determine_packages():
     packages = [] + BASE_PACKAGES
     for v in resource_map().values():
         packages.extend(v['services'])
-    if network_manager() == 'neutron':
-        pkgs = neutron_plugin_attribute(neutron_plugin(), 'server_packages',
-                                        network_manager())
-        packages.extend(pkgs)
     if console_attributes('packages'):
         packages.extend(console_attributes('packages'))
 
@@ -474,8 +408,6 @@ def save_script_rc():
     }
     if relation_ids('nova-volume-service'):
         env_vars['OPENSTACK_SERVICE_API_OS_VOL'] = 'nova-api-os-volume'
-    if network_manager() == 'neutron':
-        env_vars['OPENSTACK_SERVICE_API_NEUTRON'] = 'neutron-server'
     _save_script_rc(**env_vars)
 
 
@@ -509,7 +441,7 @@ POLICY_RC_D = """#!/bin/bash
 set -e
 
 case $1 in
-  neutron-server|quantum-server|nova-*)
+  nova-*)
     [ $2 = "start" ] && exit 101
     ;;
   *)
@@ -530,34 +462,10 @@ def disable_policy_rcd():
     os.unlink('/usr/sbin/policy-rc.d')
 
 
-NEUTRON_DB_MANAGE = "neutron-db-manage"
-
-
 def reset_os_release():
     # Ugly hack to make os_release re-read versions
     import charmhelpers.contrib.openstack.utils as utils
     utils.os_rel = None
-
-
-def neutron_db_manage(actions):
-    net_manager = network_manager()
-    if net_manager == 'neutron':
-        plugin = neutron_plugin()
-        conf = neutron_plugin_attribute(plugin, 'config', net_manager)
-        subprocess.check_call([
-            NEUTRON_DB_MANAGE,
-            '--config-file=/etc/{mgr}/{mgr}.conf'.format(mgr=net_manager),
-            '--config-file={}'.format(conf)] + actions
-        )
-
-
-def get_db_connection():
-    config = ConfigParser.RawConfigParser()
-    config.read(NEUTRON_CONF)
-    try:
-        return config.get('database', 'connection')
-    except:
-        return None
 
 
 def is_db_initialised():
@@ -573,7 +481,6 @@ def is_db_initialised():
 
 def _do_openstack_upgrade(new_src):
     enable_policy_rcd()
-    cur_os_rel = os_release('nova-common')
     new_os_rel = get_os_codename_install_source(new_src)
     log('Performing OpenStack upgrade to %s.' % (new_os_rel))
 
@@ -583,33 +490,18 @@ def _do_openstack_upgrade(new_src):
         '--option', 'Dpkg::Options::=--force-confdef',
     ]
 
-    # NOTE(jamespage) pre-stamp neutron database before upgrade from grizzly
-    if cur_os_rel == 'grizzly':
-        neutron_db_manage(['stamp', 'grizzly'])
-
     apt_update(fatal=True)
     apt_upgrade(options=dpkg_opts, fatal=True, dist=True)
     apt_install(determine_packages(), fatal=True)
 
     disable_policy_rcd()
 
-    if cur_os_rel == 'grizzly':
-        # NOTE(jamespage) when upgrading from grizzly->havana, config
-        # files need to be generated prior to performing the db upgrade
-        reset_os_release()
-        configs = register_configs(release=new_os_rel)
-        configs.write_all()
-        neutron_db_manage(['upgrade', 'head'])
-    else:
-        if new_os_rel < 'kilo':
-            neutron_db_manage(['stamp', cur_os_rel])
-            migrate_neutron_database()
-        # NOTE(jamespage) upgrade with existing config files as the
-        # havana->icehouse migration enables new service_plugins which
-        # create issues with db upgrades
-        reset_os_release()
-        configs = register_configs(release=new_os_rel)
-        configs.write_all()
+    # NOTE(jamespage) upgrade with existing config files as the
+    # havana->icehouse migration enables new service_plugins which
+    # create issues with db upgrades
+    reset_os_release()
+    configs = register_configs(release=new_os_rel)
+    configs.write_all()
 
     if new_os_rel >= 'mitaka' and not database_setup(prefix='novaapi'):
         # NOTE: Defer service restarts and database migrations for now
@@ -676,15 +568,6 @@ def migrate_nova_database():
     log('Enabling services', level=INFO)
     enable_services()
     cmd_all_services('start')
-
-
-# NOTE(jamespage): Retry deals with sync issues during one-shot HA deploys.
-#                  mysql might be restarting or suchlike.
-@retry_on_exception(5, base_delay=3, exc_type=subprocess.CalledProcessError)
-def migrate_neutron_database():
-    '''Runs neutron-db-manage to init a new database or migrate existing'''
-    log('Migrating the neutron database.', level=INFO)
-    neutron_db_manage(['upgrade', 'head'])
 
 
 # TODO: refactor to use unit storage or related data
@@ -891,10 +774,6 @@ def determine_endpoints(public_url, internal_url, admin_url):
     ec2_admin_url = '%s:%s/services/Cloud' % (admin_url,
                                               api_port('nova-api-ec2'))
 
-    neutron_public_url = '%s:%s' % (public_url, api_port('neutron-server'))
-    neutron_internal_url = '%s:%s' % (internal_url, api_port('neutron-server'))
-    neutron_admin_url = '%s:%s' % (admin_url, api_port('neutron-server'))
-
     s3_public_url = '%s:%s' % (public_url, api_port('nova-objectstore'))
     s3_internal_url = '%s:%s' % (internal_url, api_port('nova-objectstore'))
     s3_admin_url = '%s:%s' % (admin_url, api_port('nova-objectstore'))
@@ -918,24 +797,6 @@ def determine_endpoints(public_url, internal_url, admin_url):
         's3_internal_url': s3_internal_url,
     }
 
-    # XXX: Keep these relations named quantum_*??
-    if relation_ids('neutron-api'):
-        endpoints.update({
-            'quantum_service': None,
-            'quantum_region': None,
-            'quantum_public_url': None,
-            'quantum_admin_url': None,
-            'quantum_internal_url': None,
-        })
-    elif network_manager() == 'neutron':
-        endpoints.update({
-            'quantum_service': 'quantum',
-            'quantum_region': region,
-            'quantum_public_url': neutron_public_url,
-            'quantum_admin_url': neutron_admin_url,
-            'quantum_internal_url': neutron_internal_url,
-        })
-
     if os_rel >= 'kilo':
         # NOTE(jamespage) drop endpoints for ec2 and s3
         #  ec2 is deprecated
@@ -956,13 +817,6 @@ def determine_endpoints(public_url, internal_url, admin_url):
     return endpoints
 
 
-# TODO: review to see if we can drop quantum-plugin
-def neutron_plugin():
-    # quantum-plugin config setting can be safely overriden
-    # as we only supported OVS in G/neutron
-    return config('neutron-plugin') or config('quantum-plugin')
-
-
 def guard_map():
     '''Map of services and required interfaces that must be present before
     the service should be allowed to start'''
@@ -979,16 +833,6 @@ def guard_map():
 
     for svc in nova_services:
         gmap[svc] = nova_interfaces
-
-    net_manager = network_manager()
-    if net_manager == 'neutron' and \
-            not is_relation_made('neutron-api'):
-        neutron_interfaces = ['identity-service', 'amqp']
-        if relation_ids('pgsql-neutron-db'):
-            neutron_interfaces.append('pgsql-neutron-db')
-        else:
-            neutron_interfaces.append('shared-db')
-        gmap['neutron-server'] = neutron_interfaces
 
     return gmap
 

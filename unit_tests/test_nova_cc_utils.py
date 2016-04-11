@@ -1,6 +1,5 @@
 from collections import OrderedDict
 from mock import patch, MagicMock, call
-from copy import deepcopy
 
 with patch('charmhelpers.core.hookenv.config'):
     import nova_cc_utils as utils
@@ -19,12 +18,7 @@ TO_PATCH = [
     'enable_policy_rcd',
     'enable_services',
     'get_os_codename_install_source',
-    'is_relation_made',
     'log',
-    'network_manager',
-    'neutron_db_manage',
-    'neutron_plugin',
-    'neutron_plugin_attribute',
     'os_release',
     'peer_store',
     'register_configs',
@@ -85,34 +79,9 @@ RESTART_MAP = OrderedDict([
     ('/etc/nova/api-paste.ini', [
         'nova-api-ec2', 'nova-api-os-compute'
     ]),
-    ('/etc/neutron/neutron.conf', ['neutron-server']),
-    ('/etc/default/neutron-server', ['neutron-server']),
     ('/etc/haproxy/haproxy.cfg', ['haproxy']),
     ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
-    ('/etc/neutron/plugins/ml2/ml2_conf.ini', ['neutron-server']),
 ])
-
-
-PLUGIN_ATTRIBUTES = {
-    'ovs': {
-        'config': '/etc/neutron/plugins/ml2/ml2_conf.ini',
-        'driver': 'neutron.plugins.ml2.plugin.Ml2Plugin',
-        'contexts': ['FakeDBContext'],
-        'services': ['neutron-plugin-openvswitch-agent'],
-        'packages': ['neutron-plugin-openvswitch-agent'],
-        'server_packages': ['neutron-server', 'neutron-plugin-ml2'],
-        'server_services': ['neutron-server'],
-    },
-    'nvp': {
-        'config': '/etc/quantum/plugins/nicira/nvp.ini',
-        'driver': 'quantum.plugins.nicira.nicira_nvp_plugin.'
-                  'QuantumPlugin.NvpPluginV2',
-        'services': [],
-        'packages': [],
-        'server_packages': ['quantum-server', 'quantum-plugin-nicria'],
-        'server_services': ['quantum-server'],
-    }
-}
 
 
 DPKG_OPTS = [
@@ -130,14 +99,6 @@ openstack_origin_git = \
             branch: stable/juno}"""
 
 
-def fake_plugin_attribute(plugin, attr, net_manager):
-    if plugin in PLUGIN_ATTRIBUTES:
-        try:
-            return PLUGIN_ATTRIBUTES[plugin][attr]
-        except KeyError:
-            pass
-
-
 class NovaCCUtilsTests(CharmTestCase):
 
     def setUp(self):
@@ -145,37 +106,11 @@ class NovaCCUtilsTests(CharmTestCase):
         self.config.side_effect = self.test_config.get
         self.maxDiff = None
 
-    def _resource_map(self, network_manager=None):
-        if network_manager:
-            self.network_manager.return_value = network_manager
-            self.test_config.set('network-manager', network_manager.title())
-            self.neutron_plugin.return_value = 'ovs'
-            self.neutron_plugin_attribute.side_effect = fake_plugin_attribute
+    def _resource_map(self):
         with patch('charmhelpers.contrib.openstack.context.'
                    'SubordinateConfigContext'):
             _map = utils.resource_map()
             return _map
-
-    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    def test_resource_map_neutron(self, subcontext):
-        self.is_relation_made.return_value = False
-        self._resource_map(network_manager='neutron')
-        _map = utils.resource_map()
-        confs = [
-            '/etc/neutron/neutron.conf',
-        ]
-        [self.assertIn(q_conf, _map.keys()) for q_conf in confs]
-
-    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    def test_resource_map_neutron_api_rel(self, subcontext):
-        self.is_relation_made.return_value = True
-        self._resource_map(network_manager='neutron')
-        _map = utils.resource_map()
-        confs = [
-            '/etc/neutron/neutron.conf',
-        ]
-        for q_conf in confs:
-            self.assertEquals(_map[q_conf]['services'], [])
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_resource_map_vmware(self, subcontext):
@@ -192,7 +127,7 @@ class NovaCCUtilsTests(CharmTestCase):
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_resource_map_neutron_no_agent_installed(self, subcontext):
-        self._resource_map(network_manager='neutron')
+        self._resource_map()
         _map = utils.resource_map()
         services = []
         [services.extend(_map[c]['services'])for c in _map]
@@ -246,10 +181,9 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_restart_map_api_before_frontends(self, subcontext, _exists,
                                               _os_release):
-        self.is_relation_made.return_value = False
         _os_release.return_value = 'icehouse'
         _exists.return_value = False
-        self._resource_map(network_manager='neutron')
+        self._resource_map()
         _map = utils.restart_map()
         self.assertTrue(isinstance(_map, OrderedDict))
         self.assertEquals(_map, RESTART_MAP)
@@ -258,7 +192,7 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('os.path.exists')
     def test_restart_map_apache24(self, _exists, subcontext):
         _exists.return_Value = True
-        self._resource_map(network_manager='neutron')
+        self._resource_map()
         _map = utils.restart_map()
         self.assertTrue('/etc/apache2/sites-available/'
                         'openstack_https_frontend.conf' in _map)
@@ -310,15 +244,6 @@ class NovaCCUtilsTests(CharmTestCase):
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     @patch.object(utils, 'git_install_requested')
-    def test_determine_packages_neutron(self, git_requested, subcontext):
-        git_requested.return_value = False
-        self.is_relation_made.return_value = False
-        self._resource_map(network_manager='neutron')
-        pkgs = utils.determine_packages()
-        self.assertIn('neutron-server', pkgs)
-
-    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    @patch.object(utils, 'git_install_requested')
     def test_determine_packages_console(self, git_requested, subcontext):
         git_requested.return_value = False
         self.test_config.set('console-access-protocol', 'spice')
@@ -343,24 +268,15 @@ class NovaCCUtilsTests(CharmTestCase):
         restart_map.return_value = {
             '/etc/nova/nova.conf': ['nova-api-os-compute', 'nova-api-ec2'],
             '/etc/nova/api-paste.ini': ['nova-api-os-compute', 'nova-api-ec2'],
-            '/etc/neutron/neutron.conf': ['neutron-server'],
         }
         ports = utils.determine_ports()
-        ex = [8773, 8774, 9696]
+        ex = [8773, 8774]
         self.assertEquals(ex, sorted(ports))
 
     def test_save_script_rc_base(self):
         self.relation_ids.return_value = []
         utils.save_script_rc()
         self._save_script_rc.called_with(**SCRIPTRC_ENV_VARS)
-
-    def test_save_script_neutron(self):
-        self.relation_ids.return_value = []
-        self.test_config.set('network-manager', 'Neutron')
-        utils.save_script_rc()
-        _ex = deepcopy(SCRIPTRC_ENV_VARS)
-        _ex['OPENSTACK_SERVICE_API_NEUTRON'] = 'neutron-server'
-        self._save_script_rc.called_with(**_ex)
 
     @patch.object(utils, 'remove_known_host')
     @patch.object(utils, 'ssh_known_host_key')
@@ -478,44 +394,11 @@ class NovaCCUtilsTests(CharmTestCase):
             _file.write.assert_called_with(keys_removed)
 
     def test_determine_endpoints_base(self):
-        self.is_relation_made.return_value = False
         self.relation_ids.return_value = []
         self.assertEquals(
             BASE_ENDPOINTS, utils.determine_endpoints('http://foohost.com',
                                                       'http://foohost.com',
                                                       'http://foohost.com'))
-
-    def test_determine_endpoints_quantum_neutron(self):
-        self.is_relation_made.return_value = False
-        self.relation_ids.return_value = []
-        self.network_manager.return_value = 'neutron'
-        endpoints = deepcopy(BASE_ENDPOINTS)
-        endpoints.update({
-            'quantum_admin_url': 'http://foohost.com:9696',
-            'quantum_internal_url': 'http://foohost.com:9696',
-            'quantum_public_url': 'http://foohost.com:9696',
-            'quantum_region': 'RegionOne',
-            'quantum_service': 'quantum'})
-        self.assertEquals(
-            endpoints, utils.determine_endpoints('http://foohost.com',
-                                                 'http://foohost.com',
-                                                 'http://foohost.com'))
-
-    def test_determine_endpoints_neutron_api_rel(self):
-        self.is_relation_made.return_value = True
-        self.relation_ids.side_effect = [['neutron-api:1']]
-        self.network_manager.return_value = 'neutron'
-        endpoints = deepcopy(BASE_ENDPOINTS)
-        endpoints.update({
-            'quantum_admin_url': None,
-            'quantum_internal_url': None,
-            'quantum_public_url': None,
-            'quantum_region': None,
-            'quantum_service': None})
-        self.assertEquals(
-            endpoints, utils.determine_endpoints('http://foohost.com',
-                                                 'http://foohost.com',
-                                                 'http://foohost.com'))
 
     @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_output')
@@ -598,10 +481,6 @@ class NovaCCUtilsTests(CharmTestCase):
         self.is_elected_leader.return_value = True
         self.relation_ids.return_value = []
         utils.do_openstack_upgrade(self.register_configs())
-        neutron_db_calls = [call(['stamp', 'icehouse']),
-                            call(['upgrade', 'head'])]
-        self.neutron_db_manage.assert_has_calls(neutron_db_calls,
-                                                any_order=False)
         self.apt_update.assert_called_with(fatal=True)
         self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
                                             dist=True)
@@ -623,7 +502,6 @@ class NovaCCUtilsTests(CharmTestCase):
         self.is_elected_leader.return_value = True
         self.relation_ids.return_value = []
         utils.do_openstack_upgrade(self.register_configs())
-        self.assertEquals(self.neutron_db_manage.call_count, 0)
         self.apt_update.assert_called_with(fatal=True)
         self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
                                             dist=True)
@@ -648,7 +526,6 @@ class NovaCCUtilsTests(CharmTestCase):
         self.relation_ids.return_value = []
         database_setup.return_value = False
         utils.do_openstack_upgrade(self.register_configs())
-        self.assertEquals(self.neutron_db_manage.call_count, 0)
         self.apt_update.assert_called_with(fatal=True)
         self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
                                             dist=True)
@@ -672,13 +549,10 @@ class NovaCCUtilsTests(CharmTestCase):
 
     def test_guard_map_neutron(self):
         self.relation_ids.return_value = []
-        self.network_manager.return_value = 'neutron'
         self.os_release.return_value = 'icehouse'
         self.get_os_codename_install_source.return_value = 'icehouse'
-        self.is_relation_made.return_value = False
         self.assertEqual(
-            {'neutron-server': ['identity-service', 'amqp', 'shared-db'],
-             'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
+            {'nova-api-ec2': ['identity-service', 'amqp', 'shared-db'],
              'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
              'nova-cert': ['identity-service', 'amqp', 'shared-db'],
              'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
@@ -686,12 +560,10 @@ class NovaCCUtilsTests(CharmTestCase):
              'nova-scheduler': ['identity-service', 'amqp', 'shared-db'], },
             utils.guard_map()
         )
-        self.network_manager.return_value = 'neutron'
         self.os_release.return_value = 'mitaka'
         self.get_os_codename_install_source.return_value = 'mitaka'
         self.assertEqual(
-            {'neutron-server': ['identity-service', 'amqp', 'shared-db'],
-             'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
+            {'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
              'nova-cert': ['identity-service', 'amqp', 'shared-db'],
              'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
              'nova-scheduler': ['identity-service', 'amqp', 'shared-db'], },
@@ -700,13 +572,9 @@ class NovaCCUtilsTests(CharmTestCase):
 
     def test_guard_map_pgsql(self):
         self.relation_ids.return_value = ['pgsql:1']
-        self.network_manager.return_value = 'neutron'
-        self.is_relation_made.return_value = False
         self.os_release.return_value = 'icehouse'
         self.assertEqual(
-            {'neutron-server': ['identity-service', 'amqp',
-                                'pgsql-neutron-db'],
-             'nova-api-ec2': ['identity-service', 'amqp', 'pgsql-nova-db'],
+            {'nova-api-ec2': ['identity-service', 'amqp', 'pgsql-nova-db'],
              'nova-api-os-compute': ['identity-service', 'amqp',
                                      'pgsql-nova-db'],
              'nova-cert': ['identity-service', 'amqp', 'pgsql-nova-db'],

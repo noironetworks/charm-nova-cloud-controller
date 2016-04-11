@@ -30,8 +30,6 @@ requires:
     interface: mysql-shared
   pgsql-nova-db:
     interface: pgsql
-  pgsql-neutron-db:
-    interface: pgsql
   amqp:
     interface: rabbitmq
   image-service:

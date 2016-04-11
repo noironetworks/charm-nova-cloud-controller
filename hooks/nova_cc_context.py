@@ -10,7 +10,6 @@ from charmhelpers.core.hookenv import (
     related_units,
     relations_for_id,
     relation_get,
-    is_relation_made,
     unit_get,
 )
 from charmhelpers.contrib.openstack import (
@@ -141,9 +140,6 @@ class HAProxyContext(context.HAProxyContext):
                                      singlenode_mode=True)
         s3_api = determine_api_port(api_port('nova-objectstore'),
                                     singlenode_mode=True)
-        neutron_api = determine_api_port(api_port('neutron-server'),
-                                         singlenode_mode=True)
-
         # Apache ports
         a_compute_api = determine_apache_port(api_port('nova-api-os-compute'),
                                               singlenode_mode=True)
@@ -151,9 +147,6 @@ class HAProxyContext(context.HAProxyContext):
                                           singlenode_mode=True)
         a_s3_api = determine_apache_port(api_port('nova-objectstore'),
                                          singlenode_mode=True)
-        a_neutron_api = determine_apache_port(api_port('neutron-server'),
-                                              singlenode_mode=True)
-
         # to be set in nova.conf accordingly.
         listen_ports = {
             'osapi_compute_listen_port': compute_api,
@@ -169,15 +162,6 @@ class HAProxyContext(context.HAProxyContext):
             'nova-objectstore': [
                 api_port('nova-objectstore'), a_s3_api],
         }
-
-        if not is_relation_made('neutron-api'):
-            if neutron.network_manager() == 'neutron':
-                port_mapping.update({
-                    'neutron-server': [
-                        api_port('neutron-server'), a_neutron_api]
-                })
-                # neutron.conf listening port, set separte from nova's.
-                ctxt['neutron_bind_port'] = neutron_api
 
         # for haproxy.conf
         ctxt['service_ports'] = port_mapping
@@ -198,37 +182,12 @@ def canonical_url():
     return '%s://%s' % (scheme, format_ipv6_addr(addr) or addr)
 
 
-def use_local_neutron_api():
-    """If no neutron-api relation exists returns True.
-
-    If no neutron-api relation exists we assume that we are going to use
-    legacy-mode i.e. local neutron server.
-    """
-    for rid in relation_ids('neutron-api'):
-        for unit in related_units(rid):
-            return False
-
-    return True
-
-
 class NeutronCCContext(context.NeutronContext):
     interfaces = ['quantum-network-service', 'neutron-network-service']
 
     @property
-    def plugin(self):
-        from nova_cc_utils import neutron_plugin
-        return neutron_plugin()
-
-    @property
     def network_manager(self):
         return neutron.network_manager()
-
-    @property
-    def neutron_security_groups(self):
-        # TODO: review use of this flag
-        sec_groups = (config('neutron-security-groups') or
-                      config('quantum-security-groups'))
-        return sec_groups.lower() == 'yes'
 
     def _ensure_packages(self):
         # Only compute nodes need to ensure packages here, to install
@@ -238,21 +197,7 @@ class NeutronCCContext(context.NeutronContext):
     def __call__(self):
         ctxt = super(NeutronCCContext, self).__call__()
         ctxt['external_network'] = config('neutron-external-network')
-        if config('quantum-plugin') in ['nvp', 'nsx']:
-            _config = config()
-            for k, v in _config.iteritems():
-                if k.startswith('nvp'):
-                    ctxt[k.replace('-', '_')] = v
-            if 'nvp-controllers' in _config:
-                ctxt['nvp_controllers'] = \
-                    ','.join(_config['nvp-controllers'].split())
-                ctxt['nvp_controllers_list'] = \
-                    _config['nvp-controllers'].split()
-
         ctxt['nova_url'] = "{}:8774/v2".format(canonical_url())
-        if use_local_neutron_api():
-            ctxt['neutron_url'] = "{}:9696".format(canonical_url())
-
         return ctxt
 
 

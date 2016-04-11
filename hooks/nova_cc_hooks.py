@@ -31,10 +31,7 @@ from charmhelpers.core.hookenv import (
 )
 
 from charmhelpers.core.host import (
-    service_running,
-    service_stop,
     service_reload,
-    service_restart,
 )
 
 from charmhelpers.fetch import (
@@ -58,7 +55,6 @@ from charmhelpers.contrib.openstack.utils import (
 
 from charmhelpers.contrib.openstack.neutron import (
     network_manager,
-    neutron_plugin_attribute,
 )
 
 from nova_cc_context import (
@@ -72,7 +68,6 @@ from charmhelpers.contrib.peerstorage import (
 )
 
 from nova_cc_utils import (
-    api_port,
     auth_token_config,
     cmd_all_services,
     determine_endpoints,
@@ -84,9 +79,7 @@ from nova_cc_utils import (
     git_install,
     is_api_ready,
     keystone_ca_cert_b64,
-    migrate_neutron_database,
     migrate_nova_database,
-    neutron_plugin,
     save_script_rc,
     services,
     ssh_compute_add,
@@ -97,7 +90,6 @@ from nova_cc_utils import (
     restart_map,
     CLUSTER_RES,
     NOVA_CONF,
-    NEUTRON_CONF,
     console_attributes,
     service_guard,
     guard_map,
@@ -180,8 +172,6 @@ def leader_init_db_if_ready(skip_acl_check=False, skip_cells_restarts=False,
             log('Triggering remote cell restarts.')
             [nova_cell_relation_joined(rid=rid, remote_restart=True)
              for rid in relation_ids('cell')]
-
-        conditional_neutron_migration()
     else:
         log('allowed_units either not presented, or local unit '
             'not in acl list: %s' % repr(allowed_units))
@@ -298,37 +288,11 @@ def amqp_changed():
         log('amqp relation incomplete. Peer not ready?')
         return
     CONFIGS.write(NOVA_CONF)
-    if not is_relation_made('neutron-api'):
-        if network_manager() == 'neutron':
-            CONFIGS.write(NEUTRON_CONF)
     [nova_cell_relation_joined(rid=rid)
         for rid in relation_ids('cell')]
 
     for r_id in relation_ids('nova-api'):
         nova_api_relation_joined(rid=r_id)
-
-
-def conditional_neutron_migration():
-    if os_release('nova-common') <= 'icehouse':
-        log('Not running neutron database migration as migrations are handled '
-            'by the neutron-server process.')
-    elif os_release('nova-common') >= 'kilo':
-        log('Not running neutron database migration as migrations are by '
-            'the neutron-api charm.')
-    else:
-        if not config('quantum-plugin') == 'vsp':
-            status_set('maintenance', 'Running neutron db migration')
-            migrate_neutron_database()
-        else:
-            log('Not running neutron database migration as migrations are '
-                'handled by the neutron-api charm in case of VSP(juno).')
-
-        # neutron-api service may have appeared while the migration was
-        # running so prod it just in case
-        [neutron_api_relation_joined(rid=rid, remote_restart=True)
-            for rid in relation_ids('neutron-api')]
-        if 'neutron-server' in services() and not is_unit_paused_set():
-            service_restart('neutron-server')
 
 
 @hooks.hook('shared-db-relation-joined')
@@ -341,11 +305,6 @@ def db_joined(relation_id=None):
         log(e, level=ERROR)
         raise Exception(e)
 
-    if network_manager() == 'neutron':
-        config_neutron = True
-    else:
-        config_neutron = False
-
     if config('prefer-ipv6'):
         sync_db_with_multi_ipv6_addresses(config('database'),
                                           config('database-user'),
@@ -357,10 +316,6 @@ def db_joined(relation_id=None):
                                               config('database-user'),
                                               relation_prefix='novaapi')
 
-        if config_neutron:
-            sync_db_with_multi_ipv6_addresses(config('neutron-database'),
-                                              config('neutron-database-user'),
-                                              relation_prefix='neutron')
     else:
         host = unit_get('private-address')
         relation_set(nova_database=config('database'),
@@ -375,12 +330,6 @@ def db_joined(relation_id=None):
                          novaapi_hostname=host,
                          relation_id=relation_id)
 
-        if config_neutron:
-            relation_set(neutron_database=config('neutron-database'),
-                         neutron_username=config('neutron-database-user'),
-                         neutron_hostname=host,
-                         relation_id=relation_id)
-
 
 @hooks.hook('pgsql-nova-db-relation-joined')
 def pgsql_nova_db_joined():
@@ -392,18 +341,6 @@ def pgsql_nova_db_joined():
         raise Exception(e)
 
     relation_set(database=config('database'))
-
-
-@hooks.hook('pgsql-neutron-db-relation-joined')
-def pgsql_neutron_db_joined():
-    if is_relation_made('shared-db'):
-        # raise error
-        e = ('Attempting to associate a postgresql database'
-             ' when there is already associated a mysql one')
-        log(e, level=ERROR)
-        raise Exception(e)
-
-    relation_set(database=config('neutron-database'))
 
 
 @hooks.hook('shared-db-relation-changed')
@@ -433,17 +370,6 @@ def postgresql_nova_db_changed():
 
     for r_id in relation_ids('nova-api'):
         nova_api_relation_joined(rid=r_id)
-
-
-@hooks.hook('pgsql-neutron-db-relation-changed')
-@service_guard(guard_map(), CONFIGS,
-               active=config('service-guard'))
-@restart_on_change(restart_map())
-def postgresql_neutron_db_changed():
-    if network_manager() == 'neutron':
-        plugin = neutron_plugin()
-        # DB config might have been moved to main neutron.conf in H?
-        CONFIGS.write(neutron_plugin_attribute(plugin, 'config'))
 
 
 @hooks.hook('image-service-relation-changed')
@@ -481,9 +407,6 @@ def identity_changed():
         return
     CONFIGS.write('/etc/nova/api-paste.ini')
     CONFIGS.write(NOVA_CONF)
-    if not is_relation_made('neutron-api'):
-        if network_manager() == 'neutron':
-            CONFIGS.write(NEUTRON_CONF)
     [compute_joined(rid) for rid in relation_ids('cloud-compute')]
     [quantum_joined(rid) for rid in relation_ids('quantum-network-service')]
     [nova_vmware_relation_joined(rid) for rid in relation_ids('nova-vmware')]
@@ -558,18 +481,9 @@ def neutron_settings():
             neutron_api_info['neutron_security_groups'],
             'quantum_url': neutron_api_info['neutron_url'],
         })
-    else:
-        neutron_settings.update({
-            # XXX: Rename these relations settings?
-            'quantum_plugin': neutron_plugin(),
-            'region': config('region'),
-            'quantum_security_groups': config('quantum-security-groups'),
-            'quantum_url': "{}:{}".format(canonical_url(CONFIGS, INTERNAL),
-                                          str(api_port('neutron-server'))),
-        })
-    neutron_url = urlparse(neutron_settings['quantum_url'])
-    neutron_settings['quantum_host'] = neutron_url.hostname
-    neutron_settings['quantum_port'] = neutron_url.port
+        neutron_url = urlparse(neutron_settings['quantum_url'])
+        neutron_settings['quantum_host'] = neutron_url.hostname
+        neutron_settings['quantum_port'] = neutron_url.port
     return neutron_settings
 
 
@@ -847,9 +761,6 @@ def ha_changed():
         return
 
     CONFIGS.write(NOVA_CONF)
-    if not is_relation_made('neutron-api'):
-        if network_manager() == 'neutron':
-            CONFIGS.write(NEUTRON_CONF)
 
     log('Cluster configured, notifying other services and updating '
         'keystone endpoint configuration')
@@ -917,11 +828,7 @@ def nova_vmware_relation_joined(rid=None):
     ks_auth = _auth_config()
     if ks_auth:
         rel_settings.update(ks_auth)
-        rel_settings.update({
-            'quantum_plugin': neutron_plugin(),
-            'quantum_security_groups': config('quantum-security-groups'),
-            'quantum_url': "{}:{}".format(canonical_url(CONFIGS, INTERNAL),
-                                          str(api_port('neutron-server')))})
+        rel_settings.update(neutron_settings())
 
     relation_set(relation_id=rid, **rel_settings)
 
@@ -992,12 +899,6 @@ def get_cell_type():
 
 @hooks.hook('neutron-api-relation-joined')
 def neutron_api_relation_joined(rid=None, remote_restart=False):
-    with open('/etc/init/neutron-server.override', 'wb') as out:
-        out.write('manual\n')
-    if os.path.isfile(NEUTRON_CONF):
-        os.rename(NEUTRON_CONF, NEUTRON_CONF + '_unused')
-    if service_running('neutron-server'):
-        service_stop('neutron-server')
     for id_rid in relation_ids('identity-service'):
         identity_joined(rid=id_rid)
     rel_settings = {
@@ -1027,8 +928,6 @@ def neutron_api_relation_changed():
                active=config('service-guard'))
 @restart_on_change(restart_map())
 def neutron_api_relation_broken():
-    if os.path.isfile('/etc/init/neutron-server.override'):
-        os.remove('/etc/init/neutron-server.override')
     CONFIGS.write_all()
     for rid in relation_ids('cloud-compute'):
         compute_joined(rid=rid)
