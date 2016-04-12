@@ -28,6 +28,7 @@ from charmhelpers.core.hookenv import (
     open_port,
     unit_get,
     status_set,
+    network_get_primary_address,
 )
 
 from charmhelpers.core.host import (
@@ -317,7 +318,14 @@ def db_joined(relation_id=None):
                                               relation_prefix='novaapi')
 
     else:
-        host = unit_get('private-address')
+        host = None
+        try:
+            # NOTE: try to use network spaces
+            host = network_get_primary_address('shared-db')
+        except NotImplementedError:
+            # NOTE: fallback to private-address
+            host = unit_get('private-address')
+
         relation_set(nova_database=config('database'),
                      nova_username=config('database-user'),
                      nova_hostname=host,
