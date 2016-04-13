@@ -74,6 +74,7 @@ TO_PATCH = [
     'git_install',
     'git_install_requested',
     'status_set',
+    'network_get_primary_address',
 ]
 
 
@@ -100,6 +101,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.config.side_effect = self.test_config.get
         self.relation_get.side_effect = self.test_relation.get
         self.charm_dir.return_value = '/var/lib/juju/charms/nova/charm'
+        self.network_get_primary_address.side_effect = NotImplementedError
 
     def tearDown(self):
         try:
@@ -363,6 +365,18 @@ class NovaCCHooksTests(CharmTestCase):
                                              nova_hostname='nova.foohost.com',
                                              relation_id=None)
         self.unit_get.assert_called_with('private-address')
+
+    def test_db_joined_spaces(self):
+        self.network_get_primary_address.side_effect = None
+        self.network_get_primary_address.return_value = '192.168.20.1'
+        self.unit_get.return_value = 'nova.foohost.com'
+        self.is_relation_made.return_value = False
+        hooks.db_joined()
+        self.relation_set.assert_called_with(nova_database='nova',
+                                             nova_username='nova',
+                                             nova_hostname='192.168.20.1',
+                                             relation_id=None)
+        self.assertFalse(self.unit_get.called)
 
     def test_db_joined_mitaka(self):
         self.unit_get.return_value = 'nova.foohost.com'
