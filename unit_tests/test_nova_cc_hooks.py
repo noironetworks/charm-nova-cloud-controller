@@ -507,13 +507,15 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(configs.write_all.called)
         self.assertFalse(self.migrate_nova_database.called)
 
+    @patch.object(hooks, 'quantum_joined')
     @patch.object(hooks, 'nova_api_relation_joined')
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'CONFIGS')
     def test_postgresql_db_changed(self, configs, mock_is_db_initialised,
-                                   api_joined):
+                                   api_joined, quantum_joined):
         self.relation_ids.side_effect = [
             [],
+            ['neutron-gateway/0'],
             ['nova-api/0']]
         mock_is_db_initialised.return_value = False
         self._postgresql_db_test(configs)
@@ -521,12 +523,14 @@ class NovaCCHooksTests(CharmTestCase):
         self.migrate_nova_database.assert_called_with()
         api_joined.assert_called_with(rid='nova-api/0')
 
+    @patch.object(hooks, 'quantum_joined')
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'nova_cell_relation_joined')
     @patch.object(hooks, 'compute_joined')
     @patch.object(hooks, 'CONFIGS')
     def test_db_changed_remote_restarts(self, configs, comp_joined,
-                                        cell_joined, mock_is_db_initialised):
+                                        cell_joined, mock_is_db_initialised,
+                                        quantum_joined):
         mock_is_db_initialised.return_value = False
 
         def _relation_ids(rel):
@@ -534,6 +538,7 @@ class NovaCCHooksTests(CharmTestCase):
                 'cloud-compute': ['nova-compute/0'],
                 'cell': ['nova-cell-api/0'],
                 'neutron-api': ['neutron-api/0'],
+                'quantum-network-service': ['neutron-gateway/0']
             }
             return relid[rel]
         self.relation_ids.side_effect = _relation_ids
@@ -547,6 +552,8 @@ class NovaCCHooksTests(CharmTestCase):
                                        rid='nova-compute/0')
         cell_joined.assert_called_with(remote_restart=True,
                                        rid='nova-cell-api/0')
+        quantum_joined.assert_called_with(remote_restart=True,
+                                          rid='neutron-gateway/0')
         self.migrate_nova_database.assert_called_with()
 
     @patch.object(hooks, 'nova_cell_relation_joined')

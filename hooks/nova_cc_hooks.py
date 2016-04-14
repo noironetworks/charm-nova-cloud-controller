@@ -168,7 +168,9 @@ def leader_init_db_if_ready(skip_acl_check=False, skip_cells_restarts=False,
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
             for rid in relation_ids('cloud-compute')]
-
+        log('Triggering remote neutron-network-service restarts.')
+        [quantum_joined(rid=rid, remote_restart=True)
+            for rid in relation_ids('quantum-network-service')]
         if not skip_cells_restarts:
             log('Triggering remote cell restarts.')
             [nova_cell_relation_joined(rid=rid, remote_restart=True)
@@ -648,7 +650,7 @@ def compute_departed():
 
 @hooks.hook('neutron-network-service-relation-joined',
             'quantum-network-service-relation-joined')
-def quantum_joined(rid=None):
+def quantum_joined(rid=None, remote_restart=False):
     rel_settings = neutron_settings()
 
     # inform quantum about local keystone auth config
@@ -659,6 +661,12 @@ def quantum_joined(rid=None):
     ks_ca = keystone_ca_cert_b64()
     if ks_auth_config and ks_ca:
         rel_settings['ca_cert'] = ks_ca
+
+    # update relation setting if we're attempting to restart remote
+    # services
+    if remote_restart:
+        rel_settings['restart_trigger'] = str(uuid.uuid4())
+
     relation_set(relation_id=rid, **rel_settings)
 
 
