@@ -614,7 +614,19 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 'lock_path': '/var/lock/nova',
             }
 
-        if self._get_openstack_release() >= self.trusty_liberty:
+        if self._get_openstack_release() >= self.trusty_mitaka:
+            expected['keystone_authtoken'] = {
+                'auth_uri': ks_uri.rstrip('/'),
+                'auth_url': id_uri.rstrip('/'),
+                'auth_type': 'password',
+                'project_domain_name': 'default',
+                'user_domain_name': 'default',
+                'project_name': 'services',
+                'username': ks_ncc_rel['service_username'],
+                'password': ks_ncc_rel['service_password'],
+                'signing_dir': '/var/cache/nova'
+            }
+        elif self._get_openstack_release() >= self.trusty_liberty:
             # Liberty
             expected['keystone_authtoken'] = {
                 'auth_uri': ks_uri.rstrip('/'),
