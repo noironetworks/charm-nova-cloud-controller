@@ -5,3 +5,7 @@ bin
 tags
 *.sw[nop]
 *.pyc
+.unit-state.db
+trusty/
+xenial/
+tests/cirros-*-disk.img

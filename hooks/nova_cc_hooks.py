@@ -49,7 +49,6 @@ from charmhelpers.contrib.openstack.utils import (
     os_release,
     os_requires_version,
     sync_db_with_multi_ipv6_addresses,
-    set_os_workload_status,
     pausable_restart_on_change as restart_on_change,
     is_unit_paused_set,
 )
@@ -96,9 +95,8 @@ from nova_cc_utils import (
     guard_map,
     get_topics,
     setup_ipv6,
-    REQUIRED_INTERFACES,
-    check_optional_relations,
     is_db_initialised,
+    assess_status,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -1068,8 +1066,7 @@ def main():
         hooks.execute(sys.argv)
     except UnregisteredHookError as e:
         log('Unknown hook {} - skipping.'.format(e))
-    set_os_workload_status(CONFIGS, REQUIRED_INTERFACES,
-                           charm_func=check_optional_relations)
+    assess_status(CONFIGS)
 
 if __name__ == '__main__':
     main()
