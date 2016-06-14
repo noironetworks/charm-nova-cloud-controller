@@ -141,6 +141,12 @@ options:
       internal communication between services. If set to True this option will
       configure services to use internal endpoints where possible.
   # HA configuration settings
+  dns-ha:
+    type: boolean
+    default: False
+    description: |
+        Use DNS HA with MAAS 2.0. Note if this is set do not set vip
+        settings below.
   vip:
     type: string
     default:
@@ -253,6 +259,30 @@ options:
       create public endpoints such as:
 
       https://ncc.example.com:8775/v2/$(tenant_id)s
+  os-internal-hostname:
+    type: string
+    default:
+    description: |
+      The hostname or address of the internal endpoints provided by the
+      nova-cloud-controller in the keystone identity provider.
+
+      This value will be used for internal endpoints. For example, an
+      os-internal-hostname set to 'ncc.internal.example.com' with ssl
+      enabled will create a internal endpoint as:
+
+      https://ncc.internal.example.com:8775/v2/$(tenant_id)s
+  os-admin-hostname:
+    type: string
+    default:
+    description: |
+      The hostname or address of the admin endpoints provided by the
+      nova-cloud-controller in the keystone identity provider.
+
+      This value will be used for admin endpoints. For example, an
+      os-admin-hostname set to 'ncc.admin.example.com' with ssl enabled
+      will create a admin endpoint for as:
+
+      https://ncc.admin.example.com:8775/v2/$(tenant_id)s
   service-guard:
     type: boolean
     default: false

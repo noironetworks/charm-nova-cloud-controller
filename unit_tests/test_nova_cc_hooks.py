@@ -75,6 +75,7 @@ TO_PATCH = [
     'git_install_requested',
     'status_set',
     'network_get_primary_address',
+    'update_dns_ha_resource_params',
 ]
 
 
@@ -787,6 +788,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.get_netmask_for_address.return_value = None
         hooks.ha_joined()
         args = {
+            'relation_id': None,
             'corosync_bindiface': 'em0',
             'corosync_mcastport': '8080',
             'init_services': {'res_nova_haproxy': 'haproxy'},
@@ -804,6 +806,42 @@ class NovaCCHooksTests(CharmTestCase):
             call(**args),
         ])
 
+    def test_ha_joined_dns_ha(self):
+        def _fake_update(resources, resource_params, relation_id=None):
+            resources.update({'res_nova_public_hostname': 'ocf:maas:dns'})
+            resource_params.update({'res_nova_public_hostname':
+                                    'params fqdn="nova.maas" '
+                                    'ip_address="10.0.0.1"'})
+
+        self.test_config.set('dns-ha', True)
+        self.get_hacluster_config.return_value = {
+            'vip': None,
+            'ha-bindiface': 'em0',
+            'ha-mcastport': '8080',
+            'os-admin-hostname': None,
+            'os-internal-hostname': None,
+            'os-public-hostname': 'nova.maas',
+        }
+        args = {
+            'relation_id': None,
+            'corosync_bindiface': 'em0',
+            'corosync_mcastport': '8080',
+            'init_services': {'res_nova_haproxy': 'haproxy'},
+            'resources': {'res_nova_public_hostname': 'ocf:maas:dns',
+                          'res_nova_haproxy': 'lsb:haproxy'},
+            'resource_params': {
+                'res_nova_public_hostname': 'params fqdn="nova.maas" '
+                                            'ip_address="10.0.0.1"',
+                'res_nova_haproxy': 'op monitor interval="5s"'},
+            'clones': {'cl_nova_haproxy': 'res_nova_haproxy'},
+            'colocations': {},
+        }
+        self.update_dns_ha_resource_params.side_effect = _fake_update
+
+        hooks.ha_joined()
+        self.assertTrue(self.update_dns_ha_resource_params.called)
+        self.relation_set.assert_called_with(**args)
+
     @patch('nova_cc_utils.config')
     def test_ha_relation_multi_consoleauth(self, config):
         self.get_hacluster_config.return_value = {
@@ -819,6 +857,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.get_netmask_for_address.return_value = None
         hooks.ha_joined()
         args = {
+            'relation_id': None,
             'corosync_bindiface': 'em0',
             'corosync_mcastport': '8080',
             'init_services': {'res_nova_haproxy': 'haproxy'},
@@ -850,6 +889,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.get_netmask_for_address.return_value = None
         hooks.ha_joined()
         args = {
+            'relation_id': None,
             'corosync_bindiface': 'em0',
             'corosync_mcastport': '8080',
             'init_services': {'res_nova_haproxy': 'haproxy',
