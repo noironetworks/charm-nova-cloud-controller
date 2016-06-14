@@ -957,6 +957,7 @@ class NovaCCUtilsTests(CharmTestCase):
             asf.assert_called_once_with('test-config')
             callee.assert_called_once_with()
 
+    @patch.object(utils, 'get_optional_interfaces')
     @patch.object(utils, 'check_optional_relations')
     @patch.object(utils, 'REQUIRED_INTERFACES')
     @patch.object(utils, 'services')
@@ -967,13 +968,17 @@ class NovaCCUtilsTests(CharmTestCase):
                                 determine_ports,
                                 services,
                                 REQUIRED_INTERFACES,
-                                check_optional_relations):
+                                check_optional_relations,
+                                get_optional_interfaces):
         services.return_value = 's1'
+        REQUIRED_INTERFACES.copy.return_value = {'int': ['test 1']}
+        get_optional_interfaces.return_value = {'opt': ['test 2']}
         determine_ports.return_value = 'p1'
         utils.assess_status_func('test-config')
         # ports=None whilst port checks are disabled.
         make_assess_status_func.assert_called_once_with(
-            'test-config', REQUIRED_INTERFACES,
+            'test-config',
+            {'int': ['test 1'], 'opt': ['test 2']},
             charm_func=check_optional_relations, services='s1',
             ports=None)
 
