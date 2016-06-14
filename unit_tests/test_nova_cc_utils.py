@@ -278,6 +278,22 @@ class NovaCCUtilsTests(CharmTestCase):
         utils.save_script_rc()
         self._save_script_rc.called_with(**SCRIPTRC_ENV_VARS)
 
+    def test_get_step_upgrade_source_target_liberty(self):
+        self.get_os_codename_install_source.return_value = 'kilo'
+        self.os_release.return_value = 'icehouse'
+        self.assertEquals(
+            utils.get_step_upgrade_source('cloud:trusty-liberty'),
+            'cloud:trusty-kilo')
+        self.os_release.return_value = 'juno'
+        self.assertEquals(
+            utils.get_step_upgrade_source('cloud:trusty-liberty'),
+            'cloud:trusty-kilo')
+        self.os_release.return_value = 'kilo'
+        with patch_open() as (_open, _file):
+            self.assertEquals(
+                utils.get_step_upgrade_source('cloud:trusty-liberty'),
+                None)
+
     @patch.object(utils, 'remove_known_host')
     @patch.object(utils, 'ssh_known_host_key')
     @patch('subprocess.check_output')
@@ -467,6 +483,12 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertTrue(self.enable_services.called)
         self.cmd_all_services.assert_called_with('start')
 
+    @patch('subprocess.check_output')
+    def test_migrate_nova_flavors(self, check_output):
+        utils.migrate_nova_flavors()
+        check_output.assert_called_with(
+            ['nova-manage', 'db', 'migrate_flavor_data'])
+
     @patch.object(utils, 'get_step_upgrade_source')
     @patch.object(utils, 'migrate_nova_database')
     @patch.object(utils, 'determine_packages')
@@ -507,6 +529,30 @@ class NovaCCUtilsTests(CharmTestCase):
                                             dist=True)
         self.apt_install.assert_called_with(determine_packages(), fatal=True)
         self.register_configs.assert_called_with(release='kilo')
+        self.assertTrue(migrate_nova_database.call_count, 1)
+
+    @patch.object(utils, 'get_step_upgrade_source')
+    @patch.object(utils, 'migrate_nova_flavors')
+    @patch.object(utils, 'migrate_nova_database')
+    @patch.object(utils, 'determine_packages')
+    def test_upgrade_kilo_liberty(self, determine_packages,
+                                  migrate_nova_database,
+                                  migrate_nova_flavors,
+                                  get_step_upgrade_source):
+        "Simulate a call to do_openstack_upgrade() for kilo->liberty"
+        self.test_config.set('openstack-origin', 'cloud:trusty-liberty')
+        get_step_upgrade_source.return_value = None
+        self.os_release.return_value = 'kilo'
+        self.get_os_codename_install_source.return_value = 'liberty'
+        self.is_elected_leader.return_value = True
+        self.relation_ids.return_value = []
+        utils.do_openstack_upgrade(self.register_configs())
+        self.apt_update.assert_called_with(fatal=True)
+        self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
+                                            dist=True)
+        self.apt_install.assert_called_with(determine_packages(), fatal=True)
+        self.register_configs.assert_called_with(release='liberty')
+        self.assertTrue(migrate_nova_flavors.call_count, 1)
         self.assertTrue(migrate_nova_database.call_count, 1)
 
     @patch.object(utils, 'database_setup')

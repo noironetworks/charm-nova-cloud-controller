@@ -419,11 +419,23 @@ def get_step_upgrade_source(new_src):
     '''
     sources = {
         # target_src: (cur_pocket, step_src)
+        # NOTE: cur_pocket == * means all upgrades to target_src must step
+        #                     through step_src if step_src is higher than
+        #                     current release
         'cloud:precise-icehouse':
         ('precise-updates/grizzly', 'cloud:precise-havana'),
         'cloud:precise-icehouse/proposed':
-        ('precise-proposed/grizzly', 'cloud:precise-havana/proposed')
+        ('precise-proposed/grizzly', 'cloud:precise-havana/proposed'),
+        'cloud:trusty-liberty': ('*', 'cloud:trusty-kilo'),
     }
+    try:
+        cur_pocket, step_src = sources[new_src]
+        current_src = os_release('nova-common')
+        step_src_codename = get_os_codename_install_source(step_src)
+        if cur_pocket == '*' and step_src_codename > current_src:
+            return step_src
+    except KeyError:
+        pass
 
     configure_installation_source(new_src)
 
@@ -482,6 +494,11 @@ def is_db_initialised():
 
 def _do_openstack_upgrade(new_src):
     enable_policy_rcd()
+    # All upgrades to Liberty are forced to step through Kilo. Liberty does
+    # not have the migrate_flavor_data option (Bug #1511466) available so it
+    # must be done pre-upgrade
+    if os_release('nova-common') == 'kilo' and is_elected_leader(CLUSTER_RES):
+        migrate_nova_flavors()
     new_os_rel = get_os_codename_install_source(new_src)
     log('Performing OpenStack upgrade to %s.' % (new_os_rel))
 
@@ -549,6 +566,14 @@ def do_openstack_upgrade(configs):
     if step_src is not None:
         _do_openstack_upgrade(step_src)
     return _do_openstack_upgrade(new_src)
+
+
+@retry_on_exception(5, base_delay=3, exc_type=subprocess.CalledProcessError)
+def migrate_nova_flavors():
+    '''Runs nova-manage to migrate flavor data if needed'''
+    log('Migrating nova flavour information in database.', level=INFO)
+    cmd = ['nova-manage', 'db', 'migrate_flavor_data']
+    subprocess.check_output(cmd)
 
 
 # NOTE(jamespage): Retry deals with sync issues during one-shot HA deploys.
