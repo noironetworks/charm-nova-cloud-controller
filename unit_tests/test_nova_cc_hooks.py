@@ -164,17 +164,23 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(self.disable_services.called)
         self.cmd_all_services.assert_called_with('stop')
 
+    @patch.object(utils, 'service_resume')
+    @patch.object(utils, 'config')
     @patch.object(hooks, 'filter_installed_packages')
     @patch.object(hooks, 'configure_https')
-    def test_config_changed_no_upgrade(self, conf_https, mock_filter_packages):
+    def test_config_changed_no_upgrade(self, conf_https, mock_filter_packages,
+                                       utils_config, mock_service_resume):
+        utils_config.side_effect = self.test_config.get
+        self.test_config.set('console-access-protocol', 'dummy')
         self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = False
         hooks.config_changed()
         self.assertTrue(self.save_script_rc.called)
         mock_filter_packages.assert_called_with([])
 
+    @patch.object(utils, 'service_resume')
     @patch.object(hooks, 'configure_https')
-    def test_config_changed_git(self, configure_https):
+    def test_config_changed_git(self, configure_https, mock_service_resume):
         self.git_install_requested.return_value = True
         repo = 'cloud:trusty-juno'
         openstack_origin_git = {
@@ -196,6 +202,10 @@ class NovaCCHooksTests(CharmTestCase):
         self.git_install.assert_called_with(projects_yaml)
         self.assertFalse(self.do_openstack_upgrade.called)
 
+    @patch.object(utils, 'service_resume')
+    @patch('charmhelpers.contrib.openstack.ip.unit_get')
+    @patch('charmhelpers.contrib.hahelpers.cluster.relation_ids')
+    @patch.object(utils, 'config')
     @patch.object(hooks, 'db_joined')
     @patch.object(hooks, 'filter_installed_packages')
     @patch('charmhelpers.contrib.openstack.ip.service_name',
@@ -206,11 +216,18 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'configure_https')
     def test_config_changed_with_upgrade(self, conf_https, neutron_api_joined,
                                          identity_joined, cluster_joined,
-                                         mock_filter_packages, db_joined):
+                                         mock_filter_packages, db_joined,
+                                         utils_config, mock_relids,
+                                         mock_unit_get,
+                                         mock_service_resume):
         self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = True
         self.relation_ids.return_value = ['generic_rid']
         _zmq_joined = self.patch('zeromq_configuration_relation_joined')
+        utils_config.side_effect = self.test_config.get
+        self.test_config.set('console-access-protocol', 'dummy')
+        mock_relids.return_value = []
+        mock_unit_get.return_value = '127.0.0.1'
         hooks.config_changed()
         self.assertTrue(self.do_openstack_upgrade.called)
         self.assertTrue(neutron_api_joined.called)
@@ -221,12 +238,14 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(self.save_script_rc.called)
         mock_filter_packages.assert_called_with([])
 
+    @patch.object(utils, 'service_resume')
     @patch.object(hooks, 'filter_installed_packages')
     @patch.object(hooks, 'configure_https')
     @patch.object(hooks, 'compute_changed')
     def test_config_changed_region_change(self, mock_compute_changed,
                                           mock_config_https,
-                                          mock_filter_packages):
+                                          mock_filter_packages,
+                                          mock_service_resume):
         self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = False
         self.config_value_changed.return_value = True
@@ -942,12 +961,14 @@ class NovaCCHooksTests(CharmTestCase):
             call(**args),
         ])
 
+    @patch.object(utils, 'service_pause')
     @patch.object(hooks, 'filter_installed_packages')
     @patch('nova_cc_hooks.configure_https')
     @patch('nova_cc_utils.config')
     def test_config_changed_single_consoleauth(self, mock_config,
                                                mock_configure_https,
-                                               mock_filter_packages):
+                                               mock_filter_packages,
+                                               mock_service_pause):
         self.config_value_changed.return_value = False
         self.git_install_requested.return_value = False
         config.return_value = 'novnc'

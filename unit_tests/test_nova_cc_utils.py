@@ -15,11 +15,20 @@
 from collections import OrderedDict
 from mock import patch, MagicMock, call
 
-with patch('charmhelpers.core.hookenv.config'):
-    with patch('charmhelpers.contrib.openstack.utils.get_os_codename_package'):  # noqa
-        import nova_cc_utils as utils
+from test_utils import (
+    CharmTestCase,
+    get_default_config,
+    patch_open,
+)
 
-from test_utils import CharmTestCase, patch_open
+__default_config = get_default_config()
+
+with patch('charmhelpers.core.hookenv.config') as config:
+    with patch('charmhelpers.contrib.openstack.utils.get_os_codename_package'):  # noqa
+        # this makes the config behave more similar to the real config()
+        config.side_effect = lambda k: __default_config[k]
+
+        import nova_cc_utils as utils
 
 TO_PATCH = [
     'apt_update',
@@ -1074,3 +1083,43 @@ class NovaCCUtilsTests(CharmTestCase):
             asf.assert_called_once_with('some-config')
             # ports=None whilst port checks are disabled.
             f.assert_called_once_with('assessor', services='s1', ports=None)
+
+    @patch.object(utils, 'service_pause')
+    @patch.object(utils, 'service_resume')
+    @patch.object(utils, 'config')
+    @patch.object(utils, 'filter_installed_packages')
+    def test_disable_aws_compat_services_uinstalled(self,
+                                                    filter_installed_packages,
+                                                    config, service_resume,
+                                                    service_pause):
+        filter_installed_packages.return_value = utils.AWS_COMPAT_SERVICES
+        utils.update_aws_compat_services()
+        config.assert_not_called()
+        service_pause.assert_not_called()
+        service_resume.assert_not_called()
+
+    @patch.object(utils, 'service_pause')
+    @patch.object(utils, 'service_resume')
+    @patch.object(utils, 'config')
+    @patch.object(utils, 'filter_installed_packages')
+    def test_disable_aws_compat_services_true(self, filter_installed_packages,
+                                              config, s_resume, s_pause):
+        filter_installed_packages.return_value = []
+        config.return_value = True
+        utils.update_aws_compat_services()
+
+        s_resume.assert_not_called()
+        s_pause.assert_has_calls([call(s) for s in utils.AWS_COMPAT_SERVICES])
+
+    @patch.object(utils, 'service_pause')
+    @patch.object(utils, 'service_resume')
+    @patch.object(utils, 'config')
+    @patch.object(utils, 'filter_installed_packages')
+    def test_disable_aws_compat_services_false(self, filter_installed_packages,
+                                               config, s_resume, s_pause):
+        filter_installed_packages.return_value = []
+        config.return_value = False
+        utils.update_aws_compat_services()
+
+        s_resume.assert_has_calls([call(s) for s in utils.AWS_COMPAT_SERVICES])
+        s_pause.assert_not_called()

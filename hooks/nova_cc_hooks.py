@@ -111,6 +111,7 @@ from nova_cc_utils import (
     setup_ipv6,
     is_db_initialised,
     assess_status,
+    update_aws_compat_services,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -289,6 +290,7 @@ def config_changed():
                 compute_changed(rid, unit)
 
     update_nova_consoleauth_config()
+    update_aws_compat_services()
 
 
 @hooks.hook('amqp-relation-joined')

@@ -60,8 +60,10 @@ class TestnovaAPIActions(CharmTestCase):
     @patch.object(git_reinstall, 'action_fail')
     @patch.object(git_reinstall, 'git_install')
     @patch.object(git_reinstall, 'config_changed')
-    def test_git_reinstall(self, config_changed, git_install, action_fail,
-                           action_set):
+    @patch('charmhelpers.contrib.openstack.utils.config')
+    def test_git_reinstall(self, _config, config_changed, git_install,
+                           action_fail, action_set):
+        _config.side_effect = self.test_config.get
         self.test_config.set('openstack-origin-git', openstack_origin_git)
 
         git_reinstall.git_reinstall()

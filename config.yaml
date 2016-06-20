@@ -421,3 +421,10 @@ options:
     description: |
       Apply system hardening. Supports a space-delimited list of modules
       to run. Supported modules currently include os, ssh, apache and mysql.
+  disable-aws-compat:
+    default: false
+    type: boolean
+    description: |
+      For OpenStack Icehouse, Juno and Kilo by default a compatibility layer
+      for EC2 and S3 is configured, setting this option to `true` the services are
+      stopped and disabled.

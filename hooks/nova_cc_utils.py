@@ -63,7 +63,8 @@ from charmhelpers.fetch import (
     apt_upgrade,
     apt_update,
     apt_install,
-    add_source
+    add_source,
+    filter_installed_packages
 )
 
 from charmhelpers.core.hookenv import (
@@ -87,9 +88,11 @@ from charmhelpers.core.host import (
     add_user_to_group,
     mkdir,
     service,
+    service_pause,
+    service_resume,
+    service_running,
     service_start,
     service_stop,
-    service_running,
     lsb_release,
 )
 
@@ -182,8 +185,9 @@ BASE_SERVICES = [
     'nova-conductor',
 ]
 
+AWS_COMPAT_SERVICES = ['nova-api-ec2', 'nova-objectstore']
 SERVICE_BLACKLIST = {
-    'liberty': ['nova-api-ec2', 'nova-objectstore']
+    'liberty': AWS_COMPAT_SERVICES
 }
 
 API_PORTS = {
@@ -207,7 +211,7 @@ def resolve_services():
     _services = deepcopy(BASE_SERVICES)
     os_rel = os_release('nova-common')
     for release in SERVICE_BLACKLIST:
-        if os_rel >= release:
+        if os_rel >= release or config('disable-aws-compat'):
             [_services.remove(service)
              for service in SERVICE_BLACKLIST[release]]
     return _services
@@ -1346,3 +1350,23 @@ def _pause_resume_helper(f, configs):
     f(assess_status_func(configs),
       services=services(),
       ports=None)
+
+
+def update_aws_compat_services():
+    """Depending on the configuration of `disable-aws-compatibility` config
+    option.
+
+    This will stop/start and disable/enable `nova-api-ec2` and
+    `nova-objectstore` services.
+    """
+    # if packages aren't installed, then there is nothing to do
+    if filter_installed_packages(AWS_COMPAT_SERVICES) != []:
+        return
+
+    if config('disable-aws-compat'):
+        # TODO: the endpoints have to removed from keystone
+        for service_ in AWS_COMPAT_SERVICES:
+            service_pause(service_)
+    else:
+        for service_ in AWS_COMPAT_SERVICES:
+            service_resume(service_)

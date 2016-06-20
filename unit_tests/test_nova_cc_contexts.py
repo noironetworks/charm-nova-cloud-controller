@@ -126,6 +126,7 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertFalse('neutron_url' in ctxt)
 
     @mock.patch.object(neutron, 'network_manager')
+    @mock.patch('charmhelpers.contrib.openstack.context.unit_get')
     @mock.patch('charmhelpers.contrib.hahelpers.cluster.https')
     @mock.patch('charmhelpers.contrib.openstack.context.kv')
     @mock.patch('charmhelpers.contrib.openstack.context.'
@@ -138,9 +139,10 @@ class NovaComputeContextTests(CharmTestCase):
     def test_haproxy_context(self, mock_relation_ids, mock_get_ipv6_addr,
                              mock_local_unit, mock_get_netmask_for_address,
                              mock_get_address_in_network, mock_kv, mock_https,
-                             mock_network_manager):
-        mock_network_manager.return_value = 'neutron'
+                             mock_unit_get, mock_network_manager):
         mock_https.return_value = False
+        mock_unit_get.return_value = '127.0.0.1'
+        mock_network_manager.return_value = 'neutron'
         ctxt = context.HAProxyContext()()
         self.assertEqual(ctxt['service_ports']['nova-api-os-compute'],
                          [8774, 8764])
@@ -293,11 +295,15 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual(ctxt['html5proxy_base_url'],
                          'https://10.5.0.1:6082/spice_auto.html')
 
+    @mock.patch('charmhelpers.contrib.openstack.ip.unit_get')
+    @mock.patch('charmhelpers.contrib.hahelpers.cluster.relation_ids')
     @mock.patch('charmhelpers.core.hookenv.local_unit')
     @mock.patch('charmhelpers.contrib.openstack.context.config')
-    def test_nova_config_context(self, mock_config, local_unit):
+    def test_nova_config_context(self, mock_config, local_unit,
+                                 mock_relation_ids, mock_unit_get):
         local_unit.return_value = 'nova-cloud-controller/0'
         mock_config.side_effect = self.test_config.get
+        mock_unit_get.return_value = '127.0.0.1'
         ctxt = context.NovaConfigContext()()
         self.assertEqual(ctxt['scheduler_default_filters'],
                          self.config('scheduler-default-filters'))

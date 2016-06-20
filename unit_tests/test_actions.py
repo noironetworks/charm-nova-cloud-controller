@@ -14,9 +14,21 @@
 
 import mock
 
+from test_utils import (
+    CharmTestCase,
+    get_default_config,
+)
+
+__default_config = get_default_config()
+# NOTE(freyes): the default 'distro' makes the test suite behave different
+# depending on where it's being executed
+__default_config['openstack-origin'] = ''
+
 with mock.patch('charmhelpers.core.hookenv.config') as config:
     with mock.patch('charmhelpers.contrib.openstack.utils.get_os_codename_package'):  # noqa
-        config.return_value = 'nova'
+        # this makes the config behave more similar to the real config()
+        config.side_effect = lambda k: __default_config[k]
+
         import nova_cc_utils as utils  # noqa
 
 # Need to do some early patching to get the module loaded.
@@ -35,10 +47,6 @@ with mock.patch('nova_cc_utils.guard_map') as gmap:
 # Unpatch it now that its loaded.
 utils.register_configs = _reg
 utils.restart_map = _map
-
-from test_utils import (
-    CharmTestCase
-)
 
 TO_PATCH = [
 ]
