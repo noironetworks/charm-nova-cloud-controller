@@ -29,15 +29,20 @@ TO_PATCH = [
     'configure_installation_source',
     'disable_policy_rcd',
     'is_elected_leader',
+    'lsb_release',
     'enable_policy_rcd',
     'enable_services',
     'get_os_codename_install_source',
+    'git_src_dir',
+    'git_pip_venv_dir',
     'log',
     'os_release',
     'peer_store',
+    'pip_install',
     'register_configs',
     'relation_ids',
     'remote_unit',
+    'render',
     '_save_script_rc',
     'service_start',
     'services',
@@ -767,21 +772,18 @@ class NovaCCUtilsTests(CharmTestCase):
         ]
         self.assertEquals(mkdir.call_args_list, expected)
 
-    @patch.object(utils, 'git_src_dir')
-    @patch.object(utils, 'render')
-    @patch.object(utils, 'git_pip_venv_dir')
-    @patch.object(utils, 'pip_install')
+    @patch('os.listdir')
     @patch('os.path.join')
     @patch('os.path.exists')
     @patch('os.symlink')
     @patch('shutil.copytree')
     @patch('shutil.rmtree')
-    def test_git_post_install(self, rmtree, copytree, symlink,
-                              exists, join, pip_install, venv, render,
-                              git_src_dir):
+    def test_git_post_install_upstart(self, rmtree, copytree, symlink, exists,
+                                      join, listdir):
         projects_yaml = openstack_origin_git
         join.return_value = 'joined-string'
-        venv.return_value = '/mnt/openstack-git/venv'
+        self.lsb_release.return_value = {'DISTRIB_RELEASE': '15.04'}
+        self.git_pip_venv_dir.return_value = '/mnt/openstack-git/venv'
         utils.git_post_install(projects_yaml)
         expected = [
             call('joined-string', '/etc/nova'),
@@ -944,10 +946,65 @@ class NovaCCUtilsTests(CharmTestCase):
                  nova_xvpvncproxy_context, perms=0o644,
                  templates_dir='joined-string'),
         ]
-        self.assertEquals(render.call_args_list, expected)
+        self.assertEquals(self.render.call_args_list, expected)
         self.assertTrue(self.apt_update.called)
         self.apt_install.assert_called_with(['novnc', 'spice-html5',
                                              'websockify'], fatal=True)
+
+    @patch('os.listdir')
+    @patch('os.path.join')
+    @patch('os.path.exists')
+    @patch('os.symlink')
+    @patch('shutil.copytree')
+    @patch('shutil.rmtree')
+    def test_git_post_install_systemd(self, rmtree, copytree, symlink, exists,
+                                      join, listdir):
+        projects_yaml = openstack_origin_git
+        join.return_value = 'joined-string'
+        self.lsb_release.return_value = {'DISTRIB_RELEASE': '15.10'}
+        self.git_pip_venv_dir.return_value = '/mnt/openstack-git/venv'
+        utils.git_post_install(projects_yaml)
+        expected = [
+            call('git/nova_sudoers', '/etc/sudoers.d/nova_sudoers',
+                 {}, perms=288),
+            call('git/nova-api-os-compute.init.in.template',
+                 'joined-string', {'daemon_path': 'joined-string'},
+                 perms=420),
+            call('git/nova-baremetal.init.in.template',
+                 'joined-string', {'daemon_path': 'joined-string'},
+                 perms=420),
+            call('git/nova-cells.init.in.template',
+                 'joined-string', {'daemon_path': 'joined-string'},
+                 perms=420),
+            call('git/nova-cert.init.in.template',
+                 'joined-string', {'daemon_path': 'joined-string'},
+                 perms=420),
+            call('git/nova-conductor.init.in.template',
+                 'joined-string', {'daemon_path': 'joined-string'},
+                 perms=420),
+            call('git/nova-consoleauth.init.in.template',
+                 'joined-string', {'daemon_path': 'joined-string'},
+                 perms=420),
+            call('git/nova-console.init.in.template',
+                 'joined-string', {'daemon_path': 'joined-string'},
+                 perms=420),
+            call('git/nova-novncproxy.init.in.template',
+                 'joined-string', {'daemon_path': 'joined-string'},
+                 perms=420),
+            call('git/nova-scheduler.init.in.template',
+                 'joined-string', {'daemon_path': 'joined-string'},
+                 perms=420),
+            call('git/nova-serialproxy.init.in.template',
+                 'joined-string', {'daemon_path': 'joined-string'},
+                 perms=420),
+            call('git/nova-spiceproxy.init.in.template',
+                 'joined-string', {'daemon_path': 'joined-string'},
+                 perms=420),
+            call('git/nova-xvpvncproxy.init.in.template',
+                 'joined-string', {'daemon_path': 'joined-string'},
+                 perms=420),
+        ]
+        self.assertEquals(self.render.call_args_list, expected)
 
     def _test_is_api_ready(self, tgt):
         fake_config = MagicMock()
