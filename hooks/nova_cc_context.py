@@ -102,6 +102,8 @@ class NeutronAPIContext(context.OSContextGenerator):
                     rdata.get('neutron-security-groups'),
                     'network_manager': 'neutron',
                 }
+                if rdata.get('enable-sriov'):
+                    ctxt['additional_neutron_filters'] = 'PciPassthroughFilter'
                 if context_complete(ctxt):
                     return ctxt
         return {}
