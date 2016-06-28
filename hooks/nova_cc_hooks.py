@@ -299,6 +299,12 @@ def amqp_changed():
     for r_id in relation_ids('nova-api'):
         nova_api_relation_joined(rid=r_id)
 
+    # NOTE: trigger restart on nova-api-metadata on
+    #       neutron-gateway units once nova-cc has working
+    #       amqp connection (avoiding service down on n-gateway)
+    for rid in relation_ids('quantum-network-service'):
+        quantum_joined(rid=rid, remote_restart=True)
+
 
 @hooks.hook('shared-db-relation-joined')
 def db_joined(relation_id=None):
