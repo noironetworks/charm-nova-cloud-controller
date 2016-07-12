@@ -293,8 +293,10 @@ class NovaComputeContextTests(CharmTestCase):
                          'https://10.5.0.1:6082/spice_auto.html')
 
     @mock.patch('charmhelpers.core.hookenv.local_unit')
-    def test_nova_config_context(self, local_unit):
+    @mock.patch('charmhelpers.contrib.openstack.context.config')
+    def test_nova_config_context(self, mock_config, local_unit):
         local_unit.return_value = 'nova-cloud-controller/0'
+        mock_config.side_effect = self.test_config.get
         ctxt = context.NovaConfigContext()()
         self.assertEqual(ctxt['scheduler_default_filters'],
                          self.config('scheduler-default-filters'))
