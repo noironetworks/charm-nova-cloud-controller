@@ -335,8 +335,8 @@ options:
     default:
     description: SSL key to use with certificate specified as console-ssl-cert.
   worker-multiplier:
-    type: int
-    default: 2
+    type: float
+    default: 2.0
     description: |
       The CPU core multiplier to use when configuring worker processes for
       Nova and Neutron.  By default, the number of workers for each daemon
