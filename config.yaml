@@ -37,10 +37,6 @@ options:
 
       NOTE: updating this setting to a source that is known to provide
       a later version of OpenStack will trigger a software upgrade.
-
-      NOTE: when openstack-origin-git is specified, openstack specific
-      packages will be installed from source rather than from the
-      openstack-origin repository.
   openstack-origin-git:
     default:
     type: string
@@ -50,8 +46,6 @@ options:
 
       The default Openstack release name may be one of the following, where
       the corresponding OpenStack github branch will be used:
-        * icehouse
-        * kilo
         * liberty
         * mitaka
         * master
@@ -68,9 +62,7 @@ options:
         - {name: nova,
            repository: 'git://github.com/openstack/nova',
            branch: master}
-
-      Note that the installed config files will be determined based on
-      the OpenStack release of the openstack-origin option.
+        release: master
   rabbit-user:
     default: nova
     type: string
