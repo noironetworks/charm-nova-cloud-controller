@@ -34,6 +34,7 @@ from nova_cc_hooks import (
     config_changed,
     CONFIGS,
     neutron_api_relation_joined,
+    db_joined,
 )
 
 
@@ -50,6 +51,10 @@ def openstack_upgrade():
                                     CONFIGS)):
         [neutron_api_relation_joined(rid=rid, remote_restart=True)
             for rid in relation_ids('neutron-api')]
+        # NOTE(thedac): Force re-fire of shared-db joined hook
+        # to ensure that nova_api database is setup if required.
+        [db_joined(relation_id=r_id)
+            for r_id in relation_ids('shared-db')]
         config_changed()
 
 if __name__ == '__main__':

@@ -42,6 +42,7 @@ TO_PATCH = [
     'do_openstack_upgrade',
     'relation_ids',
     'neutron_api_relation_joined',
+    'db_joined',
     'config_changed',
 ]
 
@@ -66,9 +67,9 @@ class TestNovaCCUpgradeActions(CharmTestCase):
         openstack_upgrade.openstack_upgrade()
 
         self.assertTrue(self.do_openstack_upgrade.called)
-        self.assertTrue(
-            self.neutron_api_relation_joined.called_with(rid='relid1',
-                                                         remote_restart=True))
+        self.neutron_api_relation_joined.assert_called_with(
+            rid='relid1', remote_restart=True)
+        self.db_joined.assert_called_with(relation_id='relid1')
         self.assertTrue(self.config_changed.called)
 
     @patch('charmhelpers.contrib.openstack.utils.config')
