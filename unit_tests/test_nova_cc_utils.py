@@ -16,7 +16,8 @@ from collections import OrderedDict
 from mock import patch, MagicMock, call
 
 with patch('charmhelpers.core.hookenv.config'):
-    import nova_cc_utils as utils
+    with patch('charmhelpers.contrib.openstack.utils.get_os_codename_package'):  # noqa
+        import nova_cc_utils as utils
 
 from test_utils import CharmTestCase, patch_open
 

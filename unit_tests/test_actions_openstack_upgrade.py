@@ -18,8 +18,9 @@ from mock import patch, MagicMock
 
 os.environ['JUJU_UNIT_NAME'] = 'nova-cloud-controller'
 with patch('charmhelpers.core.hookenv.config') as config:
-    config.return_value = 'nova'
-    import nova_cc_utils as utils  # noqa
+    with patch('charmhelpers.contrib.openstack.utils.get_os_codename_package'):
+        config.return_value = 'nova'
+        import nova_cc_utils as utils  # noqa
 
 _reg = utils.register_configs
 _map = utils.restart_map

@@ -15,8 +15,9 @@
 import mock
 
 with mock.patch('charmhelpers.core.hookenv.config') as config:
-    config.return_value = 'nova'
-    import nova_cc_utils as utils  # noqa
+    with mock.patch('charmhelpers.contrib.openstack.utils.get_os_codename_package'):  # noqa
+        config.return_value = 'nova'
+        import nova_cc_utils as utils  # noqa
 
 # Need to do some early patching to get the module loaded.
 _reg = utils.register_configs

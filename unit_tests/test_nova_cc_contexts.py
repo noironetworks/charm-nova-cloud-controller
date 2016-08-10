@@ -18,7 +18,8 @@ import mock
 
 import nova_cc_context as context
 with mock.patch('charmhelpers.core.hookenv.config'):
-    import nova_cc_utils as _utils  # noqa
+    with mock.patch('charmhelpers.contrib.openstack.utils.get_os_codename_package'):  # noqa
+        import nova_cc_utils as _utils  # noqa
 
 from charmhelpers.contrib.openstack import neutron
 from charmhelpers.contrib.openstack import utils

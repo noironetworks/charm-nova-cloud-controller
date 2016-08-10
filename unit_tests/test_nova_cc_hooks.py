@@ -21,8 +21,9 @@ from mock import MagicMock, patch, call
 from test_utils import CharmTestCase
 
 with patch('charmhelpers.core.hookenv.config') as config:
-    config.return_value = 'neutron'
-    import nova_cc_utils as utils
+    with patch('charmhelpers.contrib.openstack.utils.get_os_codename_package'):
+        config.return_value = 'neutron'
+        import nova_cc_utils as utils
 
 _reg = utils.register_configs
 _map = utils.restart_map

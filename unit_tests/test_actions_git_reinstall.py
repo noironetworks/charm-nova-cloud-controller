@@ -24,13 +24,14 @@ sys.modules['apt_pkg'] = MagicMock()
 with patch('charmhelpers.contrib.hardening.harden.harden') as mock_dec:
     mock_dec.side_effect = (lambda *dargs, **dkwargs: lambda f:
                             lambda *args, **kwargs: f(*args, **kwargs))
-    with patch('nova_cc_utils.restart_map'):
-        with patch('nova_cc_utils.register_configs'):
-            with patch('nova_cc_utils.guard_map') as gmap:
-                with patch('charmhelpers.core.hookenv.config') as config:
-                    config.return_value = False
-                    gmap.return_value = {}
-                    import git_reinstall
+    with patch('charmhelpers.contrib.openstack.utils.get_os_codename_package'):
+        with patch('nova_cc_utils.restart_map'):
+            with patch('nova_cc_utils.register_configs'):
+                with patch('nova_cc_utils.guard_map') as gmap:
+                    with patch('charmhelpers.core.hookenv.config') as config:
+                        config.return_value = False
+                        gmap.return_value = {}
+                        import git_reinstall
 
 from test_utils import CharmTestCase
 

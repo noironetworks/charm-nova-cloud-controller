@@ -205,7 +205,7 @@ APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
 
 def resolve_services():
     _services = deepcopy(BASE_SERVICES)
-    os_rel = get_os_codename_install_source(config('openstack-origin'))
+    os_rel = os_release('nova-common')
     for release in SERVICE_BLACKLIST:
         if os_rel >= release:
             [_services.remove(service)
