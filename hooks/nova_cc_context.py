@@ -375,8 +375,7 @@ class NovaAPISharedDBContext(context.SharedDBContext):
     '''
     def __call__(self):
         ctxt = super(NovaAPISharedDBContext, self).__call__()
-        prefix = 'nova_api_%s'
-        translated_ctxt = {}
-        for k, v in ctxt.iteritems():
-            translated_ctxt[prefix % k] = v
-        return translated_ctxt
+        if ctxt is not None:
+            prefix = 'nova_api_{}'
+            ctxt = {prefix.format(k): v for k, v in ctxt.items()}
+        return ctxt
