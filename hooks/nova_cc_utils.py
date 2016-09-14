@@ -957,6 +957,7 @@ def setup_ipv6():
 def git_install(projects_yaml):
     """Perform setup, and install git repos specified in yaml parameter."""
     if git_install_requested():
+        status_set('maintenance', 'Git install')
         git_pre_install()
         projects_yaml = git_default_repos(projects_yaml)
         git_clone_and_install(projects_yaml, core_project='nova')
