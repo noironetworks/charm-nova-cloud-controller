@@ -15,6 +15,11 @@ description: |
  nova-scheduler, nova-api and nova-conductor services.
 tags:
   - openstack
+series:
+  - xenial
+  - trusty
+  - precise
+  - yakkety
 extra-bindings:
   public:
   admin:
