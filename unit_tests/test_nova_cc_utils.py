@@ -292,6 +292,34 @@ class NovaCCUtilsTests(CharmTestCase):
         ex = list(set(utils.BASE_PACKAGES + utils.BASE_SERVICES))
         self.assertEquals(ex, pkgs)
 
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    @patch.object(utils, 'git_install_requested')
+    def test_determine_packages_serial_console(self,
+                                               git_requested,
+                                               subcontext):
+        git_requested.return_value = False
+        self.test_config.set('enable-serial-console', True)
+        self.relation_ids.return_value = []
+        self.os_release.return_value = 'juno'
+        pkgs = utils.determine_packages()
+        console_pkgs = ['nova-serialproxy', 'nova-consoleauth']
+        for console_pkg in console_pkgs:
+            self.assertIn(console_pkg, pkgs)
+
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    @patch.object(utils, 'git_install_requested')
+    def test_determine_packages_serial_console_icehouse(self,
+                                                        git_requested,
+                                                        subcontext):
+        git_requested.return_value = False
+        self.test_config.set('enable-serial-console', True)
+        self.relation_ids.return_value = []
+        self.os_release.return_value = 'icehouse'
+        pkgs = utils.determine_packages()
+        console_pkgs = ['nova-serialproxy', 'nova-consoleauth']
+        for console_pkg in console_pkgs:
+            self.assertNotIn(console_pkg, pkgs)
+
     @patch.object(utils, 'restart_map')
     def test_determine_ports(self, restart_map):
         restart_map.return_value = {

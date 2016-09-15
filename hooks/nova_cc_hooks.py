@@ -112,6 +112,7 @@ from nova_cc_utils import (
     is_db_initialised,
     assess_status,
     update_aws_compat_services,
+    serial_console_settings,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -263,23 +264,21 @@ def config_changed():
     save_script_rc()
     configure_https()
     CONFIGS.write_all()
-    if console_attributes('protocol'):
-        if not git_install_requested():
-            status_set('maintenance', 'Configuring guest console access')
-            apt_update()
-            packages = console_attributes('packages') or []
-            filtered = filter_installed_packages(packages)
-            if filtered:
-                apt_install(filtered, fatal=True)
 
-        [compute_joined(rid=rid)
-            for rid in relation_ids('cloud-compute')]
+    # NOTE(jamespage): deal with any changes to the console and serial
+    #                  console configuration options
+    if not git_install_requested():
+        filtered = filter_installed_packages(determine_packages())
+        if filtered:
+            apt_install(filtered, fatal=True)
 
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
     for rid in relation_ids('zeromq-configuration'):
         zeromq_configuration_relation_joined(rid)
     [cluster_joined(rid) for rid in relation_ids('cluster')]
+    [compute_joined(rid=rid) for rid in relation_ids('cloud-compute')]
+
     update_nrpe_config()
 
     # If the region value has changed, notify the cloud-compute relations
@@ -590,8 +589,9 @@ def compute_joined(rid=None, remote_restart=False):
         # (comment from bash vers) XXX Should point to VIP if clustered, or
         # this may not even be needed.
         'ec2_host': unit_get('private-address'),
-        'region': config('region')
+        'region': config('region'),
     }
+    rel_settings.update(serial_console_settings())
     # update relation setting if we're attempting to restart remote
     # services
     if remote_restart:

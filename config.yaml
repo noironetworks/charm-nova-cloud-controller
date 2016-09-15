@@ -326,6 +326,13 @@ options:
     type: string
     default:
     description: SSL key to use with certificate specified as console-ssl-cert.
+  enable-serial-console:
+    type: boolean
+    default: false
+    description: |
+      Enable serial console access to instances using websockets (insecure).
+      This is only supported on OpenStack Juno or later, and will disable the
+      normal console-log output for an instance.
   worker-multiplier:
     type: float
     default: 2.0

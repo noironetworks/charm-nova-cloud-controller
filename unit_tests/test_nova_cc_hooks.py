@@ -91,6 +91,7 @@ TO_PATCH = [
     'status_set',
     'network_get_primary_address',
     'update_dns_ha_resource_params',
+    'serial_console_settings',
 ]
 
 
@@ -164,12 +165,15 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(self.disable_services.called)
         self.cmd_all_services.assert_called_with('stop')
 
+    @patch.object(hooks, 'determine_packages')
     @patch.object(utils, 'service_resume')
     @patch.object(utils, 'config')
     @patch.object(hooks, 'filter_installed_packages')
     @patch.object(hooks, 'configure_https')
     def test_config_changed_no_upgrade(self, conf_https, mock_filter_packages,
-                                       utils_config, mock_service_resume):
+                                       utils_config, mock_service_resume,
+                                       mock_determine_packages):
+        mock_determine_packages.return_value = []
         utils_config.side_effect = self.test_config.get
         self.test_config.set('console-access-protocol', 'dummy')
         self.git_install_requested.return_value = False
@@ -202,6 +206,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.git_install.assert_called_with(projects_yaml)
         self.assertFalse(self.do_openstack_upgrade.called)
 
+    @patch.object(hooks, 'determine_packages')
     @patch.object(utils, 'service_resume')
     @patch('charmhelpers.contrib.openstack.ip.unit_get')
     @patch('charmhelpers.contrib.hahelpers.cluster.relation_ids')
@@ -219,7 +224,9 @@ class NovaCCHooksTests(CharmTestCase):
                                          mock_filter_packages, db_joined,
                                          utils_config, mock_relids,
                                          mock_unit_get,
-                                         mock_service_resume):
+                                         mock_service_resume,
+                                         mock_determine_packages):
+        mock_determine_packages.return_value = []
         self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = True
         self.relation_ids.return_value = ['generic_rid']
@@ -331,6 +338,10 @@ class NovaCCHooksTests(CharmTestCase):
         self.is_elected_leader = True
         self.keystone_ca_cert_b64.return_value = 'foocert64'
         self.unit_get.return_value = 'nova-cc-host1'
+        self.serial_console_settings.return_value = {
+            'enable_serial_console': 'false',
+            'serial_console_base_url': 'ws://controller:6803',
+        }
         _canonical_url.return_value = 'http://nova-cc-host1'
         auth_config.return_value = FAKE_KS_AUTH_CFG
         hooks.compute_joined()
@@ -341,7 +352,10 @@ class NovaCCHooksTests(CharmTestCase):
             region='RegionOne',
             volume_service='cinder',
             ec2_host='nova-cc-host1',
-            network_manager='neutron', **FAKE_KS_AUTH_CFG)
+            network_manager='neutron',
+            enable_serial_console='false',
+            serial_console_base_url='ws://controller:6803',
+            **FAKE_KS_AUTH_CFG)
 
     @patch.object(hooks, 'canonical_url')
     @patch.object(utils, 'config')
@@ -362,6 +376,10 @@ class NovaCCHooksTests(CharmTestCase):
         self.is_elected_leader = True
         self.keystone_ca_cert_b64.return_value = 'foocert64'
         self.unit_get.return_value = 'nova-cc-host1'
+        self.serial_console_settings.return_value = {
+            'enable_serial_console': 'false',
+            'serial_console_base_url': 'ws://controller:6803',
+        }
         _canonical_url.return_value = 'http://nova-cc-host1'
         auth_config.return_value = FAKE_KS_AUTH_CFG
         hooks.compute_joined()
@@ -376,7 +394,10 @@ class NovaCCHooksTests(CharmTestCase):
             volume_service='cinder',
             ec2_host='nova-cc-host1',
             quantum_plugin='bob',
-            network_manager='neutron', **FAKE_KS_AUTH_CFG)
+            network_manager='neutron',
+            enable_serial_console='false',
+            serial_console_base_url='ws://controller:6803',
+            **FAKE_KS_AUTH_CFG)
 
     @patch.object(hooks, 'canonical_url')
     @patch.object(hooks, '_auth_config')
@@ -961,6 +982,7 @@ class NovaCCHooksTests(CharmTestCase):
             call(**args),
         ])
 
+    @patch.object(hooks, 'determine_packages')
     @patch.object(utils, 'service_pause')
     @patch.object(hooks, 'filter_installed_packages')
     @patch('nova_cc_hooks.configure_https')
@@ -968,7 +990,9 @@ class NovaCCHooksTests(CharmTestCase):
     def test_config_changed_single_consoleauth(self, mock_config,
                                                mock_configure_https,
                                                mock_filter_packages,
-                                               mock_service_pause):
+                                               mock_service_pause,
+                                               mock_determine_packages):
+        mock_determine_packages.return_value = []
         self.config_value_changed.return_value = False
         self.git_install_requested.return_value = False
         config.return_value = 'novnc'
