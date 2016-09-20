@@ -61,6 +61,7 @@ TO_PATCH = [
     'related_units',
     'local_unit',
     'relation_get',
+    'os_application_version_set',
 ]
 
 SCRIPTRC_ENV_VARS = {
@@ -1037,6 +1038,9 @@ class NovaCCUtilsTests(CharmTestCase):
             utils.assess_status('test-config')
             asf.assert_called_once_with('test-config')
             callee.assert_called_once_with()
+            self.os_application_version_set.assert_called_with(
+                utils.VERSION_PACKAGE
+            )
 
     @patch.object(utils, 'get_optional_interfaces')
     @patch.object(utils, 'check_optional_relations')
