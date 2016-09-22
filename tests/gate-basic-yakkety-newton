@@ -15,12 +15,10 @@
 # limitations under the License.
 
 """Amulet tests on a basic nova cloud controller deployment on
-   precise-icehouse."""
+   yakkety-newton."""
 
 from basic_deployment import NovaCCBasicDeployment
 
 if __name__ == '__main__':
-    deployment = NovaCCBasicDeployment(series='precise',
-                                       openstack='cloud:precise-icehouse',
-                                       source='cloud:precise-updates/icehouse')
+    deployment = NovaCCBasicDeployment(series='yakkety')
     deployment.run_tests()
