@@ -253,7 +253,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.ConsoleSSLContext(),
                      nova_cc_context.CloudComputeContext(),
                      context.InternalEndpointContext(),
-                     nova_cc_context.NeutronAPIContext()],
+                     nova_cc_context.NeutronAPIContext(),
+                     nova_cc_context.SerialConsoleContext()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in resolve_services() if 'api' in s],
@@ -300,6 +301,12 @@ CONSOLE_CONFIG = {
     },
 }
 
+SERIAL_CONSOLE = {
+    'packages': ['nova-serialproxy', 'nova-consoleauth',
+                 'websockify'],
+    'services': ['nova-serialproxy', 'nova-consoleauth'],
+}
+
 
 def resource_map():
     '''
@@ -326,6 +333,11 @@ def resource_map():
     if console_attributes('services'):
         resource_map[NOVA_CONF]['services'] += \
             console_attributes('services')
+
+    if (config('enable-serial-console') and
+            os_release('nova-common') >= 'juno'):
+        resource_map[NOVA_CONF]['services'] += \
+            SERIAL_CONSOLE['services']
 
     # also manage any configs that are being updated by subordinates.
     vmware_ctxt = context.SubordinateConfigContext(interface='nova-vmware',
@@ -402,11 +414,14 @@ def console_attributes(attr, proto=None):
 
 def determine_packages():
     # currently all packages match service names
-    packages = [] + BASE_PACKAGES
+    packages = deepcopy(BASE_PACKAGES)
     for v in resource_map().values():
         packages.extend(v['services'])
     if console_attributes('packages'):
         packages.extend(console_attributes('packages'))
+    if (config('enable-serial-console') and
+            os_release('nova-common') >= 'juno'):
+        packages.extend(SERIAL_CONSOLE['packages'])
 
     if git_install_requested():
         packages = list(set(packages))
@@ -1375,3 +1390,10 @@ def update_aws_compat_services():
     else:
         for service_ in AWS_COMPAT_SERVICES:
             service_resume(service_)
+
+
+def serial_console_settings():
+    '''Utility wrapper to retrieve serial console settings
+    for use in cloud-compute relation
+    '''
+    return nova_cc_context.SerialConsoleContext()()

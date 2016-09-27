@@ -311,3 +311,38 @@ class NovaComputeContextTests(CharmTestCase):
                          self.config('cpu-allocation-ratio'))
         self.assertEqual(ctxt['ram_allocation_ratio'],
                          self.config('ram-allocation-ratio'))
+
+    @mock.patch.object(context, 'format_ipv6_addr')
+    @mock.patch.object(context, 'resolve_address')
+    @mock.patch.object(context, 'config')
+    def test_serial_console_context(self, mock_config,
+                                    mock_resolve_address,
+                                    mock_format_ipv6_address):
+        mock_config.side_effect = self.test_config.get
+        mock_format_ipv6_address.return_value = None
+        mock_resolve_address.return_value = '10.10.10.1'
+        ctxt = context.SerialConsoleContext()()
+        self.assertEqual(
+            ctxt,
+            {'serial_console_base_url': 'ws://10.10.10.1:6083/',
+             'enable_serial_console': 'false'}
+        )
+        mock_resolve_address.assert_called_with(endpoint_type=context.PUBLIC)
+
+    @mock.patch.object(context, 'format_ipv6_addr')
+    @mock.patch.object(context, 'resolve_address')
+    @mock.patch.object(context, 'config')
+    def test_serial_console_context_enabled(self, mock_config,
+                                            mock_resolve_address,
+                                            mock_format_ipv6_address):
+        mock_config.side_effect = self.test_config.get
+        self.test_config.set('enable-serial-console', True)
+        mock_format_ipv6_address.return_value = None
+        mock_resolve_address.return_value = '10.10.10.1'
+        ctxt = context.SerialConsoleContext()()
+        self.assertEqual(
+            ctxt,
+            {'serial_console_base_url': 'ws://10.10.10.1:6083/',
+             'enable_serial_console': 'true'}
+        )
+        mock_resolve_address.assert_called_with(endpoint_type=context.PUBLIC)

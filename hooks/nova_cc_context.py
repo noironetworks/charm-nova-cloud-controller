@@ -357,6 +357,21 @@ class ConsoleSSLContext(context.OSContextGenerator):
         return ctxt
 
 
+class SerialConsoleContext(context.OSContextGenerator):
+    interfaces = []
+
+    def __call__(self):
+        ip_addr = resolve_address(endpoint_type=PUBLIC)
+        ip_addr = format_ipv6_addr(ip_addr) or ip_addr
+
+        ctxt = {
+            'enable_serial_console':
+                str(config('enable-serial-console')).lower(),
+            'serial_console_base_url': 'ws://{}:6083/'.format(ip_addr)
+        }
+        return ctxt
+
+
 class APIRateLimitingContext(context.OSContextGenerator):
     def __call__(self):
         ctxt = {}

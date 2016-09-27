@@ -1,0 +1,3 @@
+[serial_console]
+enabled = {{ enable_serial_console }}
+base_url = {{ serial_console_base_url }}
