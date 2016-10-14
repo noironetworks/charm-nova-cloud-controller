@@ -215,7 +215,7 @@ class NovaCCUtilsTests(CharmTestCase):
         _exists.return_value = False
         self._resource_map()
         _map = utils.restart_map()
-        self.assertTrue(isinstance(_map, OrderedDict))
+        self.assertIsInstance(_map, OrderedDict)
         self.assertEquals(_map, RESTART_MAP)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
