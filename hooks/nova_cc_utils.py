@@ -99,7 +99,8 @@ from charmhelpers.core.host import (
 from charmhelpers.core.templating import render
 
 from charmhelpers.contrib.network.ip import (
-    is_ipv6
+    is_ipv6,
+    ns_query,
 )
 
 from charmhelpers.core.decorators import (
@@ -745,11 +746,15 @@ def ssh_compute_add(public_key, rid=None, unit=None, user=None):
 
         if not is_ip(private_address):
             hosts.append(get_host_ip(private_address))
-            hosts.append(private_address.split('.')[0])
+            short = private_address.split('.')[0]
+            if ns_query(short):
+                hosts.append(short)
         else:
             hn = get_hostname(private_address)
             hosts.append(hn)
-            hosts.append(hn.split('.')[0])
+            short = hn.split('.')[0]
+            if ns_query(short):
+                hosts.append(short)
 
     for host in list(set(hosts)):
         add_known_host(host, unit, user)
