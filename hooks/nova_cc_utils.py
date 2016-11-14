@@ -769,10 +769,11 @@ def ssh_compute_add(public_key, rid=None, unit=None, user=None):
                 hosts.append(short)
         else:
             hn = get_hostname(private_address)
-            hosts.append(hn)
-            short = hn.split('.')[0]
-            if ns_query(short):
-                hosts.append(short)
+            if hn:
+                hosts.append(hn)
+                short = hn.split('.')[0]
+                if ns_query(short):
+                    hosts.append(short)
 
     for host in list(set(hosts)):
         add_known_host(host, unit, user)
