@@ -424,11 +424,7 @@ def ns_query(address):
     else:
         return None
 
-    try:
-        answers = dns.resolver.query(address, rtype)
-    except dns.resolver.NXDOMAIN as e:
-        return None
-
+    answers = dns.resolver.query(address, rtype)
     if answers:
         return str(answers[0])
     return None

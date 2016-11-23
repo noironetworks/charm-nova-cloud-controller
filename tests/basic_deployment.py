@@ -268,16 +268,14 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         u.log.debug('Checking keystone service catalog...')
         endpoint_vol = {'adminURL': u.valid_url,
                         'region': 'RegionOne',
+                        'id': u.not_null,
                         'publicURL': u.valid_url,
                         'internalURL': u.valid_url}
         endpoint_id = {'adminURL': u.valid_url,
                        'region': 'RegionOne',
+                       'id': u.not_null,
                        'publicURL': u.valid_url,
                        'internalURL': u.valid_url}
-
-        if self._get_openstack_release() >= self.precise_folsom:
-            endpoint_vol['id'] = u.not_null
-            endpoint_id['id'] = u.not_null
 
         if self._get_openstack_release() >= self.trusty_kilo:
             expected = {'compute': [endpoint_vol], 'identity': [endpoint_id]}
@@ -725,11 +723,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         factory = ("nova.api.openstack.compute.limits:RateLimitingMiddleware"
                    ".factory")
 
-        if self._get_openstack_release() >= self.precise_icehouse:
-            expected = {"paste.filter_factory": factory,
-                        "limits": "( POST, '*', .*, 9999, MINUTE );"}
-        else:
-            expected = {"paste.filter_factory": factory}
+        expected = {"paste.filter_factory": factory,
+                    "limits": "( POST, '*', .*, 9999, MINUTE );"}
 
         ret = u.validate_config_data(unit, conf, section, expected)
         if ret:

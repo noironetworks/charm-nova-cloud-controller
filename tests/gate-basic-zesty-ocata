@@ -14,11 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Amulet tests on a basic nova cloud controller git deployment on
-   trusty-icehouse."""
+"""Amulet tests on a basic nova cloud controller deployment on
+   zesty-ocata."""
 
 from basic_deployment import NovaCCBasicDeployment
 
 if __name__ == '__main__':
-    deployment = NovaCCBasicDeployment(series='trusty', git=True)
+    deployment = NovaCCBasicDeployment(series='zesty')
     deployment.run_tests()
