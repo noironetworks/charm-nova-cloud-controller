@@ -206,6 +206,7 @@ NEUTRON_CONF_DIR = "/etc/neutron"
 
 NOVA_CONF = '%s/nova.conf' % NOVA_CONF_DIR
 NOVA_API_PASTE = '%s/api-paste.ini' % NOVA_CONF_DIR
+NOVA_POLICY = '%s/policy.json' % NOVA_CONF_DIR
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
@@ -330,6 +331,9 @@ def resource_map():
                                                    database='nova_api',
                                                    ssl_dir=NOVA_CONF_DIR)
         )
+        resource_map[NOVA_POLICY] = {
+            'services': resolve_services(),
+            'contexts': [nova_cc_context.IdentityServiceContext()]}
 
     if console_attributes('services'):
         resource_map[NOVA_CONF]['services'] += \
