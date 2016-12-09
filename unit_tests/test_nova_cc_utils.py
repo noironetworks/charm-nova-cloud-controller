@@ -62,6 +62,8 @@ TO_PATCH = [
     'local_unit',
     'relation_get',
     'os_application_version_set',
+    'token_cache_pkgs',
+    'enable_memcache',
 ]
 
 SCRIPTRC_ENV_VARS = {
@@ -213,6 +215,7 @@ class NovaCCUtilsTests(CharmTestCase):
                                               _os_release):
         _os_release.return_value = 'icehouse'
         _exists.return_value = False
+        self.enable_memcache.return_value = False
         self._resource_map()
         _map = utils.restart_map()
         self.assertIsInstance(_map, OrderedDict)
@@ -289,6 +292,8 @@ class NovaCCUtilsTests(CharmTestCase):
         git_requested.return_value = False
         self.relation_ids.return_value = []
         self.os_release.return_value = 'icehouse'
+        self.token_cache_pkgs.return_value = []
+        self.enable_memcache.return_value = False
         pkgs = utils.determine_packages()
         ex = list(set(utils.BASE_PACKAGES + utils.BASE_SERVICES))
         self.assertEquals(ex, pkgs)

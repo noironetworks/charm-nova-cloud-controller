@@ -58,6 +58,8 @@ from charmhelpers.contrib.openstack.utils import (
     pause_unit,
     resume_unit,
     os_application_version_set,
+    token_cache_pkgs,
+    enable_memcache,
 )
 
 from charmhelpers.fetch import (
@@ -210,6 +212,7 @@ NOVA_POLICY = '%s/policy.json' % NOVA_CONF_DIR
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
+MEMCACHED_CONF = '/etc/memcached.conf'
 
 
 def resolve_services():
@@ -256,7 +259,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.CloudComputeContext(),
                      context.InternalEndpointContext(),
                      nova_cc_context.NeutronAPIContext(),
-                     nova_cc_context.SerialConsoleContext()],
+                     nova_cc_context.SerialConsoleContext(),
+                     context.MemcacheContext()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in resolve_services() if 'api' in s],
@@ -325,7 +329,8 @@ def resource_map():
     resource_map[NOVA_CONF]['contexts'].append(
         nova_cc_context.NeutronCCContext())
 
-    if os_release('nova-common') >= 'mitaka':
+    release = os_release('nova-common')
+    if release >= 'mitaka':
         resource_map[NOVA_CONF]['contexts'].append(
             nova_cc_context.NovaAPISharedDBContext(relation_prefix='novaapi',
                                                    database='nova_api',
@@ -339,8 +344,7 @@ def resource_map():
         resource_map[NOVA_CONF]['services'] += \
             console_attributes('services')
 
-    if (config('enable-serial-console') and
-            os_release('nova-common') >= 'juno'):
+    if (config('enable-serial-console') and release >= 'juno'):
         resource_map[NOVA_CONF]['services'] += \
             SERIAL_CONSOLE['services']
 
@@ -354,6 +358,10 @@ def resource_map():
             if s not in resource_map[NOVA_CONF]['services']:
                 resource_map[NOVA_CONF]['services'].append(s)
 
+    if enable_memcache(release=release):
+        resource_map[MEMCACHED_CONF] = {
+            'contexts': [context.MemcacheContext()],
+            'services': ['memcached']}
     return resource_map
 
 
@@ -436,6 +444,7 @@ def determine_packages():
             if p in packages:
                 packages.remove(p)
 
+    packages.extend(token_cache_pkgs(source=config('openstack-origin')))
     return list(set(packages))
 
 

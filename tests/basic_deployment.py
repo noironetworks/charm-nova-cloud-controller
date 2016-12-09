@@ -358,6 +358,12 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = 'S3 endpoint: {}'.format(ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
+    def test_110_memcache(self):
+        u.validate_memcache(self.nova_cc_sentry,
+                            '/etc/nova/nova.conf',
+                            self._get_openstack_release(),
+                            earliest_release=self.trusty_mitaka)
+
     def test_200_nova_cc_shared_db_relation(self):
         """Verify the nova-cc to mysql shared-db relation data"""
         u.log.debug('Checking n-c-c:mysql db relation data...')
