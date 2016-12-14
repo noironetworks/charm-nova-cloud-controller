@@ -121,6 +121,35 @@ DPKG_OPTS = [
     '--option', 'Dpkg::Options::=--force-confdef',
 ]
 
+GPG_PPA_CLOUD_ARCHIVE = """-----BEGIN PGP PUBLIC KEY BLOCK-----
+Version: SKS 1.1.6
+Comment: Hostname: keyserver.ubuntu.com
+
+mI0EUCEyTAEEAMuUxyfiegCCwn4J/c0nw5PUTSJdn5FqiUTq6iMfij65xf1vl0g/Mxqw0gfg
+AJIsCDvO9N9dloLAwF6FUBMg5My7WyhRPTAKF505TKJboyX3Pp4J1fU1LV8QFVOp87vUh1Rz
+B6GU7cSglhnbL85gmbJTllkzkb3h4Yw7W+edjcQ/ABEBAAG0K0xhdW5jaHBhZCBQUEEgZm9y
+IFVidW50dSBDbG91ZCBBcmNoaXZlIFRlYW2IuAQTAQIAIgUCUCEyTAIbAwYLCQgHAwIGFQgC
+CQoLBBYCAwECHgECF4AACgkQimhEop9oEE7kJAP/eTBgq3Mhbvo0d8elMOuqZx3nmU7gSyPh
+ep0zYIRZ5TJWl/7PRtvp0CJA6N6ZywYTQ/4ANHhpibcHZkh8K0AzUvsGXnJRSFoJeqyDbD91
+EhoO+4ZfHs2HvRBQEDZILMa2OyuB497E5Mmyua3HDEOrG2cVLllsUZzpTFCx8NgeMHk=
+=jLBm
+-----END PGP PUBLIC KEY BLOCK-----
+"""
+
+# ppa:ubuntu-cloud-archive/newton-staging
+OS_ORIGIN_NEWTON_STAGING = """deb http://ppa.launchpad.net/\
+ubuntu-cloud-archive/newton-staging/ubuntu xenial main
+|
+%s
+""" % GPG_PPA_CLOUD_ARCHIVE
+
+# ppa:ubuntu-cloud-archive/liberty-staging
+OS_ORIGIN_LIBERTY_STAGING = """deb http://ppa.launchpad.net/\
+ubuntu-cloud-archive/liberty-staging/ubuntu trusty main
+|
+%s
+""" % GPG_PPA_CLOUD_ARCHIVE
+
 openstack_origin_git = \
     """repositories:
          - {name: requirements,
@@ -341,21 +370,55 @@ class NovaCCUtilsTests(CharmTestCase):
         utils.save_script_rc()
         self._save_script_rc.called_with(**SCRIPTRC_ENV_VARS)
 
-    def test_get_step_upgrade_source_target_liberty(self):
-        self.get_os_codename_install_source.return_value = 'kilo'
+    @patch('charmhelpers.contrib.openstack.utils.lsb_release')
+    def test_get_step_upgrade_source_target_liberty(self, lsb_release):
+        self.lsb_release.return_value = {'DISTRIB_CODENAME': 'trusty'}
+        lsb_release.return_value = {'DISTRIB_CODENAME': 'trusty'}
+        self.get_os_codename_install_source.side_effect = self.originals[
+            'get_os_codename_install_source']
+
+        # icehouse -> liberty
         self.os_release.return_value = 'icehouse'
         self.assertEquals(
             utils.get_step_upgrade_source('cloud:trusty-liberty'),
             'cloud:trusty-kilo')
+
+        # juno -> liberty
         self.os_release.return_value = 'juno'
         self.assertEquals(
             utils.get_step_upgrade_source('cloud:trusty-liberty'),
             'cloud:trusty-kilo')
+
+        # kilo -> liberty
         self.os_release.return_value = 'kilo'
         with patch_open() as (_open, _file):
             self.assertEquals(
                 utils.get_step_upgrade_source('cloud:trusty-liberty'),
                 None)
+
+    @patch('charmhelpers.contrib.openstack.utils.lsb_release')
+    def test_get_setup_upgrade_source_target_newton(self, lsb_release):
+        # mitaka -> newton
+        self.lsb_release.return_value = {'DISTRIB_CODENAME': 'xenial'}
+        lsb_release.return_value = {'DISTRIB_CODENAME': 'xenial'}
+        self.os_release.return_value = 'mitaka'
+        self.get_os_codename_install_source.side_effect = self.originals[
+            'get_os_codename_install_source']
+
+        step_src = utils.get_step_upgrade_source(OS_ORIGIN_NEWTON_STAGING)
+        self.assertEqual(step_src, None)
+
+    @patch('charmhelpers.contrib.openstack.utils.lsb_release')
+    def test_get_setup_upgrade_source_target_liberty_with_mirror(self,
+                                                                 lsb_release):
+        # from icehouse to liberty using a raw deb repo
+        self.lsb_release.return_value = {'DISTRIB_CODENAME': 'trusty'}
+        lsb_release.return_value = {'DISTRIB_CODENAME': 'trusty'}
+        self.get_os_codename_install_source.side_effect = self.originals[
+            'get_os_codename_install_source']
+        self.os_release.return_value = 'icehouse'
+        step_src = utils.get_step_upgrade_source(OS_ORIGIN_LIBERTY_STAGING)
+        self.assertEqual(step_src, 'cloud:trusty-kilo')
 
     @patch.object(utils, 'remove_known_host')
     @patch.object(utils, 'ssh_known_host_key')

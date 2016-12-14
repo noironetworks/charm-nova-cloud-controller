@@ -63,6 +63,7 @@ class CharmTestCase(unittest.TestCase):
 
     def setUp(self, obj, patches):
         super(CharmTestCase, self).setUp()
+        self.originals = {}
         self.patches = patches
         self.obj = obj
         self.test_config = TestConfig()
@@ -70,6 +71,7 @@ class CharmTestCase(unittest.TestCase):
         self.patch_all()
 
     def patch(self, method):
+        self.originals[method] = getattr(self.obj, method)
         _m = patch.object(self.obj, method)
         mock = _m.start()
         self.addCleanup(_m.stop)

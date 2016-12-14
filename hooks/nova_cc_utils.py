@@ -473,14 +473,16 @@ def get_step_upgrade_source(new_src):
         # NOTE: cur_pocket == * means all upgrades to target_src must step
         #                     through step_src if step_src is higher than
         #                     current release
-        'cloud:precise-icehouse':
-        ('precise-updates/grizzly', 'cloud:precise-havana'),
-        'cloud:precise-icehouse/proposed':
-        ('precise-proposed/grizzly', 'cloud:precise-havana/proposed'),
-        'cloud:trusty-liberty': ('*', 'cloud:trusty-kilo'),
+        'precise-icehouse': ('precise-updates/grizzly',
+                             'cloud:precise-havana'),
+        'precise-icehouse/proposed': ('precise-proposed/grizzly',
+                                      'cloud:precise-havana/proposed'),
+        'trusty-liberty': ('*', 'cloud:trusty-kilo'),
     }
     try:
-        cur_pocket, step_src = sources[new_src]
+        os_codename = get_os_codename_install_source(new_src)
+        ubuntu_series = lsb_release()['DISTRIB_CODENAME'].lower()
+        cur_pocket, step_src = sources['%s-%s' % (ubuntu_series, os_codename)]
         current_src = os_release('nova-common')
         step_src_codename = get_os_codename_install_source(step_src)
         if cur_pocket == '*' and step_src_codename > current_src:
@@ -490,13 +492,23 @@ def get_step_upgrade_source(new_src):
 
     configure_installation_source(new_src)
 
-    with open('/etc/apt/sources.list.d/cloud-archive.list', 'r') as f:
-        line = f.readline()
-        for target_src, (cur_pocket, step_src) in sources.items():
-            if target_src != new_src:
-                continue
-            if cur_pocket in line:
-                return step_src
+    # charmhelpers.contrib.openstack.utils.configure_installation_source()
+    # configures the repository in juju_deb.list, while
+    # charmhelpers.fetch.add_sources() uses cloud-archive.list, so both
+    # files need to read looking for the currently configured repo.
+    for fname in ['cloud-archive.list', 'juju_deb.list']:
+        fpath = os.path.join('/etc/apt/sources.list.d/', fname)
+        if not os.path.isfile(fpath):
+            log('Missing %s skipping it' % fpath, level=DEBUG)
+            continue
+
+        with open(fpath, 'r') as f:
+            line = f.readline()
+            for target_src, (cur_pocket, step_src) in sources.items():
+                if target_src != new_src:
+                    continue
+                if cur_pocket in line:
+                    return step_src
 
     return None
 
@@ -610,8 +622,6 @@ def database_setup(prefix):
 
 def do_openstack_upgrade(configs):
     new_src = config('openstack-origin')
-    if new_src[:6] != 'cloud:':
-        raise ValueError("Unable to perform upgrade to %s" % new_src)
 
     step_src = get_step_upgrade_source(new_src)
     if step_src is not None:
