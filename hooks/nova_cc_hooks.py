@@ -272,6 +272,8 @@ def config_changed():
         if filtered:
             apt_install(filtered, fatal=True)
 
+    for rid in relation_ids('quantum-network-service'):
+        quantum_joined(rid=rid)
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
     for rid in relation_ids('zeromq-configuration'):

@@ -206,6 +206,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.git_install.assert_called_with(projects_yaml)
         self.assertFalse(self.do_openstack_upgrade.called)
 
+    @patch.object(hooks, 'quantum_joined')
     @patch.object(hooks, 'determine_packages')
     @patch.object(utils, 'service_resume')
     @patch('charmhelpers.contrib.openstack.ip.unit_get')
@@ -225,7 +226,8 @@ class NovaCCHooksTests(CharmTestCase):
                                          utils_config, mock_relids,
                                          mock_unit_get,
                                          mock_service_resume,
-                                         mock_determine_packages):
+                                         mock_determine_packages,
+                                         mock_quantum_joined):
         mock_determine_packages.return_value = []
         self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = True
@@ -244,6 +246,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(db_joined.called)
         self.assertTrue(self.save_script_rc.called)
         mock_filter_packages.assert_called_with([])
+        self.assertTrue(mock_quantum_joined.called)
 
     @patch.object(utils, 'service_resume')
     @patch.object(hooks, 'filter_installed_packages')
