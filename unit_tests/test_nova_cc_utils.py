@@ -102,8 +102,8 @@ BASE_ENDPOINTS = {
 }
 
 # Restart map should be constructed such that API services restart
-# before frontends (haproxy/apaceh) to avoid port conflicts.
-RESTART_MAP = OrderedDict([
+# before frontends (haproxy/apache) to avoid port conflicts.
+RESTART_MAP_ICEHOUSE = OrderedDict([
     ('/etc/nova/nova.conf', [
         'nova-api-ec2', 'nova-api-os-compute', 'nova-objectstore',
         'nova-cert', 'nova-scheduler', 'nova-conductor'
@@ -113,6 +113,18 @@ RESTART_MAP = OrderedDict([
     ]),
     ('/etc/haproxy/haproxy.cfg', ['haproxy']),
     ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
+])
+RESTART_MAP_OCATA = OrderedDict([
+    ('/etc/nova/nova.conf', [
+        'nova-api-ec2', 'nova-api-os-compute', 'nova-objectstore',
+        'nova-cert', 'nova-scheduler', 'nova-conductor', 'apache2'
+    ]),
+    ('/etc/nova/api-paste.ini', [
+        'nova-api-ec2', 'nova-api-os-compute', 'apache2'
+    ]),
+    ('/etc/haproxy/haproxy.cfg', ['haproxy']),
+    ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
+    ('/etc/apache2/sites-enabled/wsgi-openstack-api.conf', ['apache2']),
 ])
 
 
@@ -240,15 +252,30 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('charmhelpers.contrib.openstack.neutron.os_release')
     @patch('os.path.exists')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    def test_restart_map_api_before_frontends(self, subcontext, _exists,
-                                              _os_release):
+    def test_restart_map_api_before_frontends_icehouse(self, subcontext,
+                                                       _exists, _os_release):
         _os_release.return_value = 'icehouse'
+        self.os_release.return_value = 'icehouse'
         _exists.return_value = False
         self.enable_memcache.return_value = False
         self._resource_map()
         _map = utils.restart_map()
         self.assertIsInstance(_map, OrderedDict)
-        self.assertEquals(_map, RESTART_MAP)
+        self.assertEquals(_map, RESTART_MAP_ICEHOUSE)
+
+    @patch('charmhelpers.contrib.openstack.neutron.os_release')
+    @patch('os.path.exists')
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_restart_map_api_before_frontends_ocata(self, subcontext,
+                                                    _exists, _os_release):
+        _os_release.return_value = 'ocata'
+        self.os_release.return_value = 'ocata'
+        _exists.return_value = False
+        self.enable_memcache.return_value = False
+        self._resource_map()
+        _map = utils.restart_map()
+        self.assertIsInstance(_map, OrderedDict)
+        self.assertEquals(_map, RESTART_MAP_OCATA)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     @patch('os.path.exists')
@@ -317,10 +344,24 @@ class NovaCCUtilsTests(CharmTestCase):
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     @patch.object(utils, 'git_install_requested')
-    def test_determine_packages_base(self, git_requested, subcontext):
+    def test_determine_packages_base_icehouse(self, git_requested, subcontext):
         git_requested.return_value = False
         self.relation_ids.return_value = []
         self.os_release.return_value = 'icehouse'
+        self.token_cache_pkgs.return_value = []
+        self.enable_memcache.return_value = False
+        pkgs = utils.determine_packages()
+        ex = list(set(utils.BASE_PACKAGES + utils.BASE_SERVICES))
+        # nova-placement-api is purposely dropped unless it's ocata
+        ex.remove('nova-placement-api')
+        self.assertEquals(ex, pkgs)
+
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    @patch.object(utils, 'git_install_requested')
+    def test_determine_packages_base_ocata(self, git_requested, subcontext):
+        git_requested.return_value = False
+        self.relation_ids.return_value = []
+        self.os_release.return_value = 'ocata'
         self.token_cache_pkgs.return_value = []
         self.enable_memcache.return_value = False
         pkgs = utils.determine_packages()
@@ -715,6 +756,7 @@ class NovaCCUtilsTests(CharmTestCase):
              'nova-cert': ['identity-service', 'amqp', 'shared-db'],
              'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
              'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
+             'nova-placement-api': ['identity-service', 'amqp', 'shared-db'],
              'nova-scheduler': ['identity-service', 'amqp', 'shared-db']},
             utils.guard_map()
         )
@@ -729,6 +771,7 @@ class NovaCCUtilsTests(CharmTestCase):
              'nova-cert': ['identity-service', 'amqp', 'shared-db'],
              'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
              'nova-objectstore': ['identity-service', 'amqp', 'shared-db'],
+             'nova-placement-api': ['identity-service', 'amqp', 'shared-db'],
              'nova-scheduler': ['identity-service', 'amqp', 'shared-db'], },
             utils.guard_map()
         )
@@ -738,6 +781,7 @@ class NovaCCUtilsTests(CharmTestCase):
             {'nova-api-os-compute': ['identity-service', 'amqp', 'shared-db'],
              'nova-cert': ['identity-service', 'amqp', 'shared-db'],
              'nova-conductor': ['identity-service', 'amqp', 'shared-db'],
+             'nova-placement-api': ['identity-service', 'amqp', 'shared-db'],
              'nova-scheduler': ['identity-service', 'amqp', 'shared-db'], },
             utils.guard_map()
         )
@@ -753,6 +797,8 @@ class NovaCCUtilsTests(CharmTestCase):
              'nova-conductor': ['identity-service', 'amqp', 'pgsql-nova-db'],
              'nova-objectstore': ['identity-service', 'amqp',
                                   'pgsql-nova-db'],
+             'nova-placement-api': ['identity-service', 'amqp',
+                                    'pgsql-nova-db'],
              'nova-scheduler': ['identity-service', 'amqp',
                                 'pgsql-nova-db'], },
             utils.guard_map()

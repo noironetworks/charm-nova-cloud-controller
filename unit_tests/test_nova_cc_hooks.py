@@ -68,6 +68,7 @@ TO_PATCH = [
     'relation_get',
     'relation_set',
     'relation_ids',
+    'placement_api_enabled',
     'ssh_compute_add',
     'ssh_known_hosts_lines',
     'ssh_authorized_keys_lines',

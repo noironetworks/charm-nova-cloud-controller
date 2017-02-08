@@ -156,6 +156,8 @@ class HAProxyContext(context.HAProxyContext):
                                      singlenode_mode=True)
         s3_api = determine_api_port(api_port('nova-objectstore'),
                                     singlenode_mode=True)
+        placement_api = determine_api_port(api_port('nova-placement-api'),
+                                           singlenode_mode=True)
         # Apache ports
         a_compute_api = determine_apache_port(api_port('nova-api-os-compute'),
                                               singlenode_mode=True)
@@ -163,11 +165,14 @@ class HAProxyContext(context.HAProxyContext):
                                           singlenode_mode=True)
         a_s3_api = determine_apache_port(api_port('nova-objectstore'),
                                          singlenode_mode=True)
+        a_placement_api = determine_apache_port(api_port('nova-placement-api'),
+                                                singlenode_mode=True)
         # to be set in nova.conf accordingly.
         listen_ports = {
             'osapi_compute_listen_port': compute_api,
             'ec2_listen_port': ec2_api,
             's3_listen_port': s3_api,
+            'placement_listen_port': placement_api,
         }
 
         port_mapping = {
@@ -177,12 +182,15 @@ class HAProxyContext(context.HAProxyContext):
                 api_port('nova-api-ec2'), a_ec2_api],
             'nova-objectstore': [
                 api_port('nova-objectstore'), a_s3_api],
+            'nova-placement-api': [
+                api_port('nova-placement-api'), a_placement_api],
         }
 
         # for haproxy.conf
         ctxt['service_ports'] = port_mapping
         # for nova.conf
         ctxt['listen_ports'] = listen_ports
+        ctxt['port'] = placement_api
         return ctxt
 
 

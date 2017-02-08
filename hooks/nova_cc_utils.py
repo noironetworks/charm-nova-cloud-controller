@@ -130,6 +130,7 @@ REQUIRED_INTERFACES = {
 BASE_PACKAGES = [
     'apache2',
     'haproxy',
+    'libapache2-mod-wsgi',
     'python-keystoneclient',
     'python-mysqldb',
     'python-psycopg2',
@@ -185,6 +186,7 @@ GIT_PACKAGE_BLACKLIST = [
 BASE_SERVICES = [
     'nova-api-ec2',
     'nova-api-os-compute',
+    'nova-placement-api',
     'nova-objectstore',
     'nova-cert',
     'nova-scheduler',
@@ -200,6 +202,7 @@ API_PORTS = {
     'nova-api-ec2': 8773,
     'nova-api-os-compute': 8774,
     'nova-api-os-volume': 8776,
+    'nova-placement-api': 8778,
     'nova-objectstore': 3333,
 }
 
@@ -212,6 +215,10 @@ HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
 MEMCACHED_CONF = '/etc/memcached.conf'
+WSGI_NOVA_PLACEMENT_API_CONF = \
+    '/etc/apache2/sites-enabled/wsgi-openstack-api.conf'
+PACKAGE_NOVA_PLACEMENT_API_CONF = \
+    '/etc/apache2/sites-enabled/nova-placement-api.conf'
 
 
 def resolve_services():
@@ -313,7 +320,7 @@ SERIAL_CONSOLE = {
 }
 
 
-def resource_map():
+def resource_map(return_services=True):
     '''
     Dynamically generate a map of resources that will be managed for a single
     hook execution.
@@ -358,6 +365,27 @@ def resource_map():
         resource_map[MEMCACHED_CONF] = {
             'contexts': [context.MemcacheContext()],
             'services': ['memcached']}
+
+    if return_services and placement_api_enabled():
+        for cfile in resource_map:
+            svcs = resource_map[cfile]['services']
+            if 'nova-placement-api' in svcs:
+                svcs.remove('nova-placement-api')
+                if 'apache2' not in svcs:
+                    svcs.append('apache2')
+        wsgi_script = "/usr/bin/nova-placement-api"
+        resource_map[WSGI_NOVA_PLACEMENT_API_CONF] = {
+            'contexts': [context.WSGIWorkerConfigContext(name="nova",
+                                                         script=wsgi_script),
+                         nova_cc_context.HAProxyContext()],
+            'services': ['apache2']
+        }
+    elif not placement_api_enabled():
+        for cfile in resource_map:
+            svcs = resource_map[cfile]['services']
+            if 'nova-placement-api' in svcs:
+                svcs.remove('nova-placement-api')
+
     return resource_map
 
 
@@ -424,7 +452,7 @@ def console_attributes(attr, proto=None):
 def determine_packages():
     # currently all packages match service names
     packages = deepcopy(BASE_PACKAGES)
-    for v in resource_map().values():
+    for v in resource_map(return_services=False).values():
         packages.extend(v['services'])
     if console_attributes('packages'):
         packages.extend(console_attributes('packages'))
@@ -866,6 +894,14 @@ def determine_endpoints(public_url, internal_url, admin_url):
     s3_internal_url = '%s:%s' % (internal_url, api_port('nova-objectstore'))
     s3_admin_url = '%s:%s' % (admin_url, api_port('nova-objectstore'))
 
+    if os_rel >= 'ocata':
+        placement_public_url = '%s:%s' % (
+            public_url, api_port('nova-placement-api'))
+        placement_internal_url = '%s:%s' % (
+            internal_url, api_port('nova-placement-api'))
+        placement_admin_url = '%s:%s' % (
+            admin_url, api_port('nova-placement-api'))
+
     # the base endpoints
     endpoints = {
         'nova_service': 'nova',
@@ -900,6 +936,15 @@ def determine_endpoints(public_url, internal_url, admin_url):
             's3_public_url': None,
             's3_admin_url': None,
             's3_internal_url': None,
+        })
+
+    if os_rel >= 'ocata':
+        endpoints.update({
+            'placement_service': 'placement',
+            'placement_region': region,
+            'placement_public_url': placement_public_url,
+            'placement_admin_url': placement_admin_url,
+            'placement_internal_url': placement_internal_url,
         })
 
     return endpoints
@@ -1422,3 +1467,16 @@ def serial_console_settings():
     for use in cloud-compute relation
     '''
     return nova_cc_context.SerialConsoleContext()()
+
+
+def placement_api_enabled():
+    """Return true if nova-placement-api is enabled in this release"""
+    return os_release('nova-common') >= 'ocata'
+
+
+def disable_package_apache_site():
+    """Ensure that the package-provided apache configuration is disabled to
+    prevent it from conflicting with the charm-provided version.
+    """
+    if os.path.exists(PACKAGE_NOVA_PLACEMENT_API_CONF):
+        subprocess.check_call(['a2dissite', 'nova-placement-api'])

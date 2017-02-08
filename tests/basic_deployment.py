@@ -796,6 +796,10 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             del services['nova-api-ec2']
             del services['nova-objectstore']
 
+        if self._get_openstack_release() >= self.xenial_ocata:
+            # nova-placement-api is run under apache2 with mod_wsgi
+            services['apache2'] = conf_file
+
         # Expected default and alternate values
         flags_default = 'quota_cores=20,quota_instances=40,quota_ram=102400'
         flags_alt = 'quota_cores=10,quota_instances=20,quota_ram=51200'

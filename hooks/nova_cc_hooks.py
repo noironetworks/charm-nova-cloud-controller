@@ -87,6 +87,7 @@ from nova_cc_utils import (
     determine_endpoints,
     determine_packages,
     determine_ports,
+    disable_package_apache_site,
     disable_services,
     do_openstack_upgrade,
     enable_services,
@@ -94,6 +95,7 @@ from nova_cc_utils import (
     is_api_ready,
     keystone_ca_cert_b64,
     migrate_nova_database,
+    placement_api_enabled,
     save_script_rc,
     services,
     ssh_compute_add,
@@ -208,6 +210,9 @@ def install():
     status_set('maintenance', 'Installing apt packages')
     apt_update()
     apt_install(determine_packages(), fatal=True)
+
+    if placement_api_enabled():
+        disable_package_apache_site()
 
     git_install(config('openstack-origin-git'))
 
