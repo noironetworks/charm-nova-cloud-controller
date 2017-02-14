@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import OrderedDict
-from mock import patch, MagicMock, call
+from mock import patch, MagicMock, call, ANY
 
 from test_utils import (
     CharmTestCase,
@@ -38,7 +38,7 @@ TO_PATCH = [
     'config',
     'configure_installation_source',
     'disable_policy_rcd',
-    'is_elected_leader',
+    'is_leader',
     'lsb_release',
     'enable_policy_rcd',
     'enable_services',
@@ -64,6 +64,7 @@ TO_PATCH = [
     'os_application_version_set',
     'token_cache_pkgs',
     'enable_memcache',
+    'is_relation_made',
 ]
 
 SCRIPTRC_ENV_VARS = {
@@ -618,33 +619,55 @@ class NovaCCUtilsTests(CharmTestCase):
         _known_hosts.assert_called_with('bar', None)
 
     @patch('subprocess.check_output')
-    def test_migrate_nova_database(self, check_output):
+    def test_migrate_nova_databases(self, check_output):
         "Migrate database with nova-manage"
         self.relation_ids.return_value = []
-        utils.migrate_nova_database()
+        utils.migrate_nova_databases()
         check_output.assert_called_with(['nova-manage', 'db', 'sync'])
         self.assertTrue(self.enable_services.called)
         self.cmd_all_services.assert_called_with('start')
 
     @patch('subprocess.check_output')
-    def test_migrate_nova_database_cluster(self, check_output):
+    def test_migrate_nova_databases_cluster(self, check_output):
         "Migrate database with nova-manage in a clustered env"
         self.relation_ids.return_value = ['cluster:1']
-        utils.migrate_nova_database()
+        utils.migrate_nova_databases()
         check_output.assert_called_with(['nova-manage', 'db', 'sync'])
         self.peer_store.assert_called_with('dbsync_state', 'complete')
         self.assertTrue(self.enable_services.called)
         self.cmd_all_services.assert_called_with('start')
 
     @patch('subprocess.check_output')
-    def test_migrate_nova_database_mitaka(self, check_output):
+    def test_migrate_nova_databases_mitaka(self, check_output):
         "Migrate database with nova-manage in a clustered env"
         self.relation_ids.return_value = ['cluster:1']
         self.os_release.return_value = 'mitaka'
-        utils.migrate_nova_database()
+        utils.migrate_nova_databases()
         check_output.assert_has_calls([
-            call(['nova-manage', 'db', 'sync']),
             call(['nova-manage', 'api_db', 'sync']),
+            call(['nova-manage', 'db', 'sync']),
+        ])
+        self.peer_store.assert_called_with('dbsync_state', 'complete')
+        self.assertTrue(self.enable_services.called)
+        self.cmd_all_services.assert_called_with('start')
+
+    @patch('subprocess.call')
+    @patch('subprocess.check_output')
+    def test_migrate_nova_databases_ocata(self, check_output, mock_call):
+        "Migrate database with nova-manage in a clustered env"
+        self.is_relation_made.return_value = True
+        self.relation_ids.return_value = ['cluster:1']
+        self.os_release.return_value = 'ocata'
+        utils.migrate_nova_databases()
+        mock_call.assert_has_calls([
+            call(['nova-manage', 'cell_v2', 'create_cell', '--name', 'cell1']),
+        ])
+        check_output.assert_has_calls([
+            call(['nova-manage', 'api_db', 'sync']),
+            call(['nova-manage', 'cell_v2', 'map_cell0']),
+            call(['nova-manage', 'db', 'sync']),
+            call(['nova-manage', 'cell_v2', 'list_cells']),
+            ANY,
         ])
         self.peer_store.assert_called_with('dbsync_state', 'complete')
         self.assertTrue(self.enable_services.called)
@@ -657,17 +680,17 @@ class NovaCCUtilsTests(CharmTestCase):
             ['nova-manage', 'db', 'migrate_flavor_data'])
 
     @patch.object(utils, 'get_step_upgrade_source')
-    @patch.object(utils, 'migrate_nova_database')
+    @patch.object(utils, 'migrate_nova_databases')
     @patch.object(utils, 'determine_packages')
     def test_upgrade_icehouse_juno(self, determine_packages,
-                                   migrate_nova_database,
+                                   migrate_nova_databases,
                                    get_step_upgrade_source):
         "Simulate a call to do_openstack_upgrade() for icehouse->juno"
         self.test_config.set('openstack-origin', 'cloud:trusty-juno')
         get_step_upgrade_source.return_value = None
         self.os_release.return_value = 'icehouse'
         self.get_os_codename_install_source.return_value = 'juno'
-        self.is_elected_leader.return_value = True
+        self.is_leader.return_value = True
         self.relation_ids.return_value = []
         utils.do_openstack_upgrade(self.register_configs())
         self.apt_update.assert_called_with(fatal=True)
@@ -675,20 +698,20 @@ class NovaCCUtilsTests(CharmTestCase):
                                             dist=True)
         self.apt_install.assert_called_with(determine_packages(), fatal=True)
         self.register_configs.assert_called_with(release='juno')
-        self.assertTrue(migrate_nova_database.call_count, 1)
+        self.assertTrue(migrate_nova_databases.call_count, 1)
 
     @patch.object(utils, 'get_step_upgrade_source')
-    @patch.object(utils, 'migrate_nova_database')
+    @patch.object(utils, 'migrate_nova_databases')
     @patch.object(utils, 'determine_packages')
     def test_upgrade_juno_kilo(self, determine_packages,
-                               migrate_nova_database,
+                               migrate_nova_databases,
                                get_step_upgrade_source):
         "Simulate a call to do_openstack_upgrade() for juno->kilo"
         self.test_config.set('openstack-origin', 'cloud:trusty-kilo')
         get_step_upgrade_source.return_value = None
         self.os_release.return_value = 'juno'
         self.get_os_codename_install_source.return_value = 'kilo'
-        self.is_elected_leader.return_value = True
+        self.is_leader.return_value = True
         self.relation_ids.return_value = []
         utils.do_openstack_upgrade(self.register_configs())
         self.apt_update.assert_called_with(fatal=True)
@@ -696,14 +719,14 @@ class NovaCCUtilsTests(CharmTestCase):
                                             dist=True)
         self.apt_install.assert_called_with(determine_packages(), fatal=True)
         self.register_configs.assert_called_with(release='kilo')
-        self.assertTrue(migrate_nova_database.call_count, 1)
+        self.assertTrue(migrate_nova_databases.call_count, 1)
 
     @patch.object(utils, 'get_step_upgrade_source')
     @patch.object(utils, 'migrate_nova_flavors')
-    @patch.object(utils, 'migrate_nova_database')
+    @patch.object(utils, 'migrate_nova_databases')
     @patch.object(utils, 'determine_packages')
     def test_upgrade_kilo_liberty(self, determine_packages,
-                                  migrate_nova_database,
+                                  migrate_nova_databases,
                                   migrate_nova_flavors,
                                   get_step_upgrade_source):
         "Simulate a call to do_openstack_upgrade() for kilo->liberty"
@@ -711,7 +734,7 @@ class NovaCCUtilsTests(CharmTestCase):
         get_step_upgrade_source.return_value = None
         self.os_release.return_value = 'kilo'
         self.get_os_codename_install_source.return_value = 'liberty'
-        self.is_elected_leader.return_value = True
+        self.is_leader.return_value = True
         self.relation_ids.return_value = []
         utils.do_openstack_upgrade(self.register_configs())
         self.apt_update.assert_called_with(fatal=True)
@@ -720,14 +743,14 @@ class NovaCCUtilsTests(CharmTestCase):
         self.apt_install.assert_called_with(determine_packages(), fatal=True)
         self.register_configs.assert_called_with(release='liberty')
         self.assertTrue(migrate_nova_flavors.call_count, 1)
-        self.assertTrue(migrate_nova_database.call_count, 1)
+        self.assertTrue(migrate_nova_databases.call_count, 1)
 
     @patch.object(utils, 'database_setup')
     @patch.object(utils, 'get_step_upgrade_source')
-    @patch.object(utils, 'migrate_nova_database')
+    @patch.object(utils, 'migrate_nova_databases')
     @patch.object(utils, 'determine_packages')
     def test_upgrade_liberty_mitaka(self, determine_packages,
-                                    migrate_nova_database,
+                                    migrate_nova_databases,
                                     get_step_upgrade_source,
                                     database_setup):
         "Simulate a call to do_openstack_upgrade() for liberty->mitaka"
@@ -735,7 +758,7 @@ class NovaCCUtilsTests(CharmTestCase):
         get_step_upgrade_source.return_value = None
         self.os_release.return_value = 'liberty'
         self.get_os_codename_install_source.return_value = 'mitaka'
-        self.is_elected_leader.return_value = True
+        self.is_leader.return_value = True
         self.relation_ids.return_value = []
         database_setup.return_value = False
         utils.do_openstack_upgrade(self.register_configs())
@@ -744,7 +767,7 @@ class NovaCCUtilsTests(CharmTestCase):
                                             dist=True)
         self.apt_install.assert_called_with(determine_packages(), fatal=True)
         self.register_configs.assert_called_with(release='mitaka')
-        self.assertFalse(migrate_nova_database.called)
+        self.assertFalse(migrate_nova_databases.called)
         database_setup.assert_called_with(prefix='novaapi')
 
     def test_guard_map_nova(self):

@@ -24,7 +24,6 @@ from copy import deepcopy
 from charmhelpers.contrib.openstack import context, templating
 
 from charmhelpers.contrib.hahelpers.cluster import (
-    is_elected_leader,
     get_hacluster_config,
 )
 
@@ -73,6 +72,8 @@ from charmhelpers.fetch import (
 from charmhelpers.core.hookenv import (
     charm_dir,
     config,
+    is_leader,
+    is_relation_made,
     log,
     relation_get,
     relation_ids,
@@ -584,7 +585,7 @@ def _do_openstack_upgrade(new_src):
     # All upgrades to Liberty are forced to step through Kilo. Liberty does
     # not have the migrate_flavor_data option (Bug #1511466) available so it
     # must be done pre-upgrade
-    if os_release('nova-common') == 'kilo' and is_elected_leader(CLUSTER_RES):
+    if os_release('nova-common') == 'kilo' and is_leader():
         migrate_nova_flavors()
     new_os_rel = get_os_codename_install_source(new_src)
     log('Performing OpenStack upgrade to %s.' % (new_os_rel))
@@ -611,16 +612,24 @@ def _do_openstack_upgrade(new_src):
     if new_os_rel >= 'mitaka' and not database_setup(prefix='novaapi'):
         # NOTE: Defer service restarts and database migrations for now
         #       as nova_api database is not yet created
-        if (relation_ids('cluster') and
-                is_elected_leader(CLUSTER_RES)):
+        if (relation_ids('cluster') and is_leader()):
             # NOTE: reset dbsync state so that migration will complete
             #       when the nova_api database is setup.
             peer_store('dbsync_state', None)
         return configs
 
-    if is_elected_leader(CLUSTER_RES):
+    if new_os_rel >= 'ocata' and not database_setup(prefix='novacell0'):
+        # NOTE: Defer service restarts and database migrations for now
+        #       as nova_cell0 database is not yet created
+        if (relation_ids('cluster') and is_leader()):
+            # NOTE: reset dbsync state so that migration will complete
+            #       when the novacell0 database is setup.
+            peer_store('dbsync_state', None)
+        return configs
+
+    if is_leader():
         status_set('maintenance', 'Running nova db migration')
-        migrate_nova_database()
+        migrate_nova_databases()
     if not is_unit_paused_set():
         [service_start(s) for s in services()]
 
@@ -661,24 +670,118 @@ def migrate_nova_flavors():
     subprocess.check_output(cmd)
 
 
-# NOTE(jamespage): Retry deals with sync issues during one-shot HA deploys.
-#                  mysql might be restarting or suchlike.
-@retry_on_exception(5, base_delay=3, exc_type=subprocess.CalledProcessError)
+def migrate_nova_api_database():
+    '''Initialize or migrate the nova_api database'''
+    if os_release('nova-common') >= 'mitaka':
+        try:
+            log('Migrating the nova-api database.', level=INFO)
+            cmd = ['nova-manage', 'api_db', 'sync']
+            subprocess.check_output(cmd)
+        except subprocess.CalledProcessError:
+            # NOTE(coreycb): sync of api_db on upgrade from newton->ocata
+            # fails but cell init is successful.
+            log('Ignoring CalledProcessError during nova-api database '
+                'migration.', level=INFO)
+            return
+
+
 def migrate_nova_database():
-    '''Runs nova-manage to initialize a new database or migrate existing'''
+    '''Initialize or migrate the nova database'''
     log('Migrating the nova database.', level=INFO)
     cmd = ['nova-manage', 'db', 'sync']
     subprocess.check_output(cmd)
-    if os_release('nova-common') >= 'mitaka':
-        log('Migrating the nova-api database.', level=INFO)
-        cmd = ['nova-manage', 'api_db', 'sync']
-        subprocess.check_output(cmd)
+
+
+def initialize_cell_databases():
+    '''Initialize the cell0 and cell1 databases
+
+    cell0 is stored in the database named 'nova_cell0'.
+    cell1 is stored in the database named 'nova'.
+    '''
+    log('Creating cell0 database records', level=INFO)
+    cmd = ['nova-manage', 'cell_v2', 'map_cell0']
+    subprocess.check_output(cmd)
+
+    log('Creating cell1 database records', level=INFO)
+    cmd = ['nova-manage', 'cell_v2', 'create_cell', '--name', 'cell1']
+    rc = subprocess.call(cmd)
+    # TODO: Update to subprocess.check_call(), but note that rc == 2 is
+    # not a failure so only allow exception to be raised if rc == 1.
+    if rc == 0:
+        log('cell1 mapping was successfully created', level=INFO)
+    elif rc == 1:
+        raise Exception("Cannot initialize cell1 because of missing "
+                        "transport_url or database connection")
+
+
+def update_cell_database():
+    '''Update the cell1 database properties
+
+    This should be called whenever a database or rabbitmq-server relation is
+    changed to update the transport_url in the nova_api cell_mappings table.
+    '''
+    log('Updating cell1 properties', level=INFO)
+    cmd = ['sudo', 'nova-manage', 'cell_v2', 'list_cells']
+    out = subprocess.check_output(cmd)
+    cell1_uuid = out.split("cell1", 1)[1].split()[1]
+
+    cmd = ['nova-manage', 'cell_v2', 'update_cell', '--cell_uuid', cell1_uuid]
+    rc = subprocess.call(cmd)
+    # TODO: Update to subprocess.check_call(), but note that rc == 2 is
+    # not a failure so only allow exception to be raised if rc == 1.
+    if rc == 0:
+        log('cell1 properties updated successfully', level=INFO)
+    elif rc == 1:
+        raise Exception("Cannot find cell1 while attempting properties update")
+
+
+def add_hosts_to_cell():
+    '''Add any new compute hosts to cell1'''
+    # TODO: Replace the following checks with a Cellsv2 context check.
+    if (os_release('nova-common') >= 'ocata' and
+            is_relation_made('amqp', 'password') and
+            is_relation_made('shared-db', 'novaapi_password') and
+            is_relation_made('shared-db', 'novacell0_password') and
+            is_relation_made('shared-db', 'nova_password')):
+        cmd = ['nova-manage', 'cell_v2', 'list_cells']
+        output = subprocess.check_output(cmd)
+        if 'cell1' in output:
+            log('Adding hosts to cell.', level=INFO)
+            cmd = ['nova-manage', 'cell_v2', 'discover_hosts']
+            subprocess.check_output(cmd)
+
+
+def finalize_migrate_nova_databases():
     if relation_ids('cluster'):
         log('Informing peers that dbsync is complete', level=INFO)
         peer_store('dbsync_state', 'complete')
     log('Enabling services', level=INFO)
     enable_services()
     cmd_all_services('start')
+
+
+# NOTE(jamespage): Retry deals with sync issues during one-shot HA deploys.
+#                  mysql might be restarting or suchlike.
+@retry_on_exception(5, base_delay=3, exc_type=subprocess.CalledProcessError)
+def migrate_nova_databases():
+    '''Runs nova-manage to initialize new databases or migrate existing'''
+    if os_release('nova-common') < 'ocata':
+        migrate_nova_api_database()
+        migrate_nova_database()
+        finalize_migrate_nova_databases()
+
+    # TODO: Replace the following checks with a Cellsv2 context check.
+    elif (is_relation_made('amqp', 'password') and
+          is_relation_made('shared-db', 'novaapi_password') and
+          is_relation_made('shared-db', 'novacell0_password') and
+          is_relation_made('shared-db', 'nova_password')):
+        # Note: cells v2 init requires transport_url and database connections
+        # to be set in nova.conf.
+        migrate_nova_api_database()
+        initialize_cell_databases()
+        migrate_nova_database()
+        add_hosts_to_cell()
+        finalize_migrate_nova_databases()
 
 
 # TODO: refactor to use unit storage or related data

@@ -79,9 +79,9 @@ TO_PATCH = [
     'network_manager',
     'unit_get',
     'uuid',
-    'is_elected_leader',
+    'is_leader',
     'keystone_ca_cert_b64',
-    'migrate_nova_database',
+    'migrate_nova_databases',
     'uuid',
     'get_hacluster_config',
     'get_iface_for_address',
@@ -166,6 +166,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(self.disable_services.called)
         self.cmd_all_services.assert_called_with('stop')
 
+    @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'determine_packages')
     @patch.object(utils, 'service_resume')
     @patch.object(utils, 'config')
@@ -173,19 +174,23 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'configure_https')
     def test_config_changed_no_upgrade(self, conf_https, mock_filter_packages,
                                        utils_config, mock_service_resume,
-                                       mock_determine_packages):
+                                       mock_determine_packages,
+                                       mock_is_db_initialised):
         mock_determine_packages.return_value = []
         utils_config.side_effect = self.test_config.get
         self.test_config.set('console-access-protocol', 'dummy')
         self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = False
+        mock_is_db_initialised.return_value = False
         hooks.config_changed()
         self.assertTrue(self.save_script_rc.called)
         mock_filter_packages.assert_called_with([])
 
+    @patch.object(hooks, 'is_db_initialised')
     @patch.object(utils, 'service_resume')
     @patch.object(hooks, 'configure_https')
-    def test_config_changed_git(self, configure_https, mock_service_resume):
+    def test_config_changed_git(self, configure_https, mock_service_resume,
+                                mock_is_db_initialised):
         self.git_install_requested.return_value = True
         repo = 'cloud:trusty-juno'
         openstack_origin_git = {
@@ -203,10 +208,12 @@ class NovaCCHooksTests(CharmTestCase):
         projects_yaml = yaml.dump(openstack_origin_git)
         self.test_config.set('openstack-origin', repo)
         self.test_config.set('openstack-origin-git', projects_yaml)
+        mock_is_db_initialised.return_value = False
         hooks.config_changed()
         self.git_install.assert_called_with(projects_yaml)
         self.assertFalse(self.do_openstack_upgrade.called)
 
+    @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'quantum_joined')
     @patch.object(hooks, 'determine_packages')
     @patch.object(utils, 'service_resume')
@@ -228,8 +235,10 @@ class NovaCCHooksTests(CharmTestCase):
                                          mock_unit_get,
                                          mock_service_resume,
                                          mock_determine_packages,
-                                         mock_quantum_joined):
+                                         mock_quantum_joined,
+                                         mock_is_db_initialised):
         mock_determine_packages.return_value = []
+        mock_is_db_initialised.return_value = False
         self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = True
         self.relation_ids.return_value = ['generic_rid']
@@ -249,6 +258,7 @@ class NovaCCHooksTests(CharmTestCase):
         mock_filter_packages.assert_called_with([])
         self.assertTrue(mock_quantum_joined.called)
 
+    @patch.object(hooks, 'is_db_initialised')
     @patch.object(utils, 'service_resume')
     @patch.object(hooks, 'filter_installed_packages')
     @patch.object(hooks, 'configure_https')
@@ -256,13 +266,15 @@ class NovaCCHooksTests(CharmTestCase):
     def test_config_changed_region_change(self, mock_compute_changed,
                                           mock_config_https,
                                           mock_filter_packages,
-                                          mock_service_resume):
+                                          mock_service_resume,
+                                          mock_is_db_initialised):
         self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = False
         self.config_value_changed.return_value = True
         self.related_units.return_value = ['unit/0']
         self.relation_ids.side_effect = \
             lambda x: ['generic_rid'] if x == 'cloud-compute' else []
+        mock_is_db_initialised.return_value = False
         hooks.config_changed()
         mock_compute_changed.assert_has_calls([call('generic_rid', 'unit/0')])
 
@@ -300,7 +312,8 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertEquals(sorted(self.relation_set.call_args_list),
                           sorted(expected_relations))
 
-    def test_compute_changed_nova_public_key(self):
+    @patch.object(hooks, 'is_db_initialised')
+    def test_compute_changed_nova_public_key(self, mock_is_db_initialised):
         self.test_relation.set({
             'migration_auth_type': 'sasl', 'nova_ssh_public_key': 'fookey',
             'private-address': '10.0.0.1', 'region': 'RegionOne'})
@@ -308,6 +321,7 @@ class NovaCCHooksTests(CharmTestCase):
             'k_h_0', 'k_h_1', 'k_h_2']
         self.ssh_authorized_keys_lines.return_value = [
             'auth_0', 'auth_1', 'auth_2']
+        mock_is_db_initialised.return_value = False
         hooks.compute_changed()
         self.ssh_compute_add.assert_called_with('fookey', user='nova',
                                                 rid=None, unit=None)
@@ -339,7 +353,7 @@ class NovaCCHooksTests(CharmTestCase):
         _util_config.return_value = None
         self.is_relation_made.return_value = False
         self.network_manager.return_value = 'neutron'
-        self.is_elected_leader = True
+        self.is_leader = True
         self.keystone_ca_cert_b64.return_value = 'foocert64'
         self.unit_get.return_value = 'nova-cc-host1'
         self.serial_console_settings.return_value = {
@@ -377,7 +391,7 @@ class NovaCCHooksTests(CharmTestCase):
         napi.return_value = mock_NeutronAPIContext
         self.is_relation_made.return_value = True
         self.network_manager.return_value = 'neutron'
-        self.is_elected_leader = True
+        self.is_leader = True
         self.keystone_ca_cert_b64.return_value = 'foocert64'
         self.unit_get.return_value = 'nova-cc-host1'
         self.serial_console_settings.return_value = {
@@ -538,7 +552,7 @@ class NovaCCHooksTests(CharmTestCase):
         'No database migration is attempted when ACL list is not present'
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
-        self.assertFalse(self.migrate_nova_database.called)
+        self.assertFalse(self.migrate_nova_databases.called)
         api_joined.asert_called_with(rid='nova-api/0')
 
     @patch.object(hooks, 'is_db_initialised')
@@ -552,7 +566,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.local_unit.return_value = 'nova-cloud-controller/3'
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
-        self.migrate_nova_database.assert_called_with()
+        self.migrate_nova_databases.assert_called_with()
 
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'CONFIGS')
@@ -565,7 +579,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.local_unit.return_value = 'nova-cloud-controller/1'
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
-        self.assertFalse(self.migrate_nova_database.called)
+        self.assertFalse(self.migrate_nova_databases.called)
 
     @patch.object(hooks, 'quantum_joined')
     @patch.object(hooks, 'nova_api_relation_joined')
@@ -580,7 +594,7 @@ class NovaCCHooksTests(CharmTestCase):
         mock_is_db_initialised.return_value = False
         self._postgresql_db_test(configs)
         self.assertTrue(configs.write_all.called)
-        self.migrate_nova_database.assert_called_with()
+        self.migrate_nova_databases.assert_called_with()
         api_joined.assert_called_with(rid='nova-api/0')
 
     @patch.object(hooks, 'quantum_joined')
@@ -614,7 +628,7 @@ class NovaCCHooksTests(CharmTestCase):
                                        rid='nova-cell-api/0')
         quantum_joined.assert_called_with(remote_restart=True,
                                           rid='neutron-gateway/0')
-        self.migrate_nova_database.assert_called_with()
+        self.migrate_nova_databases.assert_called_with()
 
     @patch.object(hooks, 'nova_cell_relation_joined')
     @patch.object(hooks, 'CONFIGS')
@@ -625,17 +639,21 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(configs.write_all.called)
         cell_joined.assert_called_with(rid='nova-cell-api/0')
 
+    @patch.object(hooks, 'leader_init_db_if_ready_allowed_units')
+    @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'quantum_joined')
     @patch.object(hooks, 'nova_api_relation_joined')
     @patch.object(hooks, 'nova_cell_relation_joined')
     @patch.object(hooks, 'CONFIGS')
     def test_amqp_changed_api_rel(self, configs, cell_joined, api_joined,
-                                  quantum_joined):
+                                  quantum_joined, mock_is_db_initialised,
+                                  init_db_allowed):
         self.relation_ids.side_effect = [
             ['nova-cell-api/0'],
             ['nova-api/0'],
             ['quantum-service/0'],
         ]
+        mock_is_db_initialised.return_value = False
         configs.complete_contexts = MagicMock()
         configs.complete_contexts.return_value = ['amqp']
         configs.write = MagicMock()
@@ -648,12 +666,16 @@ class NovaCCHooksTests(CharmTestCase):
         quantum_joined.assert_called_with(rid='quantum-service/0',
                                           remote_restart=True)
 
+    @patch.object(hooks, 'leader_init_db_if_ready_allowed_units')
+    @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'quantum_joined')
     @patch.object(hooks, 'nova_api_relation_joined')
     @patch.object(hooks, 'nova_cell_relation_joined')
     @patch.object(hooks, 'CONFIGS')
     def test_amqp_changed_noapi_rel(self, configs, cell_joined, api_joined,
-                                    quantum_joined):
+                                    quantum_joined, mock_is_db_initialised,
+                                    init_db_allowed):
+        mock_is_db_initialised.return_value = False
         configs.complete_contexts = MagicMock()
         configs.complete_contexts.return_value = ['amqp']
         configs.write = MagicMock()
@@ -986,6 +1008,7 @@ class NovaCCHooksTests(CharmTestCase):
             call(**args),
         ])
 
+    @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'determine_packages')
     @patch.object(utils, 'service_pause')
     @patch.object(hooks, 'filter_installed_packages')
@@ -995,8 +1018,10 @@ class NovaCCHooksTests(CharmTestCase):
                                                mock_configure_https,
                                                mock_filter_packages,
                                                mock_service_pause,
-                                               mock_determine_packages):
+                                               mock_determine_packages,
+                                               mock_is_db_initialised):
         mock_determine_packages.return_value = []
+        mock_is_db_initialised.return_value = False
         self.config_value_changed.return_value = False
         self.git_install_requested.return_value = False
         config.return_value = 'novnc'

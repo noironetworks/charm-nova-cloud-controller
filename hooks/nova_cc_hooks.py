@@ -30,6 +30,7 @@ from charmhelpers.core.hookenv import (
     UnregisteredHookError,
     config,
     charm_dir,
+    is_leader,
     is_relation_made,
     log,
     local_unit,
@@ -82,6 +83,7 @@ from charmhelpers.contrib.peerstorage import (
 )
 
 from nova_cc_utils import (
+    add_hosts_to_cell,
     auth_token_config,
     cmd_all_services,
     determine_endpoints,
@@ -94,7 +96,7 @@ from nova_cc_utils import (
     git_install,
     is_api_ready,
     keystone_ca_cert_b64,
-    migrate_nova_database,
+    migrate_nova_databases,
     placement_api_enabled,
     save_script_rc,
     services,
@@ -104,7 +106,7 @@ from nova_cc_utils import (
     ssh_authorized_keys_lines,
     register_configs,
     restart_map,
-    CLUSTER_RES,
+    update_cell_database,
     NOVA_CONF,
     console_attributes,
     service_guard,
@@ -118,7 +120,6 @@ from nova_cc_utils import (
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
-    is_elected_leader,
     get_hacluster_config,
     https,
 )
@@ -169,7 +170,7 @@ def leader_init_db_if_ready(skip_acl_check=False, skip_cells_restarts=False,
 
     NOTE: must be called from database context.
     """
-    if not is_elected_leader(CLUSTER_RES):
+    if not is_leader():
         log("Not leader - skipping db init", level=DEBUG)
         return
 
@@ -184,7 +185,7 @@ def leader_init_db_if_ready(skip_acl_check=False, skip_cells_restarts=False,
     if skip_acl_check or (allowed_units and local_unit() in
                           allowed_units.split()):
         status_set('maintenance', 'Running nova db migration')
-        migrate_nova_database()
+        migrate_nova_databases()
         log('Triggering remote cloud-compute restarts.')
         [compute_joined(rid=rid, remote_restart=True)
             for rid in relation_ids('cloud-compute')]
@@ -198,6 +199,61 @@ def leader_init_db_if_ready(skip_acl_check=False, skip_cells_restarts=False,
     else:
         log('allowed_units either not presented, or local unit '
             'not in acl list: %s' % repr(allowed_units))
+
+
+def leader_init_db_if_ready_allowed_units():
+    """Loop through all related db units and attempt to initialize db
+
+    By looping through all related db units, the relation ID and unit can
+    be passed to leader_init_db_if_ready(), enabling use of allowed_units
+    to determine if this nova-cc unit is allowed to perform db init.
+    """
+    rels = ['shared-db', 'pgsql-nova-db']
+    for rname in rels:
+        for rid in relation_ids(rname):
+            for unit in related_units(rid):
+                if rname == 'pgsql-nova-db':
+                    leader_init_db_if_ready(skip_acl_check=True,
+                                            skip_cells_restarts=True,
+                                            db_rid=rid, unit=unit)
+                else:
+                    leader_init_db_if_ready(db_rid=rid, unit=unit)
+
+
+def update_cell_db_if_ready(skip_acl_check=False, db_rid=None, unit=None):
+    """Update the cells db if leader and db's are already intialised"""
+    if not is_leader():
+        return
+
+    if not is_db_initialised():
+        log("Database not initialised - skipping cell db update", level=DEBUG)
+        return
+
+    allowed_units = relation_get('nova_allowed_units', rid=db_rid, unit=unit)
+    if skip_acl_check or (allowed_units and local_unit() in
+                          allowed_units.split()):
+        update_cell_database()
+    else:
+        log('allowed_units either not presented, or local unit '
+            'not in acl list: %s' % repr(allowed_units))
+
+
+def update_cell_db_if_ready_allowed_units():
+    """Loop through all related db units and attempt to update cell db
+
+    By looping through all related db units, the relation ID and unit can
+    be passed to update_cell_db_if_ready(), enabling use of allowed_units
+    to determine if this nova-cc unit is allowed to perform db updates.
+    """
+    rels = ['shared-db', 'pgsql-nova-db']
+    for rname in rels:
+        for rid in relation_ids(rname):
+            for unit in related_units(rid):
+                if rname == 'pgsql-nova-db':
+                    update_cell_db_if_ready(skip_acl_check=True,
+                                            db_rid=rid, unit=unit)
+                else:
+                    update_cell_db_if_ready(db_rid=rid, unit=unit)
 
 
 @hooks.hook('install.real')
@@ -315,6 +371,13 @@ def amqp_changed():
         log('amqp relation incomplete. Peer not ready?')
         return
     CONFIGS.write(NOVA_CONF)
+    # TODO: Replace the following check with a Cellsv2 context check.
+    if os_release('nova-common') >= 'ocata':
+        # db init for cells v2 requires amqp transport_url and db connections
+        # to be set in nova.conf, so we attempt db init in here as well as the
+        # db relation-changed hooks.
+        leader_init_db_if_ready_allowed_units()
+        update_cell_db_if_ready_allowed_units()
     [nova_cell_relation_joined(rid=rid)
         for rid in relation_ids('cell')]
 
@@ -349,6 +412,11 @@ def db_joined(relation_id=None):
                                               config('database-user'),
                                               relation_prefix='novaapi')
 
+        if os_release('nova-common') >= 'ocata':
+            # NOTE: ocata requires cells v2
+            sync_db_with_multi_ipv6_addresses('nova_cell0',
+                                              config('database-user'),
+                                              relation_prefix='novacell0')
     else:
         host = None
         try:
@@ -368,6 +436,13 @@ def db_joined(relation_id=None):
             relation_set(novaapi_database='nova_api',
                          novaapi_username=config('database-user'),
                          novaapi_hostname=host,
+                         relation_id=relation_id)
+
+        if os_release('nova-common') >= 'ocata':
+            # NOTE: ocata requires cells v2
+            relation_set(novacell0_database='nova_cell0',
+                         novacell0_username=config('database-user'),
+                         novacell0_hostname=host,
                          relation_id=relation_id)
 
 
@@ -393,7 +468,12 @@ def db_changed():
         return
 
     CONFIGS.write_all()
+    # db init for cells v2 requires amqp transport_url and db connections to
+    # be set in nova.conf, so we attempt db init in here as well as the
+    # amqp-relation-changed hook.
     leader_init_db_if_ready()
+    if os_release('nova-common') >= 'ocata':
+        update_cell_db_if_ready()
 
 
 @hooks.hook('pgsql-nova-db-relation-changed')
@@ -407,6 +487,8 @@ def postgresql_nova_db_changed():
 
     CONFIGS.write_all()
     leader_init_db_if_ready(skip_acl_check=True, skip_cells_restarts=True)
+    if os_release('nova-common') >= 'ocata':
+        update_cell_db_if_ready(skip_acl_check=True)
 
     for r_id in relation_ids('nova-api'):
         nova_api_relation_joined(rid=r_id)
@@ -673,6 +755,9 @@ def compute_changed(rid=None, unit=None):
             relation_settings={
                 '{}_authorized_keys_max_index'.format('nova'): index})
 
+        if is_db_initialised():
+            add_hosts_to_cell()
+
 
 @hooks.hook('cloud-compute-relation-departed')
 def compute_departed():
@@ -829,6 +914,8 @@ def ha_changed():
                active=config('service-guard'))
 def db_departed():
     CONFIGS.write_all()
+    if os_release('nova-common') >= 'ocata':
+        update_cell_db_if_ready(skip_acl_check=True)
     for r_id in relation_ids('cluster'):
         relation_set(relation_id=r_id, dbsync_state='incomplete')
     disable_services()
@@ -909,16 +996,7 @@ def upgrade_charm():
     for r_id in relation_ids('shared-db'):
         db_joined(relation_id=r_id)
 
-    rels = ['shared-db', 'pgsql-nova-db']
-    for rname in rels:
-        for rid in relation_ids(rname):
-            for unit in related_units(rid):
-                if rname == 'pgsql-nova-db':
-                    leader_init_db_if_ready(skip_acl_check=True,
-                                            skip_cells_restarts=True,
-                                            db_rid=rid, unit=unit)
-                else:
-                    leader_init_db_if_ready(db_rid=rid, unit=unit)
+    leader_init_db_if_ready_allowed_units()
 
     update_nrpe_config()
     update_nova_consoleauth_config()
