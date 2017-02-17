@@ -698,6 +698,10 @@ def compute_changed(rid=None, unit=None):
     rel_settings = relation_get(rid=rid, unit=unit)
     if not rel_settings.get('region', None) == config('region'):
         relation_set(relation_id=rid, region=config('region'))
+
+    if is_db_initialised():
+        add_hosts_to_cell()
+
     if 'migration_auth_type' not in rel_settings:
         return
     if rel_settings['migration_auth_type'] == 'ssh':
@@ -754,9 +758,6 @@ def compute_changed(rid=None, unit=None):
             relation_id=rid,
             relation_settings={
                 '{}_authorized_keys_max_index'.format('nova'): index})
-
-        if is_db_initialised():
-            add_hosts_to_cell()
 
 
 @hooks.hook('cloud-compute-relation-departed')

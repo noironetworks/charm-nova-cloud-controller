@@ -278,13 +278,17 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.config_changed()
         mock_compute_changed.assert_has_calls([call('generic_rid', 'unit/0')])
 
+    @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'nova_api_relation_joined')
-    def test_compute_changed_nova_api_trigger(self, api_joined):
+    def test_compute_changed_nova_api_trigger(self, api_joined,
+                                              mock_is_db_initialised):
         self.relation_ids.return_value = ['nova-api/0']
+        mock_is_db_initialised.return_value = False
         hooks.compute_changed()
         api_joined.assert_called_with(rid='nova-api/0')
 
-    def test_compute_changed_ssh_migration(self):
+    @patch.object(hooks, 'is_db_initialised')
+    def test_compute_changed_ssh_migration(self, mock_is_db_initialised):
         self.test_relation.set({
             'migration_auth_type': 'ssh', 'ssh_public_key': 'fookey',
             'private-address': '10.0.0.1', 'region': 'RegionOne'})
@@ -292,6 +296,7 @@ class NovaCCHooksTests(CharmTestCase):
             'k_h_0', 'k_h_1', 'k_h_2']
         self.ssh_authorized_keys_lines.return_value = [
             'auth_0', 'auth_1', 'auth_2']
+        mock_is_db_initialised.return_value = False
         hooks.compute_changed()
         self.ssh_compute_add.assert_called_with('fookey', rid=None, unit=None)
         expected_relations = [
