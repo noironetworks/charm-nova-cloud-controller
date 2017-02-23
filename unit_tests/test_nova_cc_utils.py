@@ -115,7 +115,7 @@ RESTART_MAP_ICEHOUSE = OrderedDict([
     ('/etc/haproxy/haproxy.cfg', ['haproxy']),
     ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
 ])
-RESTART_MAP_OCATA = OrderedDict([
+RESTART_MAP_OCATA_ACTUAL = OrderedDict([
     ('/etc/nova/nova.conf', [
         'nova-api-ec2', 'nova-api-os-compute', 'nova-objectstore',
         'nova-cert', 'nova-scheduler', 'nova-conductor', 'apache2'
@@ -126,6 +126,17 @@ RESTART_MAP_OCATA = OrderedDict([
     ('/etc/haproxy/haproxy.cfg', ['haproxy']),
     ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
     ('/etc/apache2/sites-enabled/wsgi-openstack-api.conf', ['apache2']),
+])
+RESTART_MAP_OCATA_BASE = OrderedDict([
+    ('/etc/nova/nova.conf', [
+        'nova-api-ec2', 'nova-api-os-compute', 'nova-placement-api',
+        'nova-objectstore', 'nova-cert', 'nova-scheduler', 'nova-conductor'
+    ]),
+    ('/etc/nova/api-paste.ini', [
+        'nova-api-ec2', 'nova-api-os-compute', 'nova-placement-api'
+    ]),
+    ('/etc/haproxy/haproxy.cfg', ['haproxy']),
+    ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2'])
 ])
 
 
@@ -267,8 +278,8 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('charmhelpers.contrib.openstack.neutron.os_release')
     @patch('os.path.exists')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    def test_restart_map_api_before_frontends_ocata(self, subcontext,
-                                                    _exists, _os_release):
+    def test_restart_map_api_actual_ocata(self, subcontext,
+                                          _exists, _os_release):
         _os_release.return_value = 'ocata'
         self.os_release.return_value = 'ocata'
         _exists.return_value = False
@@ -276,7 +287,21 @@ class NovaCCUtilsTests(CharmTestCase):
         self._resource_map()
         _map = utils.restart_map()
         self.assertIsInstance(_map, OrderedDict)
-        self.assertEquals(_map, RESTART_MAP_OCATA)
+        self.assertEquals(_map, RESTART_MAP_OCATA_ACTUAL)
+
+    @patch('charmhelpers.contrib.openstack.neutron.os_release')
+    @patch('os.path.exists')
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_restart_map_api_ocata_base(self, subcontext,
+                                        _exists, _os_release):
+        _os_release.return_value = 'ocata'
+        self.os_release.return_value = 'ocata'
+        _exists.return_value = False
+        self.enable_memcache.return_value = False
+        self._resource_map()
+        _map = utils.restart_map(actual_services=False)
+        self.assertIsInstance(_map, OrderedDict)
+        self.assertEquals(_map, RESTART_MAP_OCATA_BASE)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     @patch('os.path.exists')

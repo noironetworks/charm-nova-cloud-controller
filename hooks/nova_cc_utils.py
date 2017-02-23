@@ -321,10 +321,14 @@ SERIAL_CONSOLE = {
 }
 
 
-def resource_map(return_services=True):
+def resource_map(actual_services=True):
     '''
     Dynamically generate a map of resources that will be managed for a single
     hook execution.
+
+    :param actual_services: Whether to return the actual services that run on a
+        unit (ie. apache2) or the services defined in BASE_SERVICES
+        (ie.nova-placement-api).
     '''
     resource_map = deepcopy(BASE_RESOURCE_MAP)
 
@@ -367,7 +371,7 @@ def resource_map(return_services=True):
             'contexts': [context.MemcacheContext()],
             'services': ['memcached']}
 
-    if return_services and placement_api_enabled():
+    if actual_services and placement_api_enabled():
         for cfile in resource_map:
             svcs = resource_map[cfile]['services']
             if 'nova-placement-api' in svcs:
@@ -399,10 +403,18 @@ def register_configs(release=None):
     return configs
 
 
-def restart_map():
-    return OrderedDict([(cfg, v['services'])
-                        for cfg, v in resource_map().iteritems()
-                        if v['services']])
+def restart_map(actual_services=True):
+    '''
+    Constructs a restart map of config files and corresponding services
+
+    :param actual_services: Whether to return the actual services that run on a
+        unit (ie. apache2) or the services defined in BASE_SERVICES
+        (ie.nova-placement-api).
+    '''
+    return OrderedDict(
+        [(cfg, v['services'])
+         for cfg, v in resource_map(actual_services).iteritems()
+         if v['services']])
 
 
 def services():
@@ -416,7 +428,7 @@ def services():
 def determine_ports():
     '''Assemble a list of API ports for services we are managing'''
     ports = []
-    for services in restart_map().values():
+    for services in restart_map(actual_services=False).values():
         for svc in services:
             try:
                 ports.append(API_PORTS[svc])
@@ -453,7 +465,7 @@ def console_attributes(attr, proto=None):
 def determine_packages():
     # currently all packages match service names
     packages = deepcopy(BASE_PACKAGES)
-    for v in resource_map(return_services=False).values():
+    for v in resource_map(actual_services=False).values():
         packages.extend(v['services'])
     if console_attributes('packages'):
         packages.extend(console_attributes('packages'))
