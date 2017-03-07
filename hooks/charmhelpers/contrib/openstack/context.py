@@ -100,7 +100,10 @@ from charmhelpers.core.unitdata import kv
 try:
     import psutil
 except ImportError:
-    apt_install('python-psutil', fatal=True)
+    if six.PY2:
+        apt_install('python-psutil', fatal=True)
+    else:
+        apt_install('python3-psutil', fatal=True)
     import psutil
 
 CA_CERT_PATH = '/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt'
@@ -500,13 +503,16 @@ class CephContext(OSContextGenerator):
                     ctxt['auth'] = relation_get('auth', rid=rid, unit=unit)
                 if not ctxt.get('key'):
                     ctxt['key'] = relation_get('key', rid=rid, unit=unit)
-                ceph_pub_addr = relation_get('ceph-public-address', rid=rid,
+
+                ceph_addrs = relation_get('ceph-public-address', rid=rid,
+                                          unit=unit)
+                if ceph_addrs:
+                    for addr in ceph_addrs.split(' '):
+                        mon_hosts.append(format_ipv6_addr(addr) or addr)
+                else:
+                    priv_addr = relation_get('private-address', rid=rid,
                                              unit=unit)
-                unit_priv_addr = relation_get('private-address', rid=rid,
-                                              unit=unit)
-                ceph_addr = ceph_pub_addr or unit_priv_addr
-                ceph_addr = format_ipv6_addr(ceph_addr) or ceph_addr
-                mon_hosts.append(ceph_addr)
+                    mon_hosts.append(format_ipv6_addr(priv_addr) or priv_addr)
 
         ctxt['mon_hosts'] = ' '.join(sorted(mon_hosts))
 
