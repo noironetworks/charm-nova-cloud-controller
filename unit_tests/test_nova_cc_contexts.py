@@ -125,6 +125,7 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual(ctxt['nova_url'], 'http://10.0.1.1:8774/v2')
         self.assertFalse('neutron_url' in ctxt)
 
+    @mock.patch('charmhelpers.contrib.openstack.context.mkdir')
     @mock.patch.object(neutron, 'network_manager')
     @mock.patch('charmhelpers.contrib.openstack.context.unit_get')
     @mock.patch('charmhelpers.contrib.hahelpers.cluster.https')
@@ -139,7 +140,7 @@ class NovaComputeContextTests(CharmTestCase):
     def test_haproxy_context(self, mock_relation_ids, mock_get_ipv6_addr,
                              mock_local_unit, mock_get_netmask_for_address,
                              mock_get_address_in_network, mock_kv, mock_https,
-                             mock_unit_get, mock_network_manager):
+                             mock_unit_get, mock_network_manager, mock_mkdir):
         mock_https.return_value = False
         mock_unit_get.return_value = '127.0.0.1'
         mock_network_manager.return_value = 'neutron'

@@ -679,7 +679,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             # Kilo and later
             expected['database'] = {
                 'connection': db_uri,
-                'max_pool_size': '2',
+                'max_pool_size': '4',
             }
             expected['glance'] = {
                 'api_servers': gl_ncc_rel['glance-api-server'],
@@ -696,7 +696,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 'enabled': 'True',
             }
             expected['conductor'] = {
-                'workers': '2',
+                'workers': '4',
             }
             expected['oslo_messaging_rabbit'] = {
                 'rabbit_userid': 'nova',

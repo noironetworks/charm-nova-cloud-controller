@@ -90,9 +90,9 @@ TO_PATCH = [
     'git_install',
     'git_install_requested',
     'status_set',
-    'network_get_primary_address',
     'update_dns_ha_resource_params',
     'serial_console_settings',
+    'get_relation_ip',
 ]
 
 
@@ -119,7 +119,6 @@ class NovaCCHooksTests(CharmTestCase):
         self.config.side_effect = self.test_config.get
         self.relation_get.side_effect = self.test_relation.get
         self.charm_dir.return_value = '/var/lib/juju/charms/nova/charm'
-        self.network_get_primary_address.side_effect = NotImplementedError
 
     def tearDown(self):
         try:
@@ -436,18 +435,18 @@ class NovaCCHooksTests(CharmTestCase):
             **FAKE_KS_AUTH_CFG)
 
     def test_db_joined(self):
-        self.unit_get.return_value = 'nova.foohost.com'
+        self.get_relation_ip.return_value = '10.10.10.10'
         self.is_relation_made.return_value = False
         hooks.db_joined()
         self.relation_set.assert_called_with(nova_database='nova',
                                              nova_username='nova',
-                                             nova_hostname='nova.foohost.com',
+                                             nova_hostname='10.10.10.10',
                                              relation_id=None)
-        self.unit_get.assert_called_with('private-address')
+        self.get_relation_ip.assert_called_with('shared-db',
+                                                cidr_network=None)
 
     def test_db_joined_spaces(self):
-        self.network_get_primary_address.side_effect = None
-        self.network_get_primary_address.return_value = '192.168.20.1'
+        self.get_relation_ip.return_value = '192.168.20.1'
         self.unit_get.return_value = 'nova.foohost.com'
         self.is_relation_made.return_value = False
         hooks.db_joined()
@@ -455,25 +454,25 @@ class NovaCCHooksTests(CharmTestCase):
                                              nova_username='nova',
                                              nova_hostname='192.168.20.1',
                                              relation_id=None)
-        self.assertFalse(self.unit_get.called)
 
     def test_db_joined_mitaka(self):
-        self.unit_get.return_value = 'nova.foohost.com'
+        self.get_relation_ip.return_value = '10.10.10.10'
         self.os_release.return_value = 'mitaka'
         self.is_relation_made.return_value = False
         hooks.db_joined()
         self.relation_set.assert_has_calls([
             call(nova_database='nova',
                  nova_username='nova',
-                 nova_hostname='nova.foohost.com',
+                 nova_hostname='10.10.10.10',
                  relation_id=None),
             call(novaapi_database='nova_api',
                  novaapi_username='nova',
-                 novaapi_hostname='nova.foohost.com',
+                 novaapi_hostname='10.10.10.10',
                  relation_id=None),
         ])
 
-        self.unit_get.assert_called_with('private-address')
+        self.get_relation_ip.assert_called_with('shared-db',
+                                                cidr_network=None)
 
     @patch('charmhelpers.contrib.openstack.ip.service_name',
            lambda *args: 'nova-cloud-controller')
