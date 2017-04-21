@@ -1066,3 +1066,13 @@ class NovaCCHooksTests(CharmTestCase):
 
     def test_nova_api_relation_joined_not_ready(self):
         self._test_nova_api_relation_joined(False)
+
+    @patch.object(hooks, 'memcached_common')
+    def test_memcache_joined(self, _memcached_common):
+        self.get_relation_ip.return_value = 'foo'
+        hooks.memcached_joined()
+        self.get_relation_ip.assert_called_once_with('memcache')
+        self.relation_set.assert_called_once_with(
+            relation_id=None,
+            relation_settings={'private-address': 'foo'})
+        hooks.memcached_joined()

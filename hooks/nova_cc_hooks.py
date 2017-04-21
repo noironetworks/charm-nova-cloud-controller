@@ -1090,12 +1090,27 @@ def update_nrpe_config():
     nrpe_setup.write()
 
 
-@hooks.hook('memcache-relation-joined',
-            'memcache-relation-departed',
+@hooks.hook('memcache-relation-joined')
+def memcached_joined():
+    """When memcache relation joins we want to set our private address as the
+    spaces address rather than leaving it as the unit address.  This is to
+    support network spaces in the memcached charm.
+    """
+    relation_set(
+        relation_id=None,
+        relation_settings={'private-address': get_relation_ip('memcache')})
+    memcached_common()
+
+
+@hooks.hook('memcache-relation-departed',
             'memcache-relation-changed',
             'memcache-relation-broken')
+def memcached_other_hooks():
+    memcached_common()
+
+
 @restart_on_change(restart_map())
-def memcached_joined():
+def memcached_common():
     CONFIGS.write(NOVA_CONF)
 
 

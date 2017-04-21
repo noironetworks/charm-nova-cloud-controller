@@ -679,7 +679,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             # Kilo and later
             expected['database'] = {
                 'connection': db_uri,
-                'max_pool_size': '4',
+                'max_pool_size': u.not_null,
             }
             expected['glance'] = {
                 'api_servers': gl_ncc_rel['glance-api-server'],
@@ -695,8 +695,11 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             expected['osapi_v3'] = {
                 'enabled': 'True',
             }
+            # due to worker multiplier changes and the way the unit changes
+            # depending on whether it is LXC or KVM, we can't actually guess
+            # the workers reliable.
             expected['conductor'] = {
-                'workers': '4',
+                'workers': u.not_null,
             }
             expected['oslo_messaging_rabbit'] = {
                 'rabbit_userid': 'nova',
