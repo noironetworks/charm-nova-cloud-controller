@@ -2,5 +2,6 @@ branch: lp:charm-helpers
 destination: tests/charmhelpers
 include:
     - core
+    - osplatform
     - contrib.amulet
     - contrib.openstack.amulet

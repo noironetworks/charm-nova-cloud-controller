@@ -43,7 +43,6 @@ from charmhelpers.core.hookenv import (
     open_port,
     unit_get,
     status_set,
-    network_get_primary_address,
 )
 
 from charmhelpers.core.host import (
@@ -143,6 +142,7 @@ from charmhelpers.contrib.network.ip import (
     get_address_in_network,
     get_ipv6_addr,
     is_ipv6,
+    get_relation_ip,
 )
 
 from charmhelpers.contrib.openstack.context import ADDRESS_TYPES
@@ -418,13 +418,14 @@ def db_joined(relation_id=None):
                                               config('database-user'),
                                               relation_prefix='novacell0')
     else:
-        host = None
-        try:
-            # NOTE: try to use network spaces
-            host = network_get_primary_address('shared-db')
-        except NotImplementedError:
-            # NOTE: fallback to private-address
-            host = unit_get('private-address')
+        # Avoid churn check for access-network early
+        access_network = None
+        for unit in related_units(relid=relation_id):
+            access_network = relation_get(rid=relation_id, unit=unit,
+                                          attribute='access-network')
+            if access_network:
+                break
+        host = get_relation_ip('shared-db', cidr_network=access_network)
 
         relation_set(nova_database=config('database'),
                      nova_username=config('database-user'),
