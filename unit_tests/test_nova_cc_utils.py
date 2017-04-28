@@ -206,12 +206,14 @@ class NovaCCUtilsTests(CharmTestCase):
 
         }
         subcontext.return_value = fake_context
+        self.os_release.return_value = 'diablo'
         _map = utils.resource_map()
         for s in ['nova-compute', 'nova-network']:
             self.assertIn(s, _map['/etc/nova/nova.conf']['services'])
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_resource_map_neutron_no_agent_installed(self, subcontext):
+        self.os_release.return_value = 'diablo'
         self._resource_map()
         _map = utils.resource_map()
         services = []
@@ -222,6 +224,7 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_resource_map_console_xvpvnc(self, subcontext):
         self.test_config.set('console-access-protocol', 'xvpvnc')
+        self.os_release.return_value = 'diablo'
         self.relation_ids.return_value = []
         _map = utils.resource_map()
         console_services = ['nova-xvpvncproxy', 'nova-consoleauth']
@@ -232,6 +235,7 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_resource_map_console_novnc(self, subcontext):
         self.test_config.set('console-access-protocol', 'novnc')
         self.relation_ids.return_value = []
+        self.os_release.return_value = 'diablo'
         _map = utils.resource_map()
         console_services = ['nova-novncproxy', 'nova-consoleauth']
         for service in console_services:
@@ -241,6 +245,7 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_resource_map_console_vnc(self, subcontext):
         self.test_config.set('console-access-protocol', 'vnc')
         self.relation_ids.return_value = []
+        self.os_release.return_value = 'diablo'
         _map = utils.resource_map()
         console_services = ['nova-novncproxy', 'nova-xvpvncproxy',
                             'nova-consoleauth']
@@ -255,6 +260,7 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_resource_map_console_spice(self, subcontext):
         self.test_config.set('console-access-protocol', 'spice')
+        self.os_release.return_value = 'diablo'
         self.relation_ids.return_value = []
         _map = utils.resource_map()
         console_services = ['nova-spiceproxy', 'nova-consoleauth']
@@ -307,6 +313,7 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('os.path.exists')
     def test_restart_map_apache24(self, _exists, subcontext):
         _exists.return_Value = True
+        self.os_release.return_value = 'diablo'
         self._resource_map()
         _map = utils.restart_map()
         self.assertTrue('/etc/apache2/sites-available/'
@@ -363,6 +370,7 @@ class NovaCCUtilsTests(CharmTestCase):
         git_requested.return_value = False
         self.test_config.set('console-access-protocol', 'spice')
         self.relation_ids.return_value = []
+        self.os_release.return_value = 'diablo'
         pkgs = utils.determine_packages()
         console_pkgs = ['nova-spiceproxy', 'nova-consoleauth']
         for console_pkg in console_pkgs:
@@ -604,6 +612,7 @@ class NovaCCUtilsTests(CharmTestCase):
 
     def test_determine_endpoints_base(self):
         self.relation_ids.return_value = []
+        self.os_release.return_value = 'diablo'
         self.assertEquals(
             BASE_ENDPOINTS, utils.determine_endpoints('http://foohost.com',
                                                       'http://foohost.com',
@@ -647,6 +656,7 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_migrate_nova_databases(self, check_output):
         "Migrate database with nova-manage"
         self.relation_ids.return_value = []
+        self.os_release.return_value = 'diablo'
         utils.migrate_nova_databases()
         check_output.assert_called_with(['nova-manage', 'db', 'sync'])
         self.assertTrue(self.enable_services.called)
@@ -656,6 +666,7 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_migrate_nova_databases_cluster(self, check_output):
         "Migrate database with nova-manage in a clustered env"
         self.relation_ids.return_value = ['cluster:1']
+        self.os_release.return_value = 'diablo'
         utils.migrate_nova_databases()
         check_output.assert_called_with(['nova-manage', 'db', 'sync'])
         self.peer_store.assert_called_with('dbsync_state', 'complete')
@@ -985,6 +996,7 @@ class NovaCCUtilsTests(CharmTestCase):
         join.return_value = 'joined-string'
         self.lsb_release.return_value = {'DISTRIB_RELEASE': '15.04'}
         self.git_pip_venv_dir.return_value = '/mnt/openstack-git/venv'
+        self.os_release.return_value = 'diablo'
         utils.git_post_install(projects_yaml)
         expected = [
             call('joined-string', '/etc/nova'),

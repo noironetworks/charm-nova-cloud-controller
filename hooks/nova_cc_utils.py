@@ -59,6 +59,7 @@ from charmhelpers.contrib.openstack.utils import (
     os_application_version_set,
     token_cache_pkgs,
     enable_memcache,
+    CompareOpenStackReleases,
 )
 
 from charmhelpers.fetch import (
@@ -98,6 +99,7 @@ from charmhelpers.core.host import (
     service_start,
     service_stop,
     lsb_release,
+    CompareHostReleases,
 )
 
 from charmhelpers.core.templating import render
@@ -341,7 +343,8 @@ def resource_map(actual_services=True):
         nova_cc_context.NeutronCCContext())
 
     release = os_release('nova-common')
-    if release >= 'mitaka':
+    cmp_os_release = CompareOpenStackReleases(release)
+    if cmp_os_release >= 'mitaka':
         resource_map[NOVA_CONF]['contexts'].append(
             nova_cc_context.NovaAPISharedDBContext(relation_prefix='novaapi',
                                                    database='nova_api',
@@ -349,12 +352,10 @@ def resource_map(actual_services=True):
         )
 
     if console_attributes('services'):
-        resource_map[NOVA_CONF]['services'] += \
-            console_attributes('services')
+        resource_map[NOVA_CONF]['services'] += console_attributes('services')
 
-    if (config('enable-serial-console') and release >= 'juno'):
-        resource_map[NOVA_CONF]['services'] += \
-            SERIAL_CONSOLE['services']
+    if (config('enable-serial-console') and cmp_os_release >= 'juno'):
+        resource_map[NOVA_CONF]['services'] += SERIAL_CONSOLE['services']
 
     # also manage any configs that are being updated by subordinates.
     vmware_ctxt = context.SubordinateConfigContext(interface='nova-vmware',
@@ -470,7 +471,7 @@ def determine_packages():
     if console_attributes('packages'):
         packages.extend(console_attributes('packages'))
     if (config('enable-serial-console') and
-            os_release('nova-common') >= 'juno'):
+            CompareOpenStackReleases(os_release('nova-common')) >= 'juno'):
         packages.extend(SERIAL_CONSOLE['packages'])
 
     if git_install_requested():
@@ -597,9 +598,11 @@ def _do_openstack_upgrade(new_src):
     # All upgrades to Liberty are forced to step through Kilo. Liberty does
     # not have the migrate_flavor_data option (Bug #1511466) available so it
     # must be done pre-upgrade
-    if os_release('nova-common') == 'kilo' and is_leader():
+    if (CompareOpenStackReleases(os_release('nova-common')) == 'kilo' and
+            is_leader()):
         migrate_nova_flavors()
     new_os_rel = get_os_codename_install_source(new_src)
+    cmp_new_os_rel = CompareOpenStackReleases(new_os_rel)
     log('Performing OpenStack upgrade to %s.' % (new_os_rel))
 
     configure_installation_source(new_src)
@@ -621,7 +624,7 @@ def _do_openstack_upgrade(new_src):
     configs = register_configs(release=new_os_rel)
     configs.write_all()
 
-    if new_os_rel >= 'mitaka' and not database_setup(prefix='novaapi'):
+    if cmp_new_os_rel >= 'mitaka' and not database_setup(prefix='novaapi'):
         # NOTE: Defer service restarts and database migrations for now
         #       as nova_api database is not yet created
         if (relation_ids('cluster') and is_leader()):
@@ -630,7 +633,7 @@ def _do_openstack_upgrade(new_src):
             peer_store('dbsync_state', None)
         return configs
 
-    if new_os_rel >= 'ocata' and not database_setup(prefix='novacell0'):
+    if cmp_new_os_rel >= 'ocata' and not database_setup(prefix='novacell0'):
         # NOTE: Defer service restarts and database migrations for now
         #       as nova_cell0 database is not yet created
         if (relation_ids('cluster') and is_leader()):
@@ -684,7 +687,7 @@ def migrate_nova_flavors():
 
 def migrate_nova_api_database():
     '''Initialize or migrate the nova_api database'''
-    if os_release('nova-common') >= 'mitaka':
+    if CompareOpenStackReleases(os_release('nova-common')) >= 'mitaka':
         try:
             log('Migrating the nova-api database.', level=INFO)
             cmd = ['nova-manage', 'api_db', 'sync']
@@ -750,7 +753,7 @@ def update_cell_database():
 def add_hosts_to_cell():
     '''Add any new compute hosts to cell1'''
     # TODO: Replace the following checks with a Cellsv2 context check.
-    if (os_release('nova-common') >= 'ocata' and
+    if (CompareOpenStackReleases(os_release('nova-common')) >= 'ocata' and
             is_relation_made('amqp', 'password') and
             is_relation_made('shared-db', 'novaapi_password') and
             is_relation_made('shared-db', 'novacell0_password') and
@@ -777,7 +780,7 @@ def finalize_migrate_nova_databases():
 @retry_on_exception(5, base_delay=3, exc_type=subprocess.CalledProcessError)
 def migrate_nova_databases():
     '''Runs nova-manage to initialize new databases or migrate existing'''
-    if os_release('nova-common') < 'ocata':
+    if CompareOpenStackReleases(os_release('nova-common')) < 'ocata':
         migrate_nova_api_database()
         migrate_nova_database()
         finalize_migrate_nova_databases()
@@ -991,6 +994,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
     passed to keystone as relation settings.'''
     region = config('region')
     os_rel = os_release('nova-common')
+    cmp_os_rel = CompareOpenStackReleases(os_rel)
 
     nova_public_url = ('%s:%s/v2/$(tenant_id)s' %
                        (public_url, api_port('nova-api-os-compute')))
@@ -1009,7 +1013,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
     s3_internal_url = '%s:%s' % (internal_url, api_port('nova-objectstore'))
     s3_admin_url = '%s:%s' % (admin_url, api_port('nova-objectstore'))
 
-    if os_rel >= 'ocata':
+    if cmp_os_rel >= 'ocata':
         placement_public_url = '%s:%s' % (
             public_url, api_port('nova-placement-api'))
         placement_internal_url = '%s:%s' % (
@@ -1036,7 +1040,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
         's3_internal_url': s3_internal_url,
     }
 
-    if os_rel >= 'kilo':
+    if cmp_os_rel >= 'kilo':
         # NOTE(jamespage) drop endpoints for ec2 and s3
         #  ec2 is deprecated
         #  s3 is insecure and should die in flames
@@ -1053,7 +1057,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
             's3_internal_url': None,
         })
 
-    if os_rel >= 'ocata':
+    if cmp_os_rel >= 'ocata':
         endpoints.update({
             'placement_service': 'placement',
             'placement_region': region,
@@ -1144,13 +1148,14 @@ def enable_services():
 
 def setup_ipv6():
     ubuntu_rel = lsb_release()['DISTRIB_CODENAME'].lower()
-    if ubuntu_rel < "trusty":
+    if CompareHostReleases(ubuntu_rel) < "trusty":
         raise Exception("IPv6 is not supported in the charms for Ubuntu "
                         "versions less than Trusty 14.04")
 
     # Need haproxy >= 1.5.3 for ipv6 so for Trusty if we are <= Kilo we need to
     # use trusty-backports otherwise we can use the UCA.
-    if ubuntu_rel == 'trusty' and os_release('nova-api') < 'liberty':
+    if (ubuntu_rel == 'trusty' and
+            CompareOpenStackReleases(os_release('nova-api')) < 'liberty'):
         add_source('deb http://archive.ubuntu.com/ubuntu trusty-backports '
                    'main')
         apt_update()
@@ -1424,7 +1429,7 @@ def git_post_install(projects_yaml):
         render('git.upstart', '/etc/init/nova-scheduler.conf',
                nova_scheduler_context, perms=0o644,
                templates_dir=templates_dir)
-        if os_rel >= 'juno':
+        if CompareOpenStackReleases(os_rel) >= 'juno':
             render('git.upstart', '/etc/init/nova-serialproxy.conf',
                    nova_serialproxy_context, perms=0o644,
                    templates_dir=templates_dir)
@@ -1586,7 +1591,7 @@ def serial_console_settings():
 
 def placement_api_enabled():
     """Return true if nova-placement-api is enabled in this release"""
-    return os_release('nova-common') >= 'ocata'
+    return CompareOpenStackReleases(os_release('nova-common')) >= 'ocata'
 
 
 def disable_package_apache_site():

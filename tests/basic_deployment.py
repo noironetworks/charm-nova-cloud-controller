@@ -25,6 +25,7 @@ from charmhelpers.contrib.openstack.amulet.utils import (
     DEBUG,
     # ERROR
 )
+from charmhelpers.contrib.openstack.utils import CompareOpenStackReleases
 
 from novaclient import exceptions
 
@@ -276,7 +277,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             self.keystone_sentry: ['keystone'],
             self.glance_sentry: ['glance-registry', 'glance-api']
         }
-        if self._get_openstack_release_string() >= 'liberty':
+        _os_release = self._get_openstack_release_string()
+        if CompareOpenStackReleases(_os_release) >= 'liberty':
             services[self.nova_cc_sentry].remove('nova-api-ec2')
             services[self.nova_cc_sentry].remove('nova-objectstore')
 
@@ -836,7 +838,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             'nova-conductor': conf_file
         }
 
-        if self._get_openstack_release_string() >= 'liberty':
+        _os_release = self._get_openstack_release_string()
+        if CompareOpenStackReleases(_os_release) >= 'liberty':
             del services['nova-api-ec2']
             del services['nova-objectstore']
 

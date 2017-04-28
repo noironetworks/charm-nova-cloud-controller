@@ -65,6 +65,7 @@ from charmhelpers.contrib.openstack.utils import (
     sync_db_with_multi_ipv6_addresses,
     pausable_restart_on_change as restart_on_change,
     is_unit_paused_set,
+    CompareOpenStackReleases,
 )
 
 from charmhelpers.contrib.openstack.neutron import (
@@ -296,7 +297,7 @@ def config_changed():
     # neutron-server runs if < juno. Neutron-server creates mysql tables
     # which will subsequently cause db migratoins to fail if >= juno.
     # Disable neutron-server if >= juno
-    if os_release('nova-common') >= 'juno':
+    if CompareOpenStackReleases(os_release('nova-common')) >= 'juno':
         with open('/etc/init/neutron-server.override', 'wb') as out:
             out.write('manual\n')
     if config('prefer-ipv6'):
@@ -372,7 +373,7 @@ def amqp_changed():
         return
     CONFIGS.write(NOVA_CONF)
     # TODO: Replace the following check with a Cellsv2 context check.
-    if os_release('nova-common') >= 'ocata':
+    if CompareOpenStackReleases(os_release('nova-common')) >= 'ocata':
         # db init for cells v2 requires amqp transport_url and db connections
         # to be set in nova.conf, so we attempt db init in here as well as the
         # db relation-changed hooks.
@@ -401,18 +402,19 @@ def db_joined(relation_id=None):
         log(e, level=ERROR)
         raise Exception(e)
 
+    cmp_os_release = CompareOpenStackReleases(os_release('nova-common'))
     if config('prefer-ipv6'):
         sync_db_with_multi_ipv6_addresses(config('database'),
                                           config('database-user'),
                                           relation_prefix='nova')
 
-        if os_release('nova-common') >= 'mitaka':
+        if cmp_os_release >= 'mitaka':
             # NOTE: mitaka uses a second nova-api database as well
             sync_db_with_multi_ipv6_addresses('nova_api',
                                               config('database-user'),
                                               relation_prefix='novaapi')
 
-        if os_release('nova-common') >= 'ocata':
+        if cmp_os_release >= 'ocata':
             # NOTE: ocata requires cells v2
             sync_db_with_multi_ipv6_addresses('nova_cell0',
                                               config('database-user'),
@@ -432,14 +434,14 @@ def db_joined(relation_id=None):
                      nova_hostname=host,
                      relation_id=relation_id)
 
-        if os_release('nova-common') >= 'mitaka':
+        if cmp_os_release >= 'mitaka':
             # NOTE: mitaka uses a second nova-api database as well
             relation_set(novaapi_database='nova_api',
                          novaapi_username=config('database-user'),
                          novaapi_hostname=host,
                          relation_id=relation_id)
 
-        if os_release('nova-common') >= 'ocata':
+        if cmp_os_release >= 'ocata':
             # NOTE: ocata requires cells v2
             relation_set(novacell0_database='nova_cell0',
                          novacell0_username=config('database-user'),
@@ -473,7 +475,7 @@ def db_changed():
     # be set in nova.conf, so we attempt db init in here as well as the
     # amqp-relation-changed hook.
     leader_init_db_if_ready()
-    if os_release('nova-common') >= 'ocata':
+    if CompareOpenStackReleases(os_release('nova-common')) >= 'ocata':
         update_cell_db_if_ready()
 
 
@@ -488,7 +490,7 @@ def postgresql_nova_db_changed():
 
     CONFIGS.write_all()
     leader_init_db_if_ready(skip_acl_check=True, skip_cells_restarts=True)
-    if os_release('nova-common') >= 'ocata':
+    if CompareOpenStackReleases(os_release('nova-common')) >= 'ocata':
         update_cell_db_if_ready(skip_acl_check=True)
 
     for r_id in relation_ids('nova-api'):
@@ -916,7 +918,7 @@ def ha_changed():
                active=config('service-guard'))
 def db_departed():
     CONFIGS.write_all()
-    if os_release('nova-common') >= 'ocata':
+    if CompareOpenStackReleases(os_release('nova-common')) >= 'ocata':
         update_cell_db_if_ready(skip_acl_check=True)
     for r_id in relation_ids('cluster'):
         relation_set(relation_id=r_id, dbsync_state='incomplete')

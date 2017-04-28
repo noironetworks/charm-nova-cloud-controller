@@ -181,6 +181,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = False
         mock_is_db_initialised.return_value = False
+        self.os_release.return_value = 'diablo'
         hooks.config_changed()
         self.assertTrue(self.save_script_rc.called)
         mock_filter_packages.assert_called_with([])
@@ -208,6 +209,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.test_config.set('openstack-origin', repo)
         self.test_config.set('openstack-origin-git', projects_yaml)
         mock_is_db_initialised.return_value = False
+        self.os_release.return_value = 'diablo'
         hooks.config_changed()
         self.git_install.assert_called_with(projects_yaml)
         self.assertFalse(self.do_openstack_upgrade.called)
@@ -246,6 +248,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.test_config.set('console-access-protocol', 'dummy')
         mock_relids.return_value = []
         mock_unit_get.return_value = '127.0.0.1'
+        self.os_release.return_value = 'diablo'
         hooks.config_changed()
         self.assertTrue(self.do_openstack_upgrade.called)
         self.assertTrue(neutron_api_joined.called)
@@ -274,6 +277,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.relation_ids.side_effect = \
             lambda x: ['generic_rid'] if x == 'cloud-compute' else []
         mock_is_db_initialised.return_value = False
+        self.os_release.return_value = 'diablo'
         hooks.config_changed()
         mock_compute_changed.assert_has_calls([call('generic_rid', 'unit/0')])
 
@@ -437,6 +441,7 @@ class NovaCCHooksTests(CharmTestCase):
     def test_db_joined(self):
         self.get_relation_ip.return_value = '10.10.10.10'
         self.is_relation_made.return_value = False
+        self.os_release.return_value = 'diablo'
         hooks.db_joined()
         self.relation_set.assert_called_with(nova_database='nova',
                                              nova_username='nova',
@@ -449,6 +454,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.get_relation_ip.return_value = '192.168.20.1'
         self.unit_get.return_value = 'nova.foohost.com'
         self.is_relation_made.return_value = False
+        self.os_release.return_value = 'diablo'
         hooks.db_joined()
         self.relation_set.assert_called_with(nova_database='nova',
                                              nova_username='nova',
@@ -554,6 +560,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.relation_ids.return_value = ['nova-api/0']
         mock_is_db_initialised.return_value = False
         'No database migration is attempted when ACL list is not present'
+        self.os_release.return_value = 'diablo'
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
         self.assertFalse(self.migrate_nova_databases.called)
@@ -568,6 +575,7 @@ class NovaCCHooksTests(CharmTestCase):
             'nova_allowed_units': allowed_units,
         })
         self.local_unit.return_value = 'nova-cloud-controller/3'
+        self.os_release.return_value = 'diablo'
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
         self.migrate_nova_databases.assert_called_with()
@@ -581,6 +589,7 @@ class NovaCCHooksTests(CharmTestCase):
             'nova_allowed_units': allowed_units,
         })
         self.local_unit.return_value = 'nova-cloud-controller/1'
+        self.os_release.return_value = 'diablo'
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
         self.assertFalse(self.migrate_nova_databases.called)
@@ -596,6 +605,7 @@ class NovaCCHooksTests(CharmTestCase):
             ['neutron-gateway/0'],
             ['nova-api/0']]
         mock_is_db_initialised.return_value = False
+        self.os_release.return_value = 'diablo'
         self._postgresql_db_test(configs)
         self.assertTrue(configs.write_all.called)
         self.migrate_nova_databases.assert_called_with()
@@ -625,6 +635,7 @@ class NovaCCHooksTests(CharmTestCase):
             'nova_allowed_units': allowed_units,
         })
         self.local_unit.return_value = 'nova-cloud-controller/0'
+        self.os_release.return_value = 'diablo'
         self._shared_db_test(configs)
         comp_joined.assert_called_with(remote_restart=True,
                                        rid='nova-compute/0')
@@ -661,6 +672,7 @@ class NovaCCHooksTests(CharmTestCase):
         configs.complete_contexts = MagicMock()
         configs.complete_contexts.return_value = ['amqp']
         configs.write = MagicMock()
+        self.os_release.return_value = 'diablo'
         self.is_relation_made.return_value = True
         hooks.amqp_changed()
         self.assertEquals(configs.write.call_args_list,
@@ -690,6 +702,7 @@ class NovaCCHooksTests(CharmTestCase):
         ]
         self.is_relation_made.return_value = False
         self.network_manager.return_value = 'neutron'
+        self.os_release.return_value = 'diablo'
         hooks.amqp_changed()
         self.assertEquals(configs.write.call_args_list,
                           [call('/etc/nova/nova.conf')])
@@ -1028,6 +1041,7 @@ class NovaCCHooksTests(CharmTestCase):
         mock_is_db_initialised.return_value = False
         self.config_value_changed.return_value = False
         self.git_install_requested.return_value = False
+        self.os_release.return_value = 'diablo'
         config.return_value = 'novnc'
         rids = {'ha': ['ha:1']}
 
