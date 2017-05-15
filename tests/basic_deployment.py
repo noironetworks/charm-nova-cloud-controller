@@ -752,8 +752,14 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             })
 
         if self._get_openstack_release() >= self.xenial_ocata:
-            expected['DEFAULT']['use_neutron'] = 'True'
+            del expected['DEFAULT']['force_dhcp_release']
             del expected['DEFAULT']['network_manager']
+            del expected['oslo_messaging_rabbit']
+            expected['DEFAULT']['transport_url'] = u.not_null
+            del expected['DEFAULT']['auth_strategy']
+            expected['api'] = {'auth_strategy': 'keystone'}
+            del expected['DEFAULT']['api_paste_config']
+            expected['wsgi'] = {'api_paste_config': '/etc/nova/api-paste.ini'}
 
         for section, pairs in expected.iteritems():
             ret = u.validate_config_data(unit, conf, section, pairs)
