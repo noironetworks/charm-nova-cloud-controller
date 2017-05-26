@@ -25,6 +25,7 @@ from charmhelpers.contrib.openstack.amulet.utils import (
     DEBUG,
     # ERROR
 )
+from charmhelpers.contrib.openstack.utils import CompareOpenStackReleases
 
 from novaclient import exceptions
 
@@ -90,6 +91,13 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             {'name': 'glance'},
             {'name': 'percona-cluster', 'constraints': {'mem': '3072M'}},
         ]
+        if self._get_openstack_release() >= self.xenial_ocata:
+            other_ocata_services = [
+                {'name': 'neutron-gateway'},
+                {'name': 'neutron-api'},
+                {'name': 'neutron-openvswitch'},
+            ]
+            other_services += other_ocata_services
         super(NovaCCBasicDeployment, self)._add_services(this_service,
                                                          other_services)
 
@@ -109,8 +117,22 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             'keystone:shared-db': 'percona-cluster:shared-db',
             'glance:identity-service': 'keystone:identity-service',
             'glance:shared-db': 'percona-cluster:shared-db',
-            'glance:amqp': 'rabbitmq-server:amqp'
+            'glance:amqp': 'rabbitmq-server:amqp',
         }
+        if self._get_openstack_release() >= self.xenial_ocata:
+            ocata_relations = {
+                'neutron-gateway:amqp': 'rabbitmq-server:amqp',
+                'nova-cloud-controller:quantum-network-service':
+                'neutron-gateway:quantum-network-service',
+                'neutron-api:shared-db': 'percona-cluster:shared-db',
+                'neutron-api:amqp': 'rabbitmq-server:amqp',
+                'neutron-api:neutron-api': 'nova-cloud-controller:neutron-api',
+                'neutron-api:identity-service': 'keystone:identity-service',
+                'nova-compute:neutron-plugin': 'neutron-openvswitch:'
+                                               'neutron-plugin',
+                'rabbitmq-server:amqp': 'neutron-openvswitch:amqp',
+            }
+            relations.update(ocata_relations)
         super(NovaCCBasicDeployment, self)._add_relations(relations)
 
     def _configure_services(self):
@@ -158,6 +180,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         # icehouse.
         nova_cc_config['api-rate-limit-rules'] = \
             "( POST, '*', .*, 9999, MINUTE );"
+
+        if self._get_openstack_release() >= self.xenial_ocata:
+            nova_cc_config['network-manager'] = 'Neutron'
 
         keystone_config = {'admin-password': 'openstack',
                            'admin-token': 'ubuntutesting'}
@@ -252,12 +277,17 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             self.keystone_sentry: ['keystone'],
             self.glance_sentry: ['glance-registry', 'glance-api']
         }
-        if self._get_openstack_release_string() >= 'liberty':
+        _os_release = self._get_openstack_release_string()
+        if CompareOpenStackReleases(_os_release) >= 'liberty':
             services[self.nova_cc_sentry].remove('nova-api-ec2')
             services[self.nova_cc_sentry].remove('nova-objectstore')
 
         if self._get_openstack_release() >= self.trusty_liberty:
             services[self.keystone_sentry] = ['apache2']
+
+        if self._get_openstack_release() >= self.xenial_ocata:
+            services[self.nova_compute_sentry].remove('nova-network')
+            services[self.nova_compute_sentry].remove('nova-api')
 
         ret = u.validate_services_by_name(services)
         if ret:
@@ -423,6 +453,13 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             expected['ec2_region'] = 'RegionOne'
             expected['ec2_service'] = 'ec2'
 
+        if self._get_openstack_release() >= self.xenial_ocata:
+            expected['placement_service'] = 'placement'
+            expected['placement_internal_url'] = u.valid_url
+            expected['placement_public_url'] = u.valid_url
+            expected['placement_admin_url'] = u.valid_url
+            expected['placement_region'] = 'RegionOne'
+
         ret = u.validate_relation_data(unit, relation, expected)
         if ret:
             message = u.relation_error('nova-cc identity-service', ret)
@@ -450,6 +487,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         }
         if self._get_openstack_release() >= self.trusty_kilo:
             expected['service_username'] = 'nova'
+
+        if self._get_openstack_release() >= self.xenial_ocata:
+            expected['service_username'] = 'placement_nova'
 
         ret = u.validate_relation_data(unit, relation, expected)
         if ret:
@@ -502,6 +542,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             'private-address': u.valid_ip,
             'restart_trigger': u.not_null
         }
+        if self._get_openstack_release() >= self.xenial_ocata:
+            expected['network_manager'] = 'neutron'
 
         ret = u.validate_relation_data(unit, relation, expected)
         if ret:
@@ -639,7 +681,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             # Kilo and later
             expected['database'] = {
                 'connection': db_uri,
-                'max_pool_size': '2',
+                'max_pool_size': u.not_null,
             }
             expected['glance'] = {
                 'api_servers': gl_ncc_rel['glance-api-server'],
@@ -655,8 +697,11 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             expected['osapi_v3'] = {
                 'enabled': 'True',
             }
+            # due to worker multiplier changes and the way the unit changes
+            # depending on whether it is LXC or KVM, we can't actually guess
+            # the workers reliable.
             expected['conductor'] = {
-                'workers': '2',
+                'workers': u.not_null,
             }
             expected['oslo_messaging_rabbit'] = {
                 'rabbit_userid': 'nova',
@@ -705,6 +750,9 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             expected['DEFAULT'].update({
                 'enabled_apis': 'osapi_compute,metadata',
             })
+
+        if self._get_openstack_release() >= self.xenial_ocata:
+            del expected['DEFAULT']['network_manager']
 
         for section, pairs in expected.iteritems():
             ret = u.validate_config_data(unit, conf, section, pairs)
@@ -792,7 +840,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             'nova-conductor': conf_file
         }
 
-        if self._get_openstack_release_string() >= 'liberty':
+        _os_release = self._get_openstack_release_string()
+        if CompareOpenStackReleases(_os_release) >= 'liberty':
             del services['nova-api-ec2']
             del services['nova-objectstore']
 

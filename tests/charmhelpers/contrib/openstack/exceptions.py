@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Copyright 2016 Canonical Ltd
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,13 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Amulet tests on a basic nova cloud controller deployment on
-   xenial-ocata."""
 
-from basic_deployment import NovaCCBasicDeployment
+class OSContextError(Exception):
+    """Raised when an error occurs during context generation.
 
-if __name__ == '__main__':
-    deployment = NovaCCBasicDeployment(series='xenial',
-                                       openstack='cloud:xenial-ocata',
-                                       source='cloud:xenial-updates/ocata')
-    deployment.run_tests()
+    This exception is principally used in contrib.openstack.context
+    """
+    pass

@@ -45,6 +45,7 @@ if __platform__ == "ubuntu":
         add_new_group,
         lsb_release,
         cmp_pkgrevno,
+        CompareHostReleases,
     )  # flake8: noqa -- ignore F401 for this import
 elif __platform__ == "centos":
     from charmhelpers.core.host_factory.centos import (
@@ -52,6 +53,7 @@ elif __platform__ == "centos":
         add_new_group,
         lsb_release,
         cmp_pkgrevno,
+        CompareHostReleases,
     )  # flake8: noqa -- ignore F401 for this import
 
 UPDATEDB_PATH = '/etc/updatedb.conf'
@@ -190,6 +192,7 @@ def service_pause(service_name, init_dir="/etc/init", initd_dir="/etc/init.d",
     sysv_file = os.path.join(initd_dir, service_name)
     if init_is_systemd():
         service('disable', service_name)
+        service('mask', service_name)
     elif os.path.exists(upstart_file):
         override_path = os.path.join(
             init_dir, '{}.override'.format(service_name))
@@ -222,6 +225,7 @@ def service_resume(service_name, init_dir="/etc/init",
     upstart_file = os.path.join(init_dir, "{}.conf".format(service_name))
     sysv_file = os.path.join(initd_dir, service_name)
     if init_is_systemd():
+        service('unmask', service_name)
         service('enable', service_name)
     elif os.path.exists(upstart_file):
         override_path = os.path.join(
@@ -306,6 +310,8 @@ SYSTEMD_SYSTEM = '/run/systemd/system'
 
 def init_is_systemd():
     """Return True if the host system uses systemd, False otherwise."""
+    if lsb_release()['DISTRIB_CODENAME'] == 'trusty':
+        return False
     return os.path.isdir(SYSTEMD_SYSTEM)
 
 
