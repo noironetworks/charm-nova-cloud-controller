@@ -1015,7 +1015,7 @@ class NovaCCHooksTests(CharmTestCase):
 
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'determine_packages')
-    @patch.object(utils, 'service_pause')
+    @patch.object(hooks, 'service_pause')
     @patch.object(hooks, 'filter_installed_packages')
     @patch('nova_cc_hooks.configure_https')
     @patch('nova_cc_utils.config')
@@ -1029,7 +1029,13 @@ class NovaCCHooksTests(CharmTestCase):
         mock_is_db_initialised.return_value = False
         self.config_value_changed.return_value = False
         self.git_install_requested.return_value = False
-        config.return_value = 'novnc'
+
+        def cfg(k, v):
+            if k == "single-nova-authconsole":
+                return True
+            return 'novnc'
+
+        config.side_effect = cfg
         rids = {'ha': ['ha:1']}
 
         def f(r):
@@ -1052,6 +1058,9 @@ class NovaCCHooksTests(CharmTestCase):
             call(v, **args) for v in rids['ha']
         ])
 
+        mock_service_pause.assert_has_calls([
+            call('nova-consoleauth')]
+        )
         mock_filter_packages.assert_called_with([])
 
     @patch.object(hooks, 'is_api_ready')

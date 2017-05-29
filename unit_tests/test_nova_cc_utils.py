@@ -250,6 +250,16 @@ class NovaCCUtilsTests(CharmTestCase):
         for service in console_services:
             self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
 
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_resource_map_single_nova_consoleauth(self, subcontext):
+        self.test_config.set('console-access-protocol', 'spice')
+        self.test_config.set('single-nova-consoleauth', True)
+        self.os_release.return_value = 'ocata'
+        self.relation_ids.return_value = ['ha']
+        _map = utils.resource_map()
+        self.assertNotIn('nova-consoleauth',
+                         _map['/etc/nova/nova.conf']['services'])
+
     @patch('charmhelpers.contrib.openstack.neutron.os_release')
     @patch('os.path.exists')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
