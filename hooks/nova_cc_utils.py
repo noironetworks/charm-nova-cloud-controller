@@ -353,6 +353,13 @@ def resource_map(actual_services=True):
 
     if console_attributes('services'):
         resource_map[NOVA_CONF]['services'] += console_attributes('services')
+        # nova-consoleauth will be managed by pacemaker, if
+        # single-nova-consoleauth is used, then don't monitor for the
+        # nova-consoleauth service to be started (LP: #1660244).
+        if config('single-nova-consoleauth') and relation_ids('ha'):
+            services = resource_map[NOVA_CONF]['services']
+            if 'nova-consoleauth' in services:
+                services.remove('nova-consoleauth')
 
     if (config('enable-serial-console') and cmp_os_release >= 'juno'):
         resource_map[NOVA_CONF]['services'] += SERIAL_CONSOLE['services']

@@ -47,6 +47,7 @@ from charmhelpers.core.hookenv import (
 
 from charmhelpers.core.host import (
     service_reload,
+    service_pause,
 )
 
 from charmhelpers.fetch import (
@@ -1153,11 +1154,10 @@ def update_nova_consoleauth_config():
         for rid in relation_ids('ha'):
             relation_set(rid, **data)
 
-        # nova-consoleauth will be managed by pacemaker, so mark it as manual
+        # nova-consoleauth will be managed by pacemaker, so stop it
+        # and prevent it to be started again at boot. (LP: #1693629).
         if relation_ids('ha'):
-            with open(NOVA_CONSOLEAUTH_OVERRIDE, 'w') as fp:
-                fp.write('manual\n')
-                fp.flush()
+            service_pause('nova-consoleauth')
 
     elif (not config('single-nova-consoleauth') and
           console_attributes('protocol')):
