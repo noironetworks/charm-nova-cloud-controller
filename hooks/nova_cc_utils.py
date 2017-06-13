@@ -442,6 +442,8 @@ def console_attributes(attr, proto=None):
         console_proto = proto
     else:
         console_proto = config('console-access-protocol')
+        if console_proto is not None and console_proto.lower() in ('none', ''):
+            console_proto = None
     if attr == 'protocol':
         return console_proto
     # 'vnc' is a virtual type made up of novnc and xvpvnc

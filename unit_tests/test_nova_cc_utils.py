@@ -237,7 +237,19 @@ class NovaCCUtilsTests(CharmTestCase):
             self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
 
     def test_console_attributes_none(self):
+        self.test_config.set('console-access-protocol', 'None')
+        _proto = utils.console_attributes('protocol')
+        self.assertEquals(_proto, None)
+        self.test_config.set('console-access-protocol', 'NONE')
+        _proto = utils.console_attributes('protocol')
+        self.assertEquals(_proto, None)
+        self.test_config.set('console-access-protocol', 'none')
+        _proto = utils.console_attributes('protocol')
+        self.assertEquals(_proto, None)
         self.test_config.set('console-access-protocol', None)
+        _proto = utils.console_attributes('protocol')
+        self.assertEquals(_proto, None)
+        self.test_config.set('console-access-protocol', "")
         _proto = utils.console_attributes('protocol')
         self.assertEquals(_proto, None)
 
