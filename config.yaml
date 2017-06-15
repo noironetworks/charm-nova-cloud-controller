@@ -1,11 +1,11 @@
 options:
   debug:
-    default: False
     type: boolean
+    default: False
     description: Enable debug logging.
   verbose:
-    default: False
     type: boolean
+    default: False
     description: Enable verbose logging.
   use-syslog:
     type: boolean
@@ -13,44 +13,44 @@ options:
     description: |
       Setting this to True will allow supporting services to log to syslog.
   openstack-origin:
-    default: distro
     type: string
+    default: distro
     description: |
-      Repository from which to install.  May be one of the following:
+      Repository from which to install. May be one of the following:
       distro (default), ppa:somecustom/ppa, a deb url sources entry,
       or a supported Cloud Archive release pocket.
-
+      .
       Supported Cloud Archive sources include:
-
+      .
       cloud:<series>-<openstack-release>
       cloud:<series>-<openstack-release>/updates
       cloud:<series>-<openstack-release>/staging
       cloud:<series>-<openstack-release>/proposed
-
+      .
       For series=Precise we support cloud archives for openstack-release:
          * icehouse
-
+      .
       For series=Trusty we support cloud archives for openstack-release:
          * juno
          * kilo
          * ...
-
+      .
       NOTE: updating this setting to a source that is known to provide
       a later version of OpenStack will trigger a software upgrade.
   openstack-origin-git:
-    default:
     type: string
+    default:
     description: |
       Specifies a default OpenStack release name, or a YAML dictionary
       listing the git repositories to install from.
-
+      .
       The default Openstack release name may be one of the following, where
       the corresponding OpenStack github branch will be used:
         * liberty
         * mitaka
         * newton
         * master
-
+      .
       The YAML must minimally include requirements, neutron, and nova
       repositories, and may also include repositories for other dependencies:
         repositories:
@@ -64,22 +64,28 @@ options:
            repository: 'git://github.com/openstack/nova',
            branch: master}
         release: master
+  harden:
+    type: string
+    default:
+    description: |
+      Apply system hardening. Supports a space-delimited list of modules
+      to run. Supported modules currently include os, ssh, apache and mysql.
   rabbit-user:
-    default: nova
     type: string
-    description: Username used to access rabbitmq queue
+    default: nova
+    description: Username used to access rabbitmq queue.
   rabbit-vhost:
+    type: string
     default: openstack
-    type: string
-    description: Rabbitmq vhost
+    description: Rabbitmq vhost.
   database-user:
-    default: nova
     type: string
-    description: Username for database access
+    default: nova
+    description: Username for database access.
   database:
-    default: nova
     type: string
-    description: Database name
+    default: nova
+    description: Database name.
   nova-alchemy-flags:
     type: string
     default:
@@ -87,29 +93,29 @@ options:
       Comma-separated list of key=value sqlalchemy related config flags to be
       set in nova.conf [database] section.
   network-manager:
-    default: FlatDHCPManager
     type: string
+    default: FlatDHCPManager
     description: |
       Network manager for the cloud; supports the following options:
-
+      .
         FlatDHCPManager (nova-network) (default)
         FlatManager (nova-network)
         Neutron (Full SDN solution)
-
+      .
       When using the Neutron option you will most likely want to use
       the neutron-gateway charm to provide L3 routing and DHCP Services.
   bridge-interface:
+    type: string
     default: br100
-    type: string
-    description: Bridge interface to be configured
+    description: Bridge interface to be configured.
   bridge-ip:
+    type: string
     default: 11.0.0.1
-    type: string
-    description: IP to be assigned to bridge interface
+    description: IP to be assigned to bridge interface.
   bridge-netmask:
-    default: 255.255.255.0
     type: string
-    description: Netmask to be assigned to bridge interface
+    default: 255.255.255.0
+    description: Netmask to be assigned to bridge interface.
   neutron-external-network:
     type: string
     default: ext_net
@@ -123,23 +129,185 @@ options:
       Comma-separated list of key=value config flags. These values will be
       placed in the nova.conf [DEFAULT] section.
   region:
-    default: RegionOne
     type: string
+    default: RegionOne
     description: OpenStack Region
   use-internal-endpoints:
-    default: False
     type: boolean
+    default: False
     description: |
-      Openstack mostly defaults to using public endpoints for
-      internal communication between services. If set to True this option will
+      Openstack mostly defaults to using public endpoints for internal
+      communication between services. If set to True this option will
       configure services to use internal endpoints where possible.
+  ssl_cert:
+    type: string
+    default:
+    description: |
+      SSL certificate to install and use for API ports. Setting this value
+      and ssl_key will enable reverse proxying, point Nova's entry in the
+      Keystone catalog to use https, and override any certificate and key
+      issued by Keystone (if it is configured to do so).
+  ssl_key:
+    type: string
+    default:
+    description: SSL key to use with certificate specified as ssl_cert.
+  ssl_ca:
+    type: string
+    default:
+    description: |
+      SSL CA to use with the certificate and key provided - this is only
+      required if you are providing a privately signed ssl_cert and ssl_key.
+  service-guard:
+    type: boolean
+    default: false
+    description: |
+      Ensure required relations are made and complete before allowing services
+      to be started
+      .
+      By default, services may be up and accepting API request from install
+      onwards.
+      .
+      Enabling this flag ensures that services will not be started until the
+      minimum 'core relations' have been made between this charm and other
+      charms.
+      .
+      For this charm the following relations must be made:
+      .
+        * shared-db or (pgsql-nova-db, pgsql-neutron-db)
+        * amqp
+        * identity-service
+  console-access-protocol:
+    type: string
+    default:
+    description: |
+      Protocol to use when accessing virtual machine console. Supported types
+      are None, spice, xvpvnc, novnc and vnc (for both xvpvnc and novnc).
+  console-proxy-ip:
+    type: string
+    default: local
+    description: |
+      If console-access-protocol != None then this is the ip published to
+      clients for access to console proxy. Set to local for the ip address of
+      the nova-cloud-controller serving the request to be used.
+  console-keymap:
+    type: string
+    default: 'en-us'
+    description: |
+      Console keymap.
+  console-ssl-cert:
+    type: string
+    default:
+    description: |
+      Used for encrypted console connections. This differs from the SSL
+      certificate used for API endpoints and is used for console sessions only.
+      Setting this value along with console-ssl-key will enable encrypted
+      console sessions. This has nothing to do with Nova API SSL and can be
+      used independently. This can be used in conjunction when
+      console-access-protocol is set to 'novnc' or 'spice'.
+  console-ssl-key:
+    type: string
+    default:
+    description: SSL key to use with certificate specified as console-ssl-cert.
+  enable-serial-console:
+    type: boolean
+    default: false
+    description: |
+      Enable serial console access to instances using websockets (insecure).
+      This is only supported on OpenStack Juno or later, and will disable the
+      normal console-log output for an instance.
+  worker-multiplier:
+    type: float
+    default:
+    description: |
+      The CPU core multiplier to use when configuring worker processes for
+      this service. By default, the number of workers for each daemon is
+      set to twice the number of CPU cores a service unit has. When deployed
+      in a LXD container, this default value will be capped to 4 workers
+      unless this configuration option is set.
+  cpu-allocation-ratio:
+    type: float
+    default: 16.0
+    description: |
+      The per physical core -> virtual core ratio to use in the Nova scheduler.
+      .
+      Increasing this value will increase instance density on compute nodes
+      at the expense of instance performance.
+  ram-allocation-ratio:
+    type: float
+    default: 1.5
+    description: |
+      The physical ram -> virtual ram ratio to use in the Nova scheduler.
+      .
+      Increasing this value will increase instance density on compute nodes
+      at the potential expense of instance performance.
+  single-nova-consoleauth:
+    type: boolean
+    default: true
+    description: |
+      When this configuration is set to True, a single instance of
+      nova-consoleauth service will be running, this allows users to always
+      authenticate against the same instance and avoid authentications issues
+      when the token used was stored in a different instance.
+      .
+      If memcached is being used to store the tokens, then it's recommended to
+      change this configuration to False.
+  action-managed-upgrade:
+    type: boolean
+    default: False
+    description: |
+      If True enables openstack upgrades for this charm via juju actions.
+      You will still need to set openstack-origin to the new repository but
+      instead of an upgrade running automatically across all units, it will
+      wait for you to execute the openstack-upgrade action for this charm on
+      each unit. If False it will revert to existing behavior of upgrading
+      all units on config change.
+  scheduler-default-filters:
+    type: string
+    default: "RetryFilter,AvailabilityZoneFilter,CoreFilter,RamFilter,ComputeFilter,ComputeCapabilitiesFilter,ImagePropertiesFilter,ServerGroupAntiAffinityFilter,ServerGroupAffinityFilter"
+    description: |
+      List of filter class names to use for filtering hosts when not specified in
+      the request.
+  pci-alias:
+    type: string
+    default:
+    description: |
+      The pci-passthrough-whitelist option of nova-compute charm is used for
+      specifying which PCI devices are allowed passthrough. pci-alias is more
+      a convenience that can be used in conjunction with Nova flavor properties
+      to automatically assign required PCI devices to new instances. You could,
+      for example, have a GPU flavor or a SR-IOV flavor:
+      .
+        pci-alias='{"vendor_id":"8086","product_id":"10ca","name":"a1"}'
+      .
+      This configures a new PCI alias 'a1' which will request a PCI device with
+      a vendor id of 0x8086 and a product id of 10ca.
+      .
+      For more information about the syntax of pci_alias, refer to
+      https://docs.openstack.org/ocata/config-reference/compute/config-options.html
+  api-rate-limit-rules:
+    type: string
+    default:
+    description: |
+      The API rate-limit rules to use for the deployed nova API, if any.
+      Contents of this config options will be inserted in the api-paste.ini
+      file under the "filter:ratelimit" section as "limits".
+      .
+      The syntax for these rules is documented at:
+      http://docs.openstack.org/kilo/config-reference/content/configuring-compute-API.html
+  disable-aws-compat:
+    type: boolean
+    default: false
+    description: |
+      For OpenStack Icehouse, Juno and Kilo by default a compatibility layer
+      for EC2 and S3 is configured, setting this option to `true` the services
+      are stopped and disabled.
   # HA configuration settings
   dns-ha:
     type: boolean
     default: False
     description: |
-        Use DNS HA with MAAS 2.0. Note if this is set do not set vip
-        settings below.
+      Use DNS HA with MAAS 2.0. Note if this is set do not set vip
+      settings below.
   vip:
     type: string
     default:
@@ -170,59 +338,40 @@ options:
     type: int
     default: 5404
     description: |
-       Default multicast port number that will be used to communicate between
-       HA Cluster nodes.
+      Default multicast port number that will be used to communicate between
+      HA Cluster nodes.
   haproxy-server-timeout:
     type: int
     default:
     description: |
-       Server timeout configuration in ms for haproxy, used in HA
-       configurations. If not provided, default value of 30000ms is used.
+      Server timeout configuration in ms for haproxy, used in HA
+      configurations. If not provided, default value of 30000ms is used.
   haproxy-client-timeout:
     type: int
     default:
     description: |
-       Client timeout configuration in ms for haproxy, used in HA
-       configurations. If not provided, default value of 30000ms is used.
+      Client timeout configuration in ms for haproxy, used in HA
+      configurations. If not provided, default value of 30000ms is used.
   haproxy-queue-timeout:
     type: int
     default:
     description: |
-       Queue timeout configuration in ms for haproxy, used in HA
-       configurations. If not provided, default value of 5000ms is used.
+      Queue timeout configuration in ms for haproxy, used in HA
+      configurations. If not provided, default value of 5000ms is used.
   haproxy-connect-timeout:
     type: int
     default:
     description: |
-       Connect timeout configuration in ms for haproxy, used in HA
-       configurations. If not provided, default value of 5000ms is used.
-  ssl_cert:
-    type: string
-    default:
-    description: |
-      SSL certificate to install and use for API ports.  Setting this value
-      and ssl_key will enable reverse proxying, point Nova's entry in the
-      Keystone catalog to use https, and override any certificate and key
-      issued by Keystone (if it is configured to do so).
-  ssl_key:
-    type: string
-    default:
-    description: SSL key to use with certificate specified as ssl_cert.
-  ssl_ca:
-    type: string
-    default:
-    description: |
-      SSL CA to use with the certificate and key provided - this is only
-      required if you are providing a privately signed ssl_cert and ssl_key.
-  # Network configuration options
-  # by default all access is over 'private-address'
+      Connect timeout configuration in ms for haproxy, used in HA
+      configurations. If not provided, default value of 5000ms is used.
+  # Network config (by default all access is over 'private-address')
   os-admin-network:
     type: string
     default:
     description: |
       The IP address and netmask of the OpenStack Admin network (e.g.
       192.168.0.0/24)
-
+      .
       This network will be used for admin endpoints.
   os-internal-network:
     type: string
@@ -230,7 +379,7 @@ options:
     description: |
       The IP address and netmask of the OpenStack Internal network (e.g.
       192.168.0.0/24)
-
+      .
       This network will be used for internal endpoints.
   os-public-network:
     type: string
@@ -238,7 +387,7 @@ options:
     description: |
       The IP address and netmask of the OpenStack Public network (e.g.
       192.168.0.0/24)
-
+      .
       This network will be used for public endpoints.
   os-public-hostname:
     type: string
@@ -246,11 +395,11 @@ options:
     description: |
       The hostname or address of the public endpoints provided by the
       nova-cloud-controller in the keystone identity provider.
-
+      .
       This value will be used for public endpoints. For example, an
       os-public-hostname set to 'ncc.example.com' with ssl enabled will
       create public endpoints such as:
-
+      .
       https://ncc.example.com:8775/v2/$(tenant_id)s
   os-internal-hostname:
     type: string
@@ -258,11 +407,11 @@ options:
     description: |
       The hostname or address of the internal endpoints provided by the
       nova-cloud-controller in the keystone identity provider.
-
+      .
       This value will be used for internal endpoints. For example, an
       os-internal-hostname set to 'ncc.internal.example.com' with ssl
       enabled will create a internal endpoint as:
-
+      .
       https://ncc.internal.example.com:8775/v2/$(tenant_id)s
   os-admin-hostname:
     type: string
@@ -270,95 +419,12 @@ options:
     description: |
       The hostname or address of the admin endpoints provided by the
       nova-cloud-controller in the keystone identity provider.
-
+      .
       This value will be used for admin endpoints. For example, an
       os-admin-hostname set to 'ncc.admin.example.com' with ssl enabled
       will create a admin endpoint for as:
-
-      https://ncc.admin.example.com:8775/v2/$(tenant_id)s
-  service-guard:
-    type: boolean
-    default: false
-    description: |
-      Ensure required relations are made and complete before allowing services
-      to be started
-
-      By default, services may be up and accepting API request from install
-      onwards.
-
-      Enabling this flag ensures that services will not be started until the
-      minimum 'core relations' have been made between this charm and other
-      charms.
-
-      For this charm the following relations must be made:
-
-        * shared-db or (pgsql-nova-db, pgsql-neutron-db)
-        * amqp
-        * identity-service
-  console-access-protocol:
-    type: string
-    default:
-    description: |
-       Protocol to use when accessing virtual machine console. Supported types
-       are None, spice, xvpvnc, novnc and vnc (for both xvpvnc and novnc)
-  console-proxy-ip:
-    type: string
-    default: local
-    description: |
-       If console-access-protocol != None then this is the ip published to
-       clients for access to console proxy. Set to local for the ip address of
-       the nova-cloud-controller serving the request to be used
-  console-keymap:
-    type: string
-    default: 'en-us'
-    description: |
-       Console keymap
-  console-ssl-cert:
-    type: string
-    default: 
-    description: |
-      Used for encrypted console connections. This differs from the SSL
-      certificate used for API endpoints and is used for console sessions only.
-      Setting this value along with console-ssl-key will enable encrypted
-      console sessions. This has nothing to do with Nova API SSL and can be
-      used independently. This can be used in conjunction when
-      console-access-protocol is set to 'novnc' or 'spice'.
-  console-ssl-key:
-    type: string
-    default:
-    description: SSL key to use with certificate specified as console-ssl-cert.
-  enable-serial-console:
-    type: boolean
-    default: false
-    description: |
-      Enable serial console access to instances using websockets (insecure).
-      This is only supported on OpenStack Juno or later, and will disable the
-      normal console-log output for an instance.
-  worker-multiplier:
-    type: float
-    default:
-    description: |
-      The CPU core multiplier to use when configuring worker processes for
-      this service.  By default, the number of workers for each daemon is
-      set to twice the number of CPU cores a service unit has.  When deployed
-      in a LXD container, this default value will be capped to 4 workers
-      unless this configuration option is set.
-  cpu-allocation-ratio:
-    type: float
-    default: 16.0
-    description: |
-      The per physical core -> virtual core ratio to use in the Nova scheduler.
       .
-      Increasing this value will increase instance density on compute nodes
-      at the expense of instance performance.
-  ram-allocation-ratio:
-    type: float
-    default: 1.5
-    description: |
-      The physical ram -> virtual ram ratio to use in the Nova scheduler.
-
-      Increasing this value will increase instance density on compute nodes
-      at the potential expense of instance performance.
+      https://ncc.admin.example.com:8775/v2/$(tenant_id)s
   prefer-ipv6:
     type: boolean
     default: False
@@ -366,92 +432,27 @@ options:
       If True enables IPv6 support. The charm will expect network interfaces
       to be configured with an IPv6 address. If set to False (default) IPv4
       is expected.
-
+      .
       NOTE: these charms do not currently support IPv6 privacy extension. In
       order for this charm to function correctly, the privacy extension must be
       disabled and a non-temporary address must be configured/available on
       your network interface.
+  # Monitoring config
   nagios_context:
-    default: "juju"
     type: string
+    default: "juju"
     description: |
       Used by the nrpe-external-master subordinate charm.
       A string that will be prepended to instance name to set the host name
       in nagios. So for instance the hostname would be something like:
-      
+      .
         juju-myservice-0
-
+      .
       If you're running multiple environments with the same services in them
       this allows you to differentiate between them.
   nagios_servicegroups:
-    default: ""
     type: string
+    default: ""
     description: |
       A comma-separated list of nagios servicegroups. If left empty, the
       nagios_context will be used as the servicegroup.
-  single-nova-consoleauth:
-    type: boolean
-    default: true
-    description: |
-      When this configuration is set to True, a single instance of
-      nova-consoleauth service will be running, this allows users to always
-      authenticate against the same instance and avoid authentications issues
-      when the token used was stored in a different instance.
-      
-      If memcached is being used to store the tokens, then it's recommended to
-      change this configuration to False.
-  action-managed-upgrade:
-    type: boolean
-    default: False
-    description: |
-      If True enables openstack upgrades for this charm via juju actions.
-      You will still need to set openstack-origin to the new repository but
-      instead of an upgrade running automatically across all units, it will
-      wait for you to execute the openstack-upgrade action for this charm on
-      each unit. If False it will revert to existing behavior of upgrading
-      all units on config change.
-  scheduler-default-filters:
-    type: string
-    default: "RetryFilter,AvailabilityZoneFilter,CoreFilter,RamFilter,ComputeFilter,ComputeCapabilitiesFilter,ImagePropertiesFilter,ServerGroupAntiAffinityFilter,ServerGroupAffinityFilter"
-    description: |
-      List of filter class names to use for filtering hosts when not specified in
-      the request.
-  pci-alias:
-    type: string
-    default:
-    description: |
-      The pci-passthrough-whitelist option of nova-compute charm is used for
-      specifying which PCI devices are allowed passthrough. pci-alias is more
-      a convenience that can be used in conjunction with Nova flavor properties
-      to automatically assign required PCI devices to new instances. You could,
-      for example, have a GPU flavor or a SR-IOV flavor:
-      
-        pci-alias='{"vendor_id":"8086","product_id":"10ca","name":"a1"}'
-      
-      This configures a new PCI alias 'a1' which will request a PCI device with
-      a vendor id of 0x8086 and a product id of 10ca.
-      
-      For more information about the syntax of pci_alias, refer to
-      https://docs.openstack.org/ocata/config-reference/compute/config-options.html
-  api-rate-limit-rules:
-    type: string
-    default:
-    description: |
-      The API rate-limit rules to use for the deployed nova API, if any.
-      Contents of this config options will be inserted in the api-paste.ini file
-      under the "filter:ratelimit" section as "limits". The syntax for these
-      rules is documented at
-      http://docs.openstack.org/kilo/config-reference/content/configuring-compute-API.html
-  harden:
-    default:
-    type: string
-    description: |
-      Apply system hardening. Supports a space-delimited list of modules
-      to run. Supported modules currently include os, ssh, apache and mysql.
-  disable-aws-compat:
-    default: false
-    type: boolean
-    description: |
-      For OpenStack Icehouse, Juno and Kilo by default a compatibility layer
-      for EC2 and S3 is configured, setting this option to `true` the services are
-      stopped and disabled.
