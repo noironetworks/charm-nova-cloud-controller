@@ -607,8 +607,14 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         gl_ncc_rel = self.glance_sentry.relation(
             'image-service', 'nova-cloud-controller:image-service')
 
-        ks_ep = self.keystone_demo.service_catalog.url_for(
-            service_type='identity', endpoint_type='publicURL')
+        # Since >= liberty endpoint_type was replaced by interface
+        # https://github.com/openstack/keystoneauth/commit/d227f6d237c4309b21a32a115fc5b09b9ba46ef0
+        try:
+            ks_ep = self.keystone_demo.service_catalog.url_for(
+                service_type='identity', interface='publicURL')
+        except TypeError:
+            ks_ep = self.keystone_demo.service_catalog.url_for(
+                service_type='identity', endpoint_type='publicURL')
 
         ks_ec2 = "{}/ec2tokens".format(ks_ep)
 
