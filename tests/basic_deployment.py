@@ -70,8 +70,13 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         self._initialize_tests()
 
     def _assert_services(self, should_run):
-        services = ("nova-api-os-compute", "nova-cert", "nova-conductor",
-                    "nova-scheduler", "apache2", "haproxy")
+        services = ["nova-api-os-compute", "nova-cert", "nova-conductor",
+                    "nova-scheduler", "apache2", "haproxy"]
+        cmp_os_release = CompareOpenStackReleases(
+            self._get_openstack_release_string()
+        )
+        if cmp_os_release >= 'newton':
+            services.remove('nova-cert')
         u.get_unit_process_ids(
             {self.nova_cc_sentry: services},
             expect_success=should_run)
@@ -277,10 +282,15 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             self.keystone_sentry: ['keystone'],
             self.glance_sentry: ['glance-registry', 'glance-api']
         }
-        _os_release = self._get_openstack_release_string()
-        if CompareOpenStackReleases(_os_release) >= 'liberty':
+        cmp_os_release = CompareOpenStackReleases(
+            self._get_openstack_release_string()
+        )
+        if cmp_os_release >= 'liberty':
             services[self.nova_cc_sentry].remove('nova-api-ec2')
             services[self.nova_cc_sentry].remove('nova-objectstore')
+
+        if cmp_os_release >= 'newton':
+            services[self.nova_cc_sentry].remove('nova-cert')
 
         if self._get_openstack_release() >= self.trusty_liberty:
             services[self.keystone_sentry] = ['apache2']
@@ -853,10 +863,15 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             'nova-conductor': conf_file
         }
 
-        _os_release = self._get_openstack_release_string()
-        if CompareOpenStackReleases(_os_release) >= 'liberty':
+        cmp_os_release = CompareOpenStackReleases(
+            self._get_openstack_release_string()
+        )
+        if cmp_os_release >= 'liberty':
             del services['nova-api-ec2']
             del services['nova-objectstore']
+
+        if cmp_os_release >= 'newton':
+            del services['nova-cert']
 
         if self._get_openstack_release() >= self.xenial_ocata:
             # nova-placement-api is run under apache2 with mod_wsgi

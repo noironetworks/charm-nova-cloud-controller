@@ -198,7 +198,8 @@ BASE_SERVICES = [
 
 AWS_COMPAT_SERVICES = ['nova-api-ec2', 'nova-objectstore']
 SERVICE_BLACKLIST = {
-    'liberty': AWS_COMPAT_SERVICES
+    'liberty': AWS_COMPAT_SERVICES,
+    'newton': ['nova-cert'],
 }
 
 API_PORTS = {
