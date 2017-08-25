@@ -566,9 +566,12 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertFalse(self.migrate_nova_databases.called)
         api_joined.asert_called_with(rid='nova-api/0')
 
+    @patch.object(utils, 'is_leader')
+    @patch.object(utils, 'os_release')
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'CONFIGS')
-    def test_db_changed_allowed(self, configs, mock_is_db_initialised):
+    def test_db_changed_allowed(self, configs, mock_is_db_initialised,
+                                utils_os_release, utils_is_leader):
         mock_is_db_initialised.return_value = False
         allowed_units = 'nova-cloud-controller/0 nova-cloud-controller/3'
         self.test_relation.set({
@@ -576,6 +579,8 @@ class NovaCCHooksTests(CharmTestCase):
         })
         self.local_unit.return_value = 'nova-cloud-controller/3'
         self.os_release.return_value = 'diablo'
+        utils_os_release.return_value = 'diablo'
+        utils_is_leader.return_value = False
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
         self.migrate_nova_databases.assert_called_with()
@@ -594,23 +599,30 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(configs.write_all.called)
         self.assertFalse(self.migrate_nova_databases.called)
 
+    @patch.object(utils, 'is_leader')
+    @patch.object(utils, 'os_release')
     @patch.object(hooks, 'quantum_joined')
     @patch.object(hooks, 'nova_api_relation_joined')
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'CONFIGS')
     def test_postgresql_db_changed(self, configs, mock_is_db_initialised,
-                                   api_joined, quantum_joined):
+                                   api_joined, quantum_joined,
+                                   utils_os_release, utils_is_leader):
         self.relation_ids.side_effect = [
             [],
             ['neutron-gateway/0'],
             ['nova-api/0']]
         mock_is_db_initialised.return_value = False
         self.os_release.return_value = 'diablo'
+        utils_os_release.return_value = 'diablo'
+        utils_is_leader.return_value = True
         self._postgresql_db_test(configs)
         self.assertTrue(configs.write_all.called)
         self.migrate_nova_databases.assert_called_with()
         api_joined.assert_called_with(rid='nova-api/0')
 
+    @patch.object(utils, 'is_leader')
+    @patch.object(utils, 'os_release')
     @patch.object(hooks, 'quantum_joined')
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'nova_cell_relation_joined')
@@ -618,7 +630,8 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'CONFIGS')
     def test_db_changed_remote_restarts(self, configs, comp_joined,
                                         cell_joined, mock_is_db_initialised,
-                                        quantum_joined):
+                                        quantum_joined, utils_os_release,
+                                        utils_is_leader):
         mock_is_db_initialised.return_value = False
 
         def _relation_ids(rel):
@@ -636,6 +649,8 @@ class NovaCCHooksTests(CharmTestCase):
         })
         self.local_unit.return_value = 'nova-cloud-controller/0'
         self.os_release.return_value = 'diablo'
+        utils_os_release.return_value = 'diablo'
+        utils_is_leader.return_value = False
         self._shared_db_test(configs)
         comp_joined.assert_called_with(remote_restart=True,
                                        rid='nova-compute/0')

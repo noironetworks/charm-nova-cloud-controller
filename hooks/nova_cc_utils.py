@@ -526,6 +526,7 @@ def get_step_upgrade_source(new_src):
         'precise-icehouse/proposed': ('precise-proposed/grizzly',
                                       'cloud:precise-havana/proposed'),
         'trusty-liberty': ('*', 'cloud:trusty-kilo'),
+        'xenial-ocata': ('*', 'cloud:xenial-newton'),  # LP: #1711209
     }
     try:
         os_codename = get_os_codename_install_source(new_src)
@@ -551,12 +552,12 @@ def get_step_upgrade_source(new_src):
             continue
 
         with open(fpath, 'r') as f:
-            line = f.readline()
-            for target_src, (cur_pocket, step_src) in sources.items():
-                if target_src != new_src:
-                    continue
-                if cur_pocket in line:
-                    return step_src
+            for line in f.readlines():
+                for target_src, (cur_pocket, step_src) in sources.items():
+                    if target_src != new_src:
+                        continue
+                    if cur_pocket in line:
+                        return step_src
 
     return None
 
@@ -611,6 +612,12 @@ def _do_openstack_upgrade(new_src):
     if (CompareOpenStackReleases(os_release('nova-common')) == 'kilo' and
             is_leader()):
         migrate_nova_flavors()
+
+    # 'nova-manage db online_data_migrations' needs to be run before moving to
+    # the next release for environments upgraded using old charms where this
+    # step was not being executed (LP: #1711209).
+    online_data_migrations_if_needed()
+
     new_os_rel = get_os_codename_install_source(new_src)
     cmp_new_os_rel = CompareOpenStackReleases(new_os_rel)
     log('Performing OpenStack upgrade to %s.' % (new_os_rel))
@@ -655,6 +662,7 @@ def _do_openstack_upgrade(new_src):
     if is_leader():
         status_set('maintenance', 'Running nova db migration')
         migrate_nova_databases()
+
     if not is_unit_paused_set():
         [service_start(s) for s in services()]
 
@@ -693,6 +701,16 @@ def migrate_nova_flavors():
     log('Migrating nova flavour information in database.', level=INFO)
     cmd = ['nova-manage', 'db', 'migrate_flavor_data']
     subprocess.check_output(cmd)
+
+
+@retry_on_exception(5, base_delay=3, exc_type=subprocess.CalledProcessError)
+def online_data_migrations_if_needed():
+    '''Runs nova-manage to run online data migrations available since Mitaka'''
+    if (is_leader() and
+            CompareOpenStackReleases(os_release('nova-common')) >= 'mitaka'):
+        log('Running online_data_migrations', level=INFO)
+        subprocess.check_output(['nova-manage', 'db',
+                                 'online_data_migrations'])
 
 
 def migrate_nova_api_database():
@@ -793,6 +811,7 @@ def migrate_nova_databases():
     if CompareOpenStackReleases(os_release('nova-common')) < 'ocata':
         migrate_nova_api_database()
         migrate_nova_database()
+        online_data_migrations_if_needed()
         finalize_migrate_nova_databases()
 
     # TODO: Replace the following checks with a Cellsv2 context check.
@@ -805,6 +824,7 @@ def migrate_nova_databases():
         migrate_nova_api_database()
         initialize_cell_databases()
         migrate_nova_database()
+        online_data_migrations_if_needed()
         add_hosts_to_cell()
         finalize_migrate_nova_databases()
 
