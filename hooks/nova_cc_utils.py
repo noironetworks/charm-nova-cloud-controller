@@ -1023,7 +1023,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
     '''Generates a dictionary containing all relevant endpoints to be
     passed to keystone as relation settings.'''
     region = config('region')
-    os_rel = os_release('nova-common')
+    os_rel = os_release('nova-common', reset_cache=True)
     cmp_os_rel = CompareOpenStackReleases(os_rel)
 
     nova_public_url = ('%s:%s/v2/$(tenant_id)s' %
