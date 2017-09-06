@@ -506,6 +506,18 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertEqual(step_src, None)
 
     @patch('charmhelpers.contrib.openstack.utils.lsb_release')
+    def test_get_setup_upgrade_source_target_ocata(self, lsb_release):
+        # mitaka -> ocata
+        self.lsb_release.return_value = {'DISTRIB_CODENAME': 'xenial'}
+        lsb_release.return_value = {'DISTRIB_CODENAME': 'xenial'}
+        self.os_release.return_value = 'mitaka'
+        self.get_os_codename_install_source.side_effect = self.originals[
+            'get_os_codename_install_source']
+
+        step_src = utils.get_step_upgrade_source("cloud:xenial-ocata")
+        self.assertEqual(step_src, "cloud:xenial-newton")
+
+    @patch('charmhelpers.contrib.openstack.utils.lsb_release')
     def test_get_setup_upgrade_source_target_liberty_with_mirror(self,
                                                                  lsb_release):
         # from icehouse to liberty using a raw deb repo
@@ -691,6 +703,8 @@ class NovaCCUtilsTests(CharmTestCase):
         self.os_release.return_value = 'diablo'
         utils.migrate_nova_databases()
         check_output.assert_called_with(['nova-manage', 'db', 'sync'])
+        self.assertNotIn(call(['nova-manage', 'db', 'online_data_migrations']),
+                         check_output.mock_calls)
         self.peer_store.assert_called_with('dbsync_state', 'complete')
         self.assertTrue(self.enable_services.called)
         self.cmd_all_services.assert_called_with('start')
@@ -704,6 +718,7 @@ class NovaCCUtilsTests(CharmTestCase):
         check_output.assert_has_calls([
             call(['nova-manage', 'api_db', 'sync']),
             call(['nova-manage', 'db', 'sync']),
+            call(['nova-manage', 'db', 'online_data_migrations']),
         ])
         self.peer_store.assert_called_with('dbsync_state', 'complete')
         self.assertTrue(self.enable_services.called)
@@ -724,6 +739,7 @@ class NovaCCUtilsTests(CharmTestCase):
             call(['nova-manage', 'api_db', 'sync']),
             call(['nova-manage', 'cell_v2', 'map_cell0']),
             call(['nova-manage', 'db', 'sync']),
+            call(['nova-manage', 'db', 'online_data_migrations']),
             call(['nova-manage', 'cell_v2', 'list_cells']),
             ANY,
         ])
