@@ -51,6 +51,7 @@ from charmhelpers.contrib.openstack.utils import (
     incomplete_relation_data,
     is_ip,
     os_release,
+    reset_os_release,
     save_script_rc as _save_script_rc,
     is_unit_paused_set,
     make_assess_status_func,
@@ -587,12 +588,6 @@ def disable_policy_rcd():
     os.unlink('/usr/sbin/policy-rc.d')
 
 
-def reset_os_release():
-    # Ugly hack to make os_release re-read versions
-    import charmhelpers.contrib.openstack.utils as utils
-    utils.os_rel = None
-
-
 def is_db_initialised():
     if relation_ids('cluster'):
         dbsync_state = peer_retrieve('dbsync_state')
@@ -630,6 +625,7 @@ def _do_openstack_upgrade(new_src):
 
     apt_update(fatal=True)
     apt_upgrade(options=dpkg_opts, fatal=True, dist=True)
+    reset_os_release()
     apt_install(determine_packages(), fatal=True)
 
     disable_policy_rcd()
@@ -637,7 +633,6 @@ def _do_openstack_upgrade(new_src):
     # NOTE(jamespage) upgrade with existing config files as the
     # havana->icehouse migration enables new service_plugins which
     # create issues with db upgrades
-    reset_os_release()
     configs = register_configs(release=new_os_rel)
     configs.write_all()
 
@@ -751,10 +746,25 @@ def initialize_cell_databases():
     # TODO: Update to subprocess.check_call(), but note that rc == 2 is
     # not a failure so only allow exception to be raised if rc == 1.
     if rc == 0:
-        log('cell1 mapping was successfully created', level=INFO)
+        log('cell1 was successfully created', level=INFO)
     elif rc == 1:
         raise Exception("Cannot initialize cell1 because of missing "
                         "transport_url or database connection")
+
+
+def get_cell_uuid(cell):
+    '''Get cell uuid
+    :param cell: string cell name i.e. 'cell1'
+    :returns: string cell uuid
+    '''
+    log("Listing cell, '{}'".format(cell), level=INFO)
+    cmd = ['sudo', 'nova-manage', 'cell_v2', 'list_cells']
+    out = subprocess.check_output(cmd)
+    cell_uuid = out.split(cell, 1)[1].split()[1]
+    if not cell_uuid:
+        raise Exception("Cannot find cell, '{}', in list_cells."
+                        "".format(cell))
+    return cell_uuid
 
 
 def update_cell_database():
@@ -764,10 +774,7 @@ def update_cell_database():
     changed to update the transport_url in the nova_api cell_mappings table.
     '''
     log('Updating cell1 properties', level=INFO)
-    cmd = ['sudo', 'nova-manage', 'cell_v2', 'list_cells']
-    out = subprocess.check_output(cmd)
-    cell1_uuid = out.split("cell1", 1)[1].split()[1]
-
+    cell1_uuid = get_cell_uuid('cell1')
     cmd = ['nova-manage', 'cell_v2', 'update_cell', '--cell_uuid', cell1_uuid]
     rc = subprocess.call(cmd)
     # TODO: Update to subprocess.check_call(), but note that rc == 2 is
@@ -776,6 +783,22 @@ def update_cell_database():
         log('cell1 properties updated successfully', level=INFO)
     elif rc == 1:
         raise Exception("Cannot find cell1 while attempting properties update")
+
+
+def map_instances():
+    '''Map instances
+
+    Updates nova_api.inatance_mappings with pre-existing instances
+    '''
+    log('Cell1 map_instances', level=INFO)
+    cell1_uuid = get_cell_uuid('cell1')
+    cmd = ['nova-manage', 'cell_v2', 'map_instances',
+           '--cell_uuid', cell1_uuid]
+    rc = subprocess.call(cmd)
+    if rc == 0:
+        log('Cell1 map_instances updated successfully', level=INFO)
+    elif rc == 1:
+        raise Exception("map_instances failed")
 
 
 def add_hosts_to_cell():
@@ -826,6 +849,7 @@ def migrate_nova_databases():
         migrate_nova_database()
         online_data_migrations_if_needed()
         add_hosts_to_cell()
+        map_instances()
         finalize_migrate_nova_databases()
 
 
@@ -1023,7 +1047,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
     '''Generates a dictionary containing all relevant endpoints to be
     passed to keystone as relation settings.'''
     region = config('region')
-    os_rel = os_release('nova-common', reset_cache=True)
+    os_rel = os_release('nova-common')
     cmp_os_rel = CompareOpenStackReleases(os_rel)
 
     nova_public_url = ('%s:%s/v2/$(tenant_id)s' %

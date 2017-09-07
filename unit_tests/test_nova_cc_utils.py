@@ -1367,3 +1367,25 @@ class NovaCCUtilsTests(CharmTestCase):
 
         s_resume.assert_has_calls([call(s) for s in utils.AWS_COMPAT_SERVICES])
         s_pause.assert_not_called()
+
+    @patch('subprocess.check_output')
+    def test_get_cell_uuid(self, mock_check_call):
+        mock_check_call.return_value = ("""
+        +-------+--------------------------------------+
+        |  Name |                 UUID                 |
+        +-------+--------------------------------------+
+        | cell0 | 00000000-0000-0000-0000-000000000000 |
+        | cell1 | c83121db-f1c7-464a-b657-38c28fac84c6 |
+        +-------+--------------------------------------+""")
+        expected = 'c83121db-f1c7-464a-b657-38c28fac84c6'
+        self.assertEqual(expected, utils.get_cell_uuid('cell1'))
+
+    @patch.object(utils, 'get_cell_uuid')
+    @patch('subprocess.call')
+    def test_map_instances(self, mock_call, mock_get_cell_uuid):
+        cell_uuid = 'c83121db-f1c7-464a-b657-38c28fac84c6'
+        mock_get_cell_uuid.return_value = cell_uuid
+        utils.map_instances()
+        mock_call.assert_called_with(['nova-manage', 'cell_v2',
+                                      'map_instances', '--cell_uuid',
+                                      cell_uuid])
