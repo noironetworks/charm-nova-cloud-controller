@@ -317,8 +317,8 @@ class NovaCCHooksTests(CharmTestCase):
                  relation_id=None),
             call(authorized_keys_max_index=3, relation_id=None),
             call(known_hosts_max_index=3, relation_id=None)]
-        self.assertEquals(sorted(self.relation_set.call_args_list),
-                          sorted(expected_relations))
+        self.assertEqual(sorted(self.relation_set.call_args_list),
+                         sorted(expected_relations))
 
     @patch.object(hooks, 'is_db_initialised')
     def test_compute_changed_nova_public_key(self, mock_is_db_initialised):
@@ -350,8 +350,8 @@ class NovaCCHooksTests(CharmTestCase):
                  relation_id=None),
             call(relation_settings={'nova_authorized_keys_max_index': 3},
                  relation_id=None)]
-        self.assertEquals(sorted(self.relation_set.call_args_list),
-                          sorted(expected_relations))
+        self.assertEqual(sorted(self.relation_set.call_args_list),
+                         sorted(expected_relations))
 
     @patch.object(hooks, 'canonical_url')
     @patch.object(utils, 'config')
@@ -690,8 +690,8 @@ class NovaCCHooksTests(CharmTestCase):
         self.os_release.return_value = 'diablo'
         self.is_relation_made.return_value = True
         hooks.amqp_changed()
-        self.assertEquals(configs.write.call_args_list,
-                          [call('/etc/nova/nova.conf')])
+        self.assertEqual(configs.write.call_args_list,
+                         [call('/etc/nova/nova.conf')])
         cell_joined.assert_called_with(rid='nova-cell-api/0')
         api_joined.assert_called_with(rid='nova-api/0')
         quantum_joined.assert_called_with(rid='quantum-service/0',
@@ -719,8 +719,8 @@ class NovaCCHooksTests(CharmTestCase):
         self.network_manager.return_value = 'neutron'
         self.os_release.return_value = 'diablo'
         hooks.amqp_changed()
-        self.assertEquals(configs.write.call_args_list,
-                          [call('/etc/nova/nova.conf')])
+        self.assertEqual(configs.write.call_args_list,
+                         [call('/etc/nova/nova.conf')])
         cell_joined.assert_called_with(rid='nova-cell-api/0')
         api_joined.assert_called_with(rid='nova-api/0')
         quantum_joined.assert_called_with(rid='quantum-service/0',
@@ -746,7 +746,7 @@ class NovaCCHooksTests(CharmTestCase):
             'cell_type': 'parent',
             'cell_name': 'api',
         }
-        self.assertEquals(hooks.get_cell_type(), 'parent')
+        self.assertEqual(hooks.get_cell_type(), 'parent')
 
     @patch.object(hooks, 'canonical_url')
     @patch.object(os, 'rename')

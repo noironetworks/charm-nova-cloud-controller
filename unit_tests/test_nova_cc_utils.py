@@ -255,19 +255,19 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_console_attributes_none(self):
         self.test_config.set('console-access-protocol', 'None')
         _proto = utils.console_attributes('protocol')
-        self.assertEquals(_proto, None)
+        self.assertEqual(_proto, None)
         self.test_config.set('console-access-protocol', 'NONE')
         _proto = utils.console_attributes('protocol')
-        self.assertEquals(_proto, None)
+        self.assertEqual(_proto, None)
         self.test_config.set('console-access-protocol', 'none')
         _proto = utils.console_attributes('protocol')
-        self.assertEquals(_proto, None)
+        self.assertEqual(_proto, None)
         self.test_config.set('console-access-protocol', None)
         _proto = utils.console_attributes('protocol')
-        self.assertEquals(_proto, None)
+        self.assertEqual(_proto, None)
         self.test_config.set('console-access-protocol', "")
         _proto = utils.console_attributes('protocol')
-        self.assertEquals(_proto, None)
+        self.assertEqual(_proto, None)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_resource_map_console_spice(self, subcontext):
@@ -301,7 +301,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self._resource_map()
         _map = utils.restart_map()
         self.assertIsInstance(_map, OrderedDict)
-        self.assertEquals(_map, RESTART_MAP_ICEHOUSE)
+        self.assertEqual(_map, RESTART_MAP_ICEHOUSE)
 
     @patch('charmhelpers.contrib.openstack.neutron.os_release')
     @patch('os.path.exists')
@@ -315,7 +315,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self._resource_map()
         _map = utils.restart_map()
         self.assertIsInstance(_map, OrderedDict)
-        self.assertEquals(_map, RESTART_MAP_OCATA_ACTUAL)
+        self.assertEqual(_map, RESTART_MAP_OCATA_ACTUAL)
 
     @patch('charmhelpers.contrib.openstack.neutron.os_release')
     @patch('os.path.exists')
@@ -329,7 +329,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self._resource_map()
         _map = utils.restart_map(actual_services=False)
         self.assertIsInstance(_map, OrderedDict)
-        self.assertEquals(_map, RESTART_MAP_OCATA_BASE)
+        self.assertEqual(_map, RESTART_MAP_OCATA_BASE)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     @patch('os.path.exists')
@@ -345,7 +345,7 @@ class NovaCCUtilsTests(CharmTestCase):
 
     def test_console_attributes_spice(self):
         _proto = utils.console_attributes('protocol', proto='spice')
-        self.assertEquals(_proto, 'spice')
+        self.assertEqual(_proto, 'spice')
 
     def test_console_attributes_vnc(self):
         self.test_config.set('console-access-protocol', 'vnc')
@@ -355,10 +355,10 @@ class NovaCCUtilsTests(CharmTestCase):
         _proxy_page = utils.console_attributes('proxy-page')
         vnc_pkgs = ['nova-novncproxy', 'nova-xvpvncproxy', 'nova-consoleauth']
         vnc_servs = ['nova-novncproxy', 'nova-xvpvncproxy', 'nova-consoleauth']
-        self.assertEquals(_proto, 'vnc')
-        self.assertEquals(_servs, vnc_servs)
-        self.assertEquals(_pkgs, vnc_pkgs)
-        self.assertEquals(_proxy_page, None)
+        self.assertEqual(_proto, 'vnc')
+        self.assertEqual(_servs, vnc_servs)
+        self.assertEqual(_pkgs, vnc_pkgs)
+        self.assertEqual(_proxy_page, None)
 
     def test_database_setup(self):
         self.relation_ids.return_value = ['shared-db:12']
@@ -410,7 +410,7 @@ class NovaCCUtilsTests(CharmTestCase):
         ex = list(set(utils.BASE_PACKAGES + utils.BASE_SERVICES))
         # nova-placement-api is purposely dropped unless it's ocata
         ex.remove('nova-placement-api')
-        self.assertEquals(ex, pkgs)
+        self.assertEqual(ex, pkgs)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     @patch.object(utils, 'git_install_requested')
@@ -422,7 +422,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.enable_memcache.return_value = False
         pkgs = utils.determine_packages()
         ex = list(set(utils.BASE_PACKAGES + utils.BASE_SERVICES))
-        self.assertEquals(ex, pkgs)
+        self.assertEqual(ex, pkgs)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     @patch.object(utils, 'git_install_requested')
@@ -460,7 +460,7 @@ class NovaCCUtilsTests(CharmTestCase):
         }
         ports = utils.determine_ports()
         ex = [8773, 8774]
-        self.assertEquals(ex, sorted(ports))
+        self.assertEqual(ex, sorted(ports))
 
     def test_save_script_rc_base(self):
         self.relation_ids.return_value = []
@@ -476,20 +476,20 @@ class NovaCCUtilsTests(CharmTestCase):
 
         # icehouse -> liberty
         self.os_release.return_value = 'icehouse'
-        self.assertEquals(
+        self.assertEqual(
             utils.get_step_upgrade_source('cloud:trusty-liberty'),
             'cloud:trusty-kilo')
 
         # juno -> liberty
         self.os_release.return_value = 'juno'
-        self.assertEquals(
+        self.assertEqual(
             utils.get_step_upgrade_source('cloud:trusty-liberty'),
             'cloud:trusty-kilo')
 
         # kilo -> liberty
         self.os_release.return_value = 'kilo'
         with patch_open() as (_open, _file):
-            self.assertEquals(
+            self.assertEqual(
                 utils.get_step_upgrade_source('cloud:trusty-liberty'),
                 None)
 
@@ -572,8 +572,8 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_ssh_directory_for_unit(self, isdir, mkdir, _open):
         self.remote_unit.return_value = 'nova-compute/0'
         isdir.return_value = False
-        self.assertEquals(utils.ssh_directory_for_unit(),
-                          '/etc/nova/compute_ssh/nova-compute')
+        self.assertEqual(utils.ssh_directory_for_unit(),
+                         '/etc/nova/compute_ssh/nova-compute')
         self.assertIn([
             call('/etc/nova/compute_ssh/nova-compute/authorized_keys', 'w'),
             call('/etc/nova/compute_ssh/nova-compute/known_hosts', 'w')
@@ -582,17 +582,17 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch.object(utils, 'ssh_directory_for_unit')
     def test_known_hosts(self, ssh_dir):
         ssh_dir.return_value = '/tmp/foo'
-        self.assertEquals(utils.known_hosts(), '/tmp/foo/known_hosts')
+        self.assertEqual(utils.known_hosts(), '/tmp/foo/known_hosts')
         ssh_dir.assert_called_with(None, None)
-        self.assertEquals(utils.known_hosts('bar'), '/tmp/foo/known_hosts')
+        self.assertEqual(utils.known_hosts('bar'), '/tmp/foo/known_hosts')
         ssh_dir.assert_called_with('bar', None)
 
     @patch.object(utils, 'ssh_directory_for_unit')
     def test_authorized_keys(self, ssh_dir):
         ssh_dir.return_value = '/tmp/foo'
-        self.assertEquals(utils.authorized_keys(), '/tmp/foo/authorized_keys')
+        self.assertEqual(utils.authorized_keys(), '/tmp/foo/authorized_keys')
         ssh_dir.assert_called_with(None, None)
-        self.assertEquals(
+        self.assertEqual(
             utils.authorized_keys('bar'),
             '/tmp/foo/authorized_keys')
         ssh_dir.assert_called_with('bar', None)
@@ -647,7 +647,7 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_determine_endpoints_base(self):
         self.relation_ids.return_value = []
         self.os_release.return_value = 'diablo'
-        self.assertEquals(
+        self.assertEqual(
             BASE_ENDPOINTS, utils.determine_endpoints('http://foohost.com',
                                                       'http://foohost.com',
                                                       'http://foohost.com'))
@@ -672,7 +672,7 @@ class NovaCCUtilsTests(CharmTestCase):
         _known_hosts.return_value = '/foo/known_hosts'
         _check_output.return_value = ''
         key = utils.ssh_known_host_key('test')
-        self.assertEquals(key, None)
+        self.assertEqual(key, None)
 
     @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_call')
@@ -969,19 +969,19 @@ class NovaCCUtilsTests(CharmTestCase):
             call('nova', shell='/bin/bash', system_user=True),
             call('neutron', shell='/bin/bash', system_user=True),
         ]
-        self.assertEquals(adduser.call_args_list, expected)
+        self.assertEqual(adduser.call_args_list, expected)
         check_call.assert_called_with(['usermod', '--home', '/var/lib/nova',
                                        'nova'])
         expected = [
             call('nova', system_group=True),
             call('neutron', system_group=True),
         ]
-        self.assertEquals(add_group.call_args_list, expected)
+        self.assertEqual(add_group.call_args_list, expected)
         expected = [
             call('nova', 'nova'),
             call('neutron', 'neutron'),
         ]
-        self.assertEquals(add_user_to_group.call_args_list, expected)
+        self.assertEqual(add_user_to_group.call_args_list, expected)
         expected = [
             call('/var/lib/nova', owner='nova',
                  group='nova', perms=0755, force=False),
@@ -1020,7 +1020,7 @@ class NovaCCUtilsTests(CharmTestCase):
             call('/etc/neutron/plugins/ml2', owner='nova',
                  group='nova', perms=0755, force=False),
         ]
-        self.assertEquals(mkdir.call_args_list, expected)
+        self.assertEqual(mkdir.call_args_list, expected)
 
     @patch('os.listdir')
     @patch('os.path.join')
@@ -1197,7 +1197,7 @@ class NovaCCUtilsTests(CharmTestCase):
                  nova_xvpvncproxy_context, perms=0o644,
                  templates_dir='joined-string'),
         ]
-        self.assertEquals(self.render.call_args_list, expected)
+        self.assertEqual(self.render.call_args_list, expected)
         self.assertTrue(self.apt_update.called)
         self.apt_install.assert_called_with(['novnc', 'spice-html5',
                                              'websockify'], fatal=True)
@@ -1255,7 +1255,7 @@ class NovaCCUtilsTests(CharmTestCase):
                  'joined-string', {'daemon_path': 'joined-string'},
                  perms=420),
         ]
-        self.assertEquals(self.render.call_args_list, expected)
+        self.assertEqual(self.render.call_args_list, expected)
 
     def _test_is_api_ready(self, tgt):
         fake_config = MagicMock()
