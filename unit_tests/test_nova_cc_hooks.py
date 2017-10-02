@@ -93,6 +93,7 @@ TO_PATCH = [
     'update_dns_ha_resource_params',
     'serial_console_settings',
     'get_relation_ip',
+    'is_clustered',
 ]
 
 
@@ -498,6 +499,12 @@ class NovaCCHooksTests(CharmTestCase):
             internal_url='http://127.0.0.1',
             admin_url='http://127.0.0.1'
         )
+
+    def test_identity_joined_partial_cluster(self):
+        self.is_clustered.return_value = False
+        self.test_config.set('vip', '10.0.0.10')
+        hooks.identity_joined()
+        self.assertFalse(self.relation_set.called)
 
     def test_postgresql_nova_db_joined(self):
         self.is_relation_made.return_value = False

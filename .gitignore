@@ -10,3 +10,4 @@ trusty/
 xenial/
 tests/cirros-*-disk.img
 func*.json
+.stestr
