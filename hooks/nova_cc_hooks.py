@@ -517,15 +517,16 @@ def image_service_changed():
 def identity_joined(rid=None):
     if config('vip') and not is_clustered():
         log('Defering registration until clustered', level=DEBUG)
-    else:
-        public_url = canonical_url(CONFIGS, PUBLIC)
-        internal_url = canonical_url(CONFIGS, INTERNAL)
-        admin_url = canonical_url(CONFIGS, ADMIN)
-        relation_set(
-            relation_id=rid,
-            **determine_endpoints(public_url,
-                                  internal_url,
-                                  admin_url))
+        return
+
+    public_url = canonical_url(CONFIGS, PUBLIC)
+    internal_url = canonical_url(CONFIGS, INTERNAL)
+    admin_url = canonical_url(CONFIGS, ADMIN)
+    relation_set(
+        relation_id=rid,
+        **determine_endpoints(public_url,
+                              internal_url,
+                              admin_url))
 
 
 @hooks.hook('identity-service-relation-changed')
