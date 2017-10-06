@@ -347,3 +347,16 @@ class NovaComputeContextTests(CharmTestCase):
              'enable_serial_console': 'true'}
         )
         mock_resolve_address.assert_called_with(endpoint_type=context.PUBLIC)
+
+    def test_nova_cellv2_shared_db_context(self):
+        self.relation_ids.return_value = ['shared-db:0']
+        self.related_units.return_value = ['mysql/0']
+        self.test_relation.set(
+            {'novaapi_password': 'changeme',
+             'novacell0_password': 'passw0rd',
+             'nova_password': '1234'})
+        self.assertEqual(
+            context.NovaCellV2SharedDBContext()(),
+            {'novaapi_password': 'changeme',
+             'novacell0_password': 'passw0rd',
+             'nova_password': '1234'})

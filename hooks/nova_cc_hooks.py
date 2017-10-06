@@ -97,6 +97,7 @@ from nova_cc_utils import (
     enable_services,
     git_install,
     is_api_ready,
+    is_cellv2_init_ready,
     keystone_ca_cert_b64,
     migrate_nova_databases,
     placement_api_enabled,
@@ -229,6 +230,9 @@ def update_cell_db_if_ready(skip_acl_check=False, db_rid=None, unit=None):
 
     if not is_db_initialised():
         log("Database not initialised - skipping cell db update", level=DEBUG)
+        return
+
+    if not is_cellv2_init_ready():
         return
 
     allowed_units = relation_get('nova_allowed_units', rid=db_rid, unit=unit)
@@ -373,13 +377,11 @@ def amqp_changed():
         log('amqp relation incomplete. Peer not ready?')
         return
     CONFIGS.write(NOVA_CONF)
-    # TODO: Replace the following check with a Cellsv2 context check.
-    if CompareOpenStackReleases(os_release('nova-common')) >= 'ocata':
-        # db init for cells v2 requires amqp transport_url and db connections
-        # to be set in nova.conf, so we attempt db init in here as well as the
-        # db relation-changed hooks.
-        leader_init_db_if_ready_allowed_units()
-        update_cell_db_if_ready_allowed_units()
+    leader_init_db_if_ready_allowed_units()
+    # db init for cells v2 requires amqp transport_url and db connections
+    # to be set in nova.conf, so we attempt db init in here as well as the
+    # db relation-changed hooks.
+    update_cell_db_if_ready_allowed_units()
     [nova_cell_relation_joined(rid=rid)
         for rid in relation_ids('cell')]
 
@@ -472,12 +474,11 @@ def db_changed():
         return
 
     CONFIGS.write_all()
+    leader_init_db_if_ready()
     # db init for cells v2 requires amqp transport_url and db connections to
     # be set in nova.conf, so we attempt db init in here as well as the
     # amqp-relation-changed hook.
-    leader_init_db_if_ready()
-    if CompareOpenStackReleases(os_release('nova-common')) >= 'ocata':
-        update_cell_db_if_ready()
+    update_cell_db_if_ready()
 
 
 @hooks.hook('pgsql-nova-db-relation-changed')
@@ -491,8 +492,7 @@ def postgresql_nova_db_changed():
 
     CONFIGS.write_all()
     leader_init_db_if_ready(skip_acl_check=True, skip_cells_restarts=True)
-    if CompareOpenStackReleases(os_release('nova-common')) >= 'ocata':
-        update_cell_db_if_ready(skip_acl_check=True)
+    update_cell_db_if_ready(skip_acl_check=True)
 
     for r_id in relation_ids('nova-api'):
         nova_api_relation_joined(rid=r_id)
@@ -708,7 +708,7 @@ def compute_changed(rid=None, unit=None):
     if not rel_settings.get('region', None) == config('region'):
         relation_set(relation_id=rid, region=config('region'))
 
-    if is_db_initialised():
+    if is_cellv2_init_ready() and is_db_initialised():
         add_hosts_to_cell()
 
     if 'migration_auth_type' not in rel_settings:
@@ -931,8 +931,7 @@ def ha_changed():
                active=config('service-guard'))
 def db_departed():
     CONFIGS.write_all()
-    if CompareOpenStackReleases(os_release('nova-common')) >= 'ocata':
-        update_cell_db_if_ready(skip_acl_check=True)
+    update_cell_db_if_ready(skip_acl_check=True)
     for r_id in relation_ids('cluster'):
         relation_set(relation_id=r_id, dbsync_state='incomplete')
     disable_services()
