@@ -282,17 +282,22 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.config_changed()
         mock_compute_changed.assert_has_calls([call('generic_rid', 'unit/0')])
 
+    @patch.object(hooks, 'is_cellv2_init_ready')
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'nova_api_relation_joined')
     def test_compute_changed_nova_api_trigger(self, api_joined,
-                                              mock_is_db_initialised):
+                                              mock_is_db_initialised,
+                                              mock_is_cellv2_init_ready):
         self.relation_ids.return_value = ['nova-api/0']
         mock_is_db_initialised.return_value = False
+        mock_is_cellv2_init_ready.return_value = False
         hooks.compute_changed()
         api_joined.assert_called_with(rid='nova-api/0')
 
+    @patch.object(hooks, 'is_cellv2_init_ready')
     @patch.object(hooks, 'is_db_initialised')
-    def test_compute_changed_ssh_migration(self, mock_is_db_initialised):
+    def test_compute_changed_ssh_migration(self, mock_is_db_initialised,
+                                           mock_is_cellv2_init_ready):
         self.test_relation.set({
             'migration_auth_type': 'ssh', 'ssh_public_key': 'fookey',
             'private-address': '10.0.0.1', 'region': 'RegionOne'})
@@ -301,6 +306,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.ssh_authorized_keys_lines.return_value = [
             'auth_0', 'auth_1', 'auth_2']
         mock_is_db_initialised.return_value = False
+        mock_is_cellv2_init_ready.return_value = False
         hooks.compute_changed()
         self.ssh_compute_add.assert_called_with('fookey', rid=None, unit=None)
         expected_relations = [
@@ -321,8 +327,10 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertEqual(sorted(self.relation_set.call_args_list),
                          sorted(expected_relations))
 
+    @patch.object(hooks, 'is_cellv2_init_ready')
     @patch.object(hooks, 'is_db_initialised')
-    def test_compute_changed_nova_public_key(self, mock_is_db_initialised):
+    def test_compute_changed_nova_public_key(self, mock_is_db_initialised,
+                                             mock_is_cellv2_init_ready):
         self.test_relation.set({
             'migration_auth_type': 'sasl', 'nova_ssh_public_key': 'fookey',
             'private-address': '10.0.0.1', 'region': 'RegionOne'})
@@ -331,6 +339,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.ssh_authorized_keys_lines.return_value = [
             'auth_0', 'auth_1', 'auth_2']
         mock_is_db_initialised.return_value = False
+        mock_is_cellv2_init_ready.return_value = False
         hooks.compute_changed()
         self.ssh_compute_add.assert_called_with('fookey', user='nova',
                                                 rid=None, unit=None)
@@ -677,6 +686,7 @@ class NovaCCHooksTests(CharmTestCase):
         cell_joined.assert_called_with(rid='nova-cell-api/0')
 
     @patch.object(hooks, 'leader_init_db_if_ready_allowed_units')
+    @patch.object(hooks, 'update_cell_db_if_ready_allowed_units')
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'quantum_joined')
     @patch.object(hooks, 'nova_api_relation_joined')
@@ -684,7 +694,7 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'CONFIGS')
     def test_amqp_changed_api_rel(self, configs, cell_joined, api_joined,
                                   quantum_joined, mock_is_db_initialised,
-                                  init_db_allowed):
+                                  update_db_allowed, init_db_allowed):
         self.relation_ids.side_effect = [
             ['nova-cell-api/0'],
             ['nova-api/0'],
@@ -705,6 +715,7 @@ class NovaCCHooksTests(CharmTestCase):
                                           remote_restart=True)
 
     @patch.object(hooks, 'leader_init_db_if_ready_allowed_units')
+    @patch.object(hooks, 'update_cell_db_if_ready_allowed_units')
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'quantum_joined')
     @patch.object(hooks, 'nova_api_relation_joined')
@@ -712,7 +723,7 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'CONFIGS')
     def test_amqp_changed_noapi_rel(self, configs, cell_joined, api_joined,
                                     quantum_joined, mock_is_db_initialised,
-                                    init_db_allowed):
+                                    update_db_allowed, init_db_allowed):
         mock_is_db_initialised.return_value = False
         configs.complete_contexts = MagicMock()
         configs.complete_contexts.return_value = ['amqp']

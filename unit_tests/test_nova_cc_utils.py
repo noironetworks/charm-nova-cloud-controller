@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import OrderedDict
-from mock import patch, MagicMock, call, ANY
+from mock import patch, MagicMock, call
 
 from test_utils import (
     CharmTestCase,
@@ -64,7 +64,6 @@ TO_PATCH = [
     'os_application_version_set',
     'token_cache_pkgs',
     'enable_memcache',
-    'is_relation_made',
 ]
 
 SCRIPTRC_ENV_VARS = {
@@ -724,24 +723,25 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertTrue(self.enable_services.called)
         self.cmd_all_services.assert_called_with('start')
 
-    @patch('subprocess.call')
     @patch('subprocess.check_output')
-    def test_migrate_nova_databases_ocata(self, check_output, mock_call):
+    @patch.object(utils, 'get_cell_uuid')
+    @patch.object(utils, 'is_cellv2_init_ready')
+    def test_migrate_nova_databases_ocata(self, cellv2_ready, get_cell_uuid,
+                                          check_output):
         "Migrate database with nova-manage in a clustered env"
-        self.is_relation_made.return_value = True
+        get_cell_uuid.return_value = 'c83121db-f1c7-464a-b657-38c28fac84c6'
         self.relation_ids.return_value = ['cluster:1']
         self.os_release.return_value = 'ocata'
         utils.migrate_nova_databases()
-        mock_call.assert_has_calls([
-            call(['nova-manage', 'cell_v2', 'create_cell', '--name', 'cell1']),
-        ])
         check_output.assert_has_calls([
             call(['nova-manage', 'api_db', 'sync']),
             call(['nova-manage', 'cell_v2', 'map_cell0']),
+            call(['nova-manage', 'cell_v2', 'create_cell', '--name', 'cell1',
+                  '--verbose']),
             call(['nova-manage', 'db', 'sync']),
             call(['nova-manage', 'db', 'online_data_migrations']),
-            call(['nova-manage', 'cell_v2', 'list_cells']),
-            ANY,
+            call(['nova-manage', 'cell_v2', 'discover_hosts', '--cell_uuid',
+                  'c83121db-f1c7-464a-b657-38c28fac84c6', '--verbose']),
         ])
         self.peer_store.assert_called_with('dbsync_state', 'complete')
         self.assertTrue(self.enable_services.called)
@@ -1381,11 +1381,41 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertEqual(expected, utils.get_cell_uuid('cell1'))
 
     @patch.object(utils, 'get_cell_uuid')
-    @patch('subprocess.call')
-    def test_map_instances(self, mock_call, mock_get_cell_uuid):
+    @patch('subprocess.check_output')
+    def test_map_instances(self, mock_check_output, mock_get_cell_uuid):
         cell_uuid = 'c83121db-f1c7-464a-b657-38c28fac84c6'
         mock_get_cell_uuid.return_value = cell_uuid
         utils.map_instances()
-        mock_call.assert_called_with(['nova-manage', 'cell_v2',
-                                      'map_instances', '--cell_uuid',
-                                      cell_uuid])
+        mock_check_output.assert_called_with(['nova-manage', 'cell_v2',
+                                              'map_instances', '--cell_uuid',
+                                              cell_uuid])
+
+    @patch.object(utils, 'get_cell_uuid')
+    @patch('subprocess.check_output')
+    def test_add_hosts_to_cell(self, mock_check_output, mock_get_cell_uuid):
+        cell_uuid = 'c83121db-f1c7-464a-b657-38c28fac84c6'
+        mock_get_cell_uuid.return_value = cell_uuid
+        utils.add_hosts_to_cell()
+        mock_check_output.assert_called_with(
+            ['nova-manage', 'cell_v2', 'discover_hosts', '--cell_uuid',
+             'c83121db-f1c7-464a-b657-38c28fac84c6', '--verbose'])
+
+    @patch('nova_cc_context.NovaCellV2SharedDBContext')
+    @patch('charmhelpers.contrib.openstack.context.AMQPContext')
+    def test_is_cellv2_init_ready_mitaka(self, amqp, shared_db):
+        self.os_release.return_value = 'mitaka'
+        utils.is_cellv2_init_ready()
+        self.os_release.assert_called_once_with('nova-common')
+        amqp.assert_called_once()
+        shared_db.assert_called_once()
+        self.log.assert_called_once()
+
+    @patch('nova_cc_context.NovaCellV2SharedDBContext')
+    @patch('charmhelpers.contrib.openstack.context.AMQPContext')
+    def test_is_cellv2_init_ready_ocata(self, amqp, shared_db):
+        self.os_release.return_value = 'ocata'
+        utils.is_cellv2_init_ready()
+        self.os_release.assert_called_once_with('nova-common')
+        amqp.assert_called_once()
+        shared_db.assert_called_once()
+        self.log.assert_not_called()

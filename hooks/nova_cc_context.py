@@ -88,6 +88,25 @@ class NovaCellContext(context.OSContextGenerator):
         return {}
 
 
+class NovaCellV2SharedDBContext(context.OSContextGenerator):
+    interfaces = ['shared-db']
+
+    def __call__(self):
+        log('Generating template context for cell v2 share-db')
+        ctxt = {}
+        for rid in relation_ids('shared-db'):
+            for unit in related_units(rid):
+                rdata = relation_get(rid=rid, unit=unit)
+                ctxt = {
+                    'novaapi_password': rdata.get('novaapi_password'),
+                    'novacell0_password': rdata.get('novacell0_password'),
+                    'nova_password': rdata.get('nova_password'),
+                }
+                if context.context_complete(ctxt):
+                    return ctxt
+        return {}
+
+
 class CloudComputeContext(context.OSContextGenerator):
     "Dummy context used by service status to check relation exists"
     interfaces = ['nova-compute']
