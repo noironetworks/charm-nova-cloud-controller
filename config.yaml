@@ -234,6 +234,14 @@ options:
       .
       Increasing this value will increase instance density on compute nodes
       at the potential expense of instance performance.
+  disk-allocation-ratio:
+    type: float
+    default: 0.0
+    description: |
+      Increase the amount of disk space that nova can overcommit to guests.
+      .
+      Increasing this value will increase instance density on compute nodes
+      with an increased risk of hypervisor storage becoming full.
   single-nova-consoleauth:
     type: boolean
     default: true

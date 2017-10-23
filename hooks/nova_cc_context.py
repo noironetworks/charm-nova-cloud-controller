@@ -282,6 +282,8 @@ class NovaConfigContext(context.WorkerConfigContext):
         ctxt['scheduler_default_filters'] = config('scheduler-default-filters')
         if config('pci-alias'):
             ctxt['pci_alias'] = config('pci-alias')
+
+        ctxt['disk_allocation_ratio'] = config('disk-allocation-ratio')
         ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
         ctxt['ram_allocation_ratio'] = config('ram-allocation-ratio')
         addr = resolve_address(INTERNAL)

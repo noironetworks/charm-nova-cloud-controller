@@ -312,6 +312,8 @@ class NovaComputeContextTests(CharmTestCase):
                          self.config('cpu-allocation-ratio'))
         self.assertEqual(ctxt['ram_allocation_ratio'],
                          self.config('ram-allocation-ratio'))
+        self.assertEqual(ctxt['disk_allocation_ratio'],
+                         self.config('disk-allocation-ratio'))
 
     @mock.patch.object(context, 'format_ipv6_addr')
     @mock.patch.object(context, 'resolve_address')
