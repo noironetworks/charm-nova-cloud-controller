@@ -166,6 +166,8 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(self.disable_services.called)
         self.cmd_all_services.assert_called_with('stop')
 
+    @patch.object(hooks, 'update_aws_compat_services')
+    @patch.object(hooks, 'update_nova_consoleauth_config')
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'determine_packages')
     @patch.object(utils, 'service_resume')
@@ -175,7 +177,9 @@ class NovaCCHooksTests(CharmTestCase):
     def test_config_changed_no_upgrade(self, conf_https, mock_filter_packages,
                                        utils_config, mock_service_resume,
                                        mock_determine_packages,
-                                       mock_is_db_initialised):
+                                       mock_is_db_initialised,
+                                       mock_update_nova_consoleauth_config,
+                                       mock_update_aws_compat_services):
         mock_determine_packages.return_value = []
         utils_config.side_effect = self.test_config.get
         self.test_config.set('console-access-protocol', 'dummy')
@@ -186,12 +190,18 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.config_changed()
         self.assertTrue(self.save_script_rc.called)
         mock_filter_packages.assert_called_with([])
+        self.assertTrue(mock_update_nova_consoleauth_config.called)
+        self.assertTrue(mock_update_aws_compat_services.called)
 
+    @patch.object(hooks, 'update_aws_compat_services')
+    @patch.object(hooks, 'update_nova_consoleauth_config')
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(utils, 'service_resume')
     @patch.object(hooks, 'configure_https')
     def test_config_changed_git(self, configure_https, mock_service_resume,
-                                mock_is_db_initialised):
+                                mock_is_db_initialised,
+                                mock_update_nova_consoleauth_config,
+                                mock_update_aws_compat_services):
         self.git_install_requested.return_value = True
         repo = 'cloud:trusty-juno'
         openstack_origin_git = {
@@ -214,7 +224,11 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.config_changed()
         self.git_install.assert_called_with(projects_yaml)
         self.assertFalse(self.do_openstack_upgrade.called)
+        self.assertTrue(mock_update_nova_consoleauth_config.called)
+        self.assertTrue(mock_update_aws_compat_services.called)
 
+    @patch.object(hooks, 'update_aws_compat_services')
+    @patch.object(hooks, 'update_nova_consoleauth_config')
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'quantum_joined')
     @patch.object(hooks, 'determine_packages')
@@ -238,7 +252,9 @@ class NovaCCHooksTests(CharmTestCase):
                                          mock_service_resume,
                                          mock_determine_packages,
                                          mock_quantum_joined,
-                                         mock_is_db_initialised):
+                                         mock_is_db_initialised,
+                                         mock_update_nova_consoleauth_config,
+                                         mock_update_aws_compat_services):
         mock_determine_packages.return_value = []
         mock_is_db_initialised.return_value = False
         self.git_install_requested.return_value = False
@@ -260,7 +276,11 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(self.save_script_rc.called)
         mock_filter_packages.assert_called_with([])
         self.assertTrue(mock_quantum_joined.called)
+        self.assertTrue(mock_update_nova_consoleauth_config.called)
+        self.assertTrue(mock_update_aws_compat_services.called)
 
+    @patch.object(hooks, 'update_aws_compat_services')
+    @patch.object(hooks, 'update_nova_consoleauth_config')
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(utils, 'service_resume')
     @patch.object(hooks, 'filter_installed_packages')
@@ -270,7 +290,9 @@ class NovaCCHooksTests(CharmTestCase):
                                           mock_config_https,
                                           mock_filter_packages,
                                           mock_service_resume,
-                                          mock_is_db_initialised):
+                                          mock_is_db_initialised,
+                                          mock_update_nova_consoleauth_config,
+                                          mock_update_aws_compat_services):
         self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = False
         self.config_value_changed.return_value = True
@@ -281,6 +303,8 @@ class NovaCCHooksTests(CharmTestCase):
         self.os_release.return_value = 'diablo'
         hooks.config_changed()
         mock_compute_changed.assert_has_calls([call('generic_rid', 'unit/0')])
+        self.assertTrue(mock_update_nova_consoleauth_config.called)
+        self.assertTrue(mock_update_aws_compat_services.called)
 
     @patch.object(hooks, 'is_cellv2_init_ready')
     @patch.object(hooks, 'is_db_initialised')
@@ -1058,6 +1082,7 @@ class NovaCCHooksTests(CharmTestCase):
             call(**args),
         ])
 
+    @patch.object(hooks, 'update_aws_compat_services')
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'determine_packages')
     @patch.object(hooks, 'service_pause')
@@ -1069,7 +1094,8 @@ class NovaCCHooksTests(CharmTestCase):
                                                mock_filter_packages,
                                                mock_service_pause,
                                                mock_determine_packages,
-                                               mock_is_db_initialised):
+                                               mock_is_db_initialised,
+                                               mock_update_aws_compat_svcs):
         mock_determine_packages.return_value = []
         mock_is_db_initialised.return_value = False
         self.config_value_changed.return_value = False
@@ -1108,6 +1134,8 @@ class NovaCCHooksTests(CharmTestCase):
             call('nova-consoleauth')]
         )
         mock_filter_packages.assert_called_with([])
+
+        self.assertTrue(mock_update_aws_compat_svcs.called)
 
     @patch.object(hooks, 'is_api_ready')
     def _test_nova_api_relation_joined(self, tgt, is_api_ready):
