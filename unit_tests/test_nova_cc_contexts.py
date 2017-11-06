@@ -362,3 +362,31 @@ class NovaComputeContextTests(CharmTestCase):
             {'novaapi_password': 'changeme',
              'novacell0_password': 'passw0rd',
              'nova_password': '1234'})
+
+    @mock.patch.object(context, 'context_complete', lambda *args: True)
+    def test_NeutronAPIContext(self):
+        self.relation_ids.return_value = ['neutron-api:12']
+        self.related_units.return_value = ['neutron-api/0']
+        settings = {'neutron-plugin': 'ovs',
+                    'enable-sriov': 'False',
+                    'neutron-security-groups': 'yes',
+                    'neutron-url': 'http://neutron:9696'}
+
+        def fake_rel_get(attribute=None, unit=None, rid=None):
+            if attribute:
+                return settings.get(attribute)
+
+            return settings
+
+        self.relation_get.side_effect = fake_rel_get
+        ctxt = context.NeutronAPIContext()()
+        expected = {'network_manager': 'neutron',
+                    'neutron_plugin': 'ovs',
+                    'neutron_security_groups': 'yes',
+                    'neutron_url': 'http://neutron:9696'}
+        self.assertEqual(ctxt, expected)
+
+        settings['enable-sriov'] = 'True'
+        expected['additional_neutron_filters'] = 'PciPassthroughFilter'
+        ctxt = context.NeutronAPIContext()()
+        self.assertEqual(ctxt, expected)
