@@ -236,7 +236,7 @@ options:
       at the potential expense of instance performance.
   disk-allocation-ratio:
     type: float
-    default: 0.0
+    default: 1.0
     description: |
       Increase the amount of disk space that nova can overcommit to guests.
       .
