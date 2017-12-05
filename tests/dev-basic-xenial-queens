@@ -15,10 +15,12 @@
 # limitations under the License.
 
 """Amulet tests on a basic nova cloud controller deployment on
-   zesty-ocata."""
+   xenial-queens."""
 
 from basic_deployment import NovaCCBasicDeployment
 
 if __name__ == '__main__':
-    deployment = NovaCCBasicDeployment(series='zesty')
+    deployment = NovaCCBasicDeployment(series='xenial',
+                                       openstack='cloud:xenial-queens',
+                                       source='cloud:xenial-updates/queens')
     deployment.run_tests()
