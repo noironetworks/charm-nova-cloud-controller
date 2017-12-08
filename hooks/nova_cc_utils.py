@@ -267,7 +267,7 @@ BASE_RESOURCE_MAP = OrderedDict([
                      nova_cc_context.InstanceConsoleContext(),
                      nova_cc_context.ConsoleSSLContext(),
                      nova_cc_context.CloudComputeContext(),
-                     context.InternalEndpointContext(),
+                     context.InternalEndpointContext('nova-common'),
                      nova_cc_context.NeutronAPIContext(),
                      nova_cc_context.SerialConsoleContext(),
                      context.MemcacheContext()],
