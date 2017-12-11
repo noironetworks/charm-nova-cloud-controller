@@ -14,6 +14,7 @@
 
 from __future__ import print_function
 
+import json
 import mock
 
 import nova_cc_context as context
@@ -318,6 +319,67 @@ class NovaComputeContextTests(CharmTestCase):
                          self.config('ram-allocation-ratio'))
         self.assertEqual(ctxt['disk_allocation_ratio'],
                          self.config('disk-allocation-ratio'))
+
+    _pci_alias1 = {
+        "name": "IntelNIC",
+        "capability_type": "pci",
+        "product_id": "1111",
+        "vendor_id": "8086",
+        "device_type": "type-PF"}
+
+    _pci_alias2 = {
+        "name": " Cirrus Logic ",
+        "capability_type": "pci",
+        "product_id": "0ff2",
+        "vendor_id": "10de",
+        "device_type": "type-PCI"}
+
+    _pci_alias_list = [_pci_alias1, _pci_alias2]
+
+    @mock.patch('charmhelpers.contrib.openstack.ip.unit_get')
+    @mock.patch('charmhelpers.contrib.hahelpers.cluster.relation_ids')
+    @mock.patch('charmhelpers.core.hookenv.local_unit')
+    @mock.patch('charmhelpers.contrib.openstack.context.config')
+    def test_nova_config_context_multi_pci_alias(self, mock_config,
+                                                 local_unit,
+                                                 mock_relation_ids,
+                                                 mock_unit_get):
+        local_unit.return_value = 'nova-cloud-controller/0'
+        mock_config.side_effect = self.test_config.get
+        mock_unit_get.return_value = '127.0.0.1'
+        self.test_config.set(
+            'pci-alias', json.dumps(self._pci_alias1))
+        ctxt = context.NovaConfigContext()()
+        self.assertEqual(
+            ctxt['pci_alias'],
+            ('{"capability_type": "pci", "device_type": "type-PF", '
+             '"name": "IntelNIC", "product_id": "1111", '
+             '"vendor_id": "8086"}'))
+
+    @mock.patch('charmhelpers.contrib.openstack.ip.unit_get')
+    @mock.patch('charmhelpers.contrib.hahelpers.cluster.relation_ids')
+    @mock.patch('charmhelpers.core.hookenv.local_unit')
+    @mock.patch('charmhelpers.contrib.openstack.context.config')
+    def test_nova_config_context_multi_pci_aliases(self, mock_config,
+                                                   local_unit,
+                                                   mock_relation_ids,
+                                                   mock_unit_get):
+        local_unit.return_value = 'nova-cloud-controller/0'
+        mock_config.side_effect = self.test_config.get
+        mock_unit_get.return_value = '127.0.0.1'
+        self.test_config.set(
+            'pci-alias', json.dumps(self._pci_alias_list))
+        ctxt = context.NovaConfigContext()()
+        self.assertEqual(
+            ctxt['pci_aliases'][0],
+            ('{"capability_type": "pci", "device_type": "type-PF", '
+             '"name": "IntelNIC", "product_id": "1111", '
+             '"vendor_id": "8086"}'))
+        self.assertEqual(
+            ctxt['pci_aliases'][1],
+            ('{"capability_type": "pci", "device_type": "type-PCI", '
+             '"name": " Cirrus Logic ", "product_id": "0ff2", '
+             '"vendor_id": "10de"}'))
 
     @mock.patch.object(context, 'format_ipv6_addr')
     @mock.patch.object(context, 'resolve_address')

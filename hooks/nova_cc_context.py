@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 
 from base64 import b64decode
@@ -272,7 +273,12 @@ class NovaConfigContext(context.WorkerConfigContext):
         ctxt = super(NovaConfigContext, self).__call__()
         ctxt['scheduler_default_filters'] = config('scheduler-default-filters')
         if config('pci-alias'):
-            ctxt['pci_alias'] = config('pci-alias')
+            aliases = json.loads(config('pci-alias'))
+            if isinstance(aliases, list):
+                ctxt['pci_aliases'] = [json.dumps(x, sort_keys=True)
+                                       for x in aliases]
+            else:
+                ctxt['pci_alias'] = json.dumps(aliases, sort_keys=True)
 
         ctxt['disk_allocation_ratio'] = config('disk-allocation-ratio')
         ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
