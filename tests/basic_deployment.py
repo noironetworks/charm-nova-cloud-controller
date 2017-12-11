@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import amulet
+import json
 
 from charmhelpers.contrib.openstack.amulet.deployment import (
     OpenStackAmuletDeployment
@@ -768,6 +769,49 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         if ret:
             message = "api paste config error: {}".format(ret)
             amulet.raise_status(amulet.FAIL, msg=message)
+
+    def test_310_pci_alias_config(self):
+        """Verify the pci alias data is rendered properly."""
+        u.log.debug('Checking pci aliases in nova config')
+
+        os_release = self._get_openstack_release_string()
+        if CompareOpenStackReleases(os_release) < 'kilo':
+            u.log.info('Skipping test, {} < kilo'.format(os_release))
+            return
+
+        _pci_alias1 = {
+            "name": "IntelNIC",
+            "capability_type": "pci",
+            "product_id": "1111",
+            "vendor_id": "8086",
+            "device_type": "type-PF"}
+
+        if CompareOpenStackReleases(os_release) >= 'ocata':
+            section = "pci"
+            key_name = "alias"
+        else:
+            section = "DEFAULT"
+            key_name = "pci_alias"
+
+        unit = self.nova_cc_sentry
+        conf = '/etc/nova/nova.conf'
+        self.d.configure(
+            'nova-cloud-controller',
+            {'pci-alias': json.dumps(_pci_alias1, sort_keys=True)})
+        self.d.sentry.wait()
+        ret = u.validate_config_data(
+            unit,
+            conf,
+            section,
+            {key_name: ('{"capability_type": "pci", "device_type": "type-PF", '
+                        '"name": "IntelNIC", "product_id": "1111", '
+                        '"vendor_id": "8086"}')})
+        if ret:
+            message = "PCI Alias config error in section {}: {}".format(
+                section,
+                ret)
+            amulet.raise_status(amulet.FAIL, msg=message)
+        self.d.configure('nova-cloud-controller', {'pci-alias': ''})
 
     def test_400_image_instance_create(self):
         """Create an image/instance, verify they exist, and delete them."""
