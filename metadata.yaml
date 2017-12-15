@@ -59,9 +59,6 @@ requires:
     scope: container
   memcache:
     interface: memcache
-  zeromq-configuration:
-    interface: zeromq-configuration
-    scope: container
 peers:
   cluster:
     interface: nova-ha

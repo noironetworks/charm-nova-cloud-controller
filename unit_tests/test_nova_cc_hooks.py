@@ -260,7 +260,6 @@ class NovaCCHooksTests(CharmTestCase):
         self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = True
         self.relation_ids.return_value = ['generic_rid']
-        _zmq_joined = self.patch('zeromq_configuration_relation_joined')
         utils_config.side_effect = self.test_config.get
         self.test_config.set('console-access-protocol', 'dummy')
         mock_relids.return_value = []
@@ -270,7 +269,6 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(self.do_openstack_upgrade.called)
         self.assertTrue(neutron_api_joined.called)
         self.assertTrue(identity_joined.called)
-        self.assertTrue(_zmq_joined.called)
         self.assertTrue(cluster_joined.called)
         self.assertTrue(db_joined.called)
         self.assertTrue(self.save_script_rc.called)

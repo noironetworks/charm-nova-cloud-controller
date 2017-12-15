@@ -1200,13 +1200,6 @@ def service_guard(guard_map, contexts, active=False):
     return wrap
 
 
-def get_topics():
-    topics = ['scheduler', 'conductor']
-    if 'nova-consoleauth' in services():
-        topics.append('consoleauth')
-    return topics
-
-
 def cmd_all_services(cmd):
     if is_unit_paused_set():
         log('Unit is in paused state, not issuing {} to all'

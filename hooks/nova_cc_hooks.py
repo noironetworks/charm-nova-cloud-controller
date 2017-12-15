@@ -63,7 +63,6 @@ from charmhelpers.contrib.openstack.utils import (
     git_install_requested,
     openstack_upgrade_available,
     os_release,
-    os_requires_version,
     sync_db_with_multi_ipv6_addresses,
     pausable_restart_on_change as restart_on_change,
     is_unit_paused_set,
@@ -114,7 +113,6 @@ from nova_cc_utils import (
     console_attributes,
     service_guard,
     guard_map,
-    get_topics,
     setup_ipv6,
     is_db_initialised,
     assess_status,
@@ -343,8 +341,6 @@ def config_changed():
         quantum_joined(rid=rid)
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
-    for rid in relation_ids('zeromq-configuration'):
-        zeromq_configuration_relation_joined(rid)
     [cluster_joined(rid) for rid in relation_ids('cluster')]
     [compute_joined(rid=rid) for rid in relation_ids('cloud-compute')]
 
@@ -1081,14 +1077,6 @@ def neutron_api_relation_broken():
         compute_joined(rid=rid)
     for rid in relation_ids('quantum-network-service'):
         quantum_joined(rid=rid)
-
-
-@hooks.hook('zeromq-configuration-relation-joined')
-@os_requires_version('kilo', 'nova-common')
-def zeromq_configuration_relation_joined(relid=None):
-    relation_set(relation_id=relid,
-                 topics=" ".join(get_topics()),
-                 users="nova")
 
 
 @hooks.hook('nrpe-external-master-relation-joined',
