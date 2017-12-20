@@ -491,7 +491,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             'auth_protocol': 'http',
             'private-address': u.valid_ip,
             'auth_host': u.valid_ip,
-            'service_username': 's3_ec2_nova',
+            'service_username': 'ec2_nova_s3',
             'service_tenant_id': u.not_null,
             'service_host': u.valid_ip
         }
@@ -499,7 +499,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             expected['service_username'] = 'nova'
 
         if self._get_openstack_release() >= self.xenial_ocata:
-            expected['service_username'] = 'placement_nova'
+            expected['service_username'] = 'nova_placement'
 
         ret = u.validate_relation_data(unit, relation, expected)
         if ret:
