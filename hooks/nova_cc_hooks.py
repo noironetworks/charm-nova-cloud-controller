@@ -298,7 +298,7 @@ def install():
 @harden()
 def config_changed():
     # neutron-server runs if < juno. Neutron-server creates mysql tables
-    # which will subsequently cause db migratoins to fail if >= juno.
+    # which will subsequently cause db migrations to fail if >= juno.
     # Disable neutron-server if >= juno
     if CompareOpenStackReleases(os_release('nova-common')) >= 'juno':
         with open('/etc/init/neutron-server.override', 'wb') as out:
