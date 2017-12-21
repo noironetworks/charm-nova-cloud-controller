@@ -35,7 +35,6 @@ from charmhelpers.core.hookenv import (
     log,
     local_unit,
     DEBUG,
-    ERROR,
     WARNING,
     relation_get,
     relation_ids,
@@ -209,16 +208,11 @@ def leader_init_db_if_ready_allowed_units():
     be passed to leader_init_db_if_ready(), enabling use of allowed_units
     to determine if this nova-cc unit is allowed to perform db init.
     """
-    rels = ['shared-db', 'pgsql-nova-db']
+    rels = ['shared-db']
     for rname in rels:
         for rid in relation_ids(rname):
             for unit in related_units(rid):
-                if rname == 'pgsql-nova-db':
-                    leader_init_db_if_ready(skip_acl_check=True,
-                                            skip_cells_restarts=True,
-                                            db_rid=rid, unit=unit)
-                else:
-                    leader_init_db_if_ready(db_rid=rid, unit=unit)
+                leader_init_db_if_ready(db_rid=rid, unit=unit)
 
 
 def update_cell_db_if_ready(skip_acl_check=False, db_rid=None, unit=None):
@@ -249,15 +243,11 @@ def update_cell_db_if_ready_allowed_units():
     be passed to update_cell_db_if_ready(), enabling use of allowed_units
     to determine if this nova-cc unit is allowed to perform db updates.
     """
-    rels = ['shared-db', 'pgsql-nova-db']
+    rels = ['shared-db']
     for rname in rels:
         for rid in relation_ids(rname):
             for unit in related_units(rid):
-                if rname == 'pgsql-nova-db':
-                    update_cell_db_if_ready(skip_acl_check=True,
-                                            db_rid=rid, unit=unit)
-                else:
-                    update_cell_db_if_ready(db_rid=rid, unit=unit)
+                update_cell_db_if_ready(db_rid=rid, unit=unit)
 
 
 @hooks.hook('install.real')
@@ -393,14 +383,6 @@ def amqp_changed():
 
 @hooks.hook('shared-db-relation-joined')
 def db_joined(relation_id=None):
-    if is_relation_made('pgsql-nova-db') or \
-            is_relation_made('pgsql-neutron-db'):
-        # error, postgresql is used
-        e = ('Attempting to associate a mysql database when there is already '
-             'associated a postgresql one')
-        log(e, level=ERROR)
-        raise Exception(e)
-
     cmp_os_release = CompareOpenStackReleases(os_release('nova-common'))
     if config('prefer-ipv6'):
         sync_db_with_multi_ipv6_addresses(config('database'),
@@ -448,18 +430,6 @@ def db_joined(relation_id=None):
                          relation_id=relation_id)
 
 
-@hooks.hook('pgsql-nova-db-relation-joined')
-def pgsql_nova_db_joined():
-    if is_relation_made('shared-db'):
-        # raise error
-        e = ('Attempting to associate a postgresql database'
-             ' when there is already associated a mysql one')
-        log(e, level=ERROR)
-        raise Exception(e)
-
-    relation_set(database=config('database'))
-
-
 @hooks.hook('shared-db-relation-changed')
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
@@ -475,23 +445,6 @@ def db_changed():
     # be set in nova.conf, so we attempt db init in here as well as the
     # amqp-relation-changed hook.
     update_cell_db_if_ready()
-
-
-@hooks.hook('pgsql-nova-db-relation-changed')
-@service_guard(guard_map(), CONFIGS,
-               active=config('service-guard'))
-@restart_on_change(restart_map())
-def postgresql_nova_db_changed():
-    if 'pgsql-nova-db' not in CONFIGS.complete_contexts():
-        log('pgsql-nova-db relation incomplete. Peer not ready?')
-        return
-
-    CONFIGS.write_all()
-    leader_init_db_if_ready(skip_acl_check=True, skip_cells_restarts=True)
-    update_cell_db_if_ready(skip_acl_check=True)
-
-    for r_id in relation_ids('nova-api'):
-        nova_api_relation_joined(rid=r_id)
 
 
 @hooks.hook('image-service-relation-changed')
@@ -922,8 +875,7 @@ def ha_changed():
     update_nova_consoleauth_config()
 
 
-@hooks.hook('shared-db-relation-broken',
-            'pgsql-nova-db-relation-broken')
+@hooks.hook('shared-db-relation-broken')
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))
 def db_departed():
@@ -940,7 +892,6 @@ def db_departed():
             'identity-service-relation-broken',
             'image-service-relation-broken',
             'nova-volume-service-relation-broken',
-            'pgsql-neutron-db-relation-broken',
             'quantum-network-service-relation-broken')
 @service_guard(guard_map(), CONFIGS,
                active=config('service-guard'))

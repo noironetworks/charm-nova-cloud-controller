@@ -264,18 +264,6 @@ class IdentityServiceContext(context.IdentityServiceContext):
         return ctxt
 
 
-class NovaPostgresqlDBContext(context.PostgresqlDBContext):
-    interfaces = ['pgsql-nova-db']
-
-
-class NeutronPostgresqlDBContext(context.PostgresqlDBContext):
-    interfaces = ['pgsql-neutron-db']
-
-    def __init__(self):
-        super(NeutronPostgresqlDBContext,
-              self).__init__(config('neutron-database'))
-
-
 class NovaConfigContext(context.WorkerConfigContext):
     def __call__(self):
         ctxt = super(NovaConfigContext, self).__call__()

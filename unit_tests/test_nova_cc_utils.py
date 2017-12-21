@@ -883,24 +883,6 @@ class NovaCCUtilsTests(CharmTestCase):
             utils.guard_map()
         )
 
-    def test_guard_map_pgsql(self):
-        self.relation_ids.return_value = ['pgsql:1']
-        self.os_release.return_value = 'icehouse'
-        self.assertEqual(
-            {'nova-api-ec2': ['identity-service', 'amqp', 'pgsql-nova-db'],
-             'nova-api-os-compute': ['identity-service', 'amqp',
-                                     'pgsql-nova-db'],
-             'nova-cert': ['identity-service', 'amqp', 'pgsql-nova-db'],
-             'nova-conductor': ['identity-service', 'amqp', 'pgsql-nova-db'],
-             'nova-objectstore': ['identity-service', 'amqp',
-                                  'pgsql-nova-db'],
-             'nova-placement-api': ['identity-service', 'amqp',
-                                    'pgsql-nova-db'],
-             'nova-scheduler': ['identity-service', 'amqp',
-                                'pgsql-nova-db'], },
-            utils.guard_map()
-        )
-
     def test_service_guard_inactive(self):
         '''Ensure that if disabled, service guards nothing'''
         contexts = MagicMock()

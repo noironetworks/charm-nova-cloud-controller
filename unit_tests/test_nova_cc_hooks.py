@@ -537,29 +537,6 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.identity_joined()
         self.assertFalse(self.relation_set.called)
 
-    def test_postgresql_nova_db_joined(self):
-        self.is_relation_made.return_value = False
-        hooks.pgsql_nova_db_joined()
-        self.relation_set.assert_called_with(database='nova')
-
-    def test_db_joined_with_postgresql(self):
-        self.is_relation_made.return_value = True
-
-        with self.assertRaises(Exception) as context:
-            hooks.db_joined()
-        self.assertEqual(context.exception.message,
-                         'Attempting to associate a mysql database when'
-                         ' there is already associated a postgresql one')
-
-    def test_postgresql_nova_joined_with_db(self):
-        self.is_relation_made.return_value = True
-
-        with self.assertRaises(Exception) as context:
-            hooks.pgsql_nova_db_joined()
-        self.assertEqual(context.exception.message,
-                         'Attempting to associate a postgresql database when'
-                         ' there is already associated a mysql one')
-
     @patch.object(hooks, 'CONFIGS')
     def test_db_changed_missing_relation_data(self, configs):
         configs.complete_contexts = MagicMock()
@@ -569,26 +546,11 @@ class NovaCCHooksTests(CharmTestCase):
             'shared-db relation incomplete. Peer not ready?'
         )
 
-    @patch.object(hooks, 'CONFIGS')
-    def test_postgresql_nova_db_changed_missing_relation_data(self, configs):
-        configs.complete_contexts = MagicMock()
-        configs.complete_contexts.return_value = []
-        hooks.postgresql_nova_db_changed()
-        self.log.assert_called_with(
-            'pgsql-nova-db relation incomplete. Peer not ready?'
-        )
-
     def _shared_db_test(self, configs):
         configs.complete_contexts = MagicMock()
         configs.complete_contexts.return_value = ['shared-db']
         configs.write = MagicMock()
         hooks.db_changed()
-
-    def _postgresql_db_test(self, configs):
-        configs.complete_contexts = MagicMock()
-        configs.complete_contexts.return_value = ['pgsql-nova-db']
-        configs.write = MagicMock()
-        hooks.postgresql_nova_db_changed()
 
     @patch.object(hooks, 'nova_api_relation_joined')
     @patch.object(hooks, 'is_db_initialised')
@@ -636,28 +598,6 @@ class NovaCCHooksTests(CharmTestCase):
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
         self.assertFalse(self.migrate_nova_databases.called)
-
-    @patch.object(utils, 'is_leader')
-    @patch.object(utils, 'os_release')
-    @patch.object(hooks, 'quantum_joined')
-    @patch.object(hooks, 'nova_api_relation_joined')
-    @patch.object(hooks, 'is_db_initialised')
-    @patch.object(hooks, 'CONFIGS')
-    def test_postgresql_db_changed(self, configs, mock_is_db_initialised,
-                                   api_joined, quantum_joined,
-                                   utils_os_release, utils_is_leader):
-        self.relation_ids.side_effect = [
-            [],
-            ['neutron-gateway/0'],
-            ['nova-api/0']]
-        mock_is_db_initialised.return_value = False
-        self.os_release.return_value = 'diablo'
-        utils_os_release.return_value = 'diablo'
-        utils_is_leader.return_value = True
-        self._postgresql_db_test(configs)
-        self.assertTrue(configs.write_all.called)
-        self.migrate_nova_databases.assert_called_with()
-        api_joined.assert_called_with(rid='nova-api/0')
 
     @patch.object(utils, 'is_leader')
     @patch.object(utils, 'os_release')

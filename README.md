@@ -7,13 +7,6 @@ to the nova-cloud-controller. If running in HA mode then the public vip is used 
 to local. Note: The console access protocol is baked into a guest when it is created, if you change it then
 console access for existing guests will stop working
 
-**Special considerations to be deployed using Postgresql**
-
-    juju deploy nova-cloud-controller
-    juju deploy postgresql
-    juju add-relation "nova-cloud-controller:pgsql-nova-db" "postgresql:db"
-    juju add-relation "nova-cloud-controller:pgsql-neutron-db" "postgresql:db"
-
 ## HA/Clustering
 
 There are two mutually exclusive high availability options: using virtual

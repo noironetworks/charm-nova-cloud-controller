@@ -167,7 +167,7 @@ options:
       .
       For this charm the following relations must be made:
       .
-        * shared-db or (pgsql-nova-db, pgsql-neutron-db)
+        * shared-db
         * amqp
         * identity-service
   console-access-protocol:

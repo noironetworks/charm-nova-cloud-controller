@@ -122,8 +122,8 @@ CLUSTER_RES = 'grp_nova_vips'
 # The interface is said to be satisfied if anyone of the interfaces in the
 # list has a complete context.
 REQUIRED_INTERFACES = {
-    'database': ['shared-db', 'pgsql-db'],
-    'messaging': ['amqp', 'zeromq-configuration'],
+    'database': ['shared-db'],
+    'messaging': ['amqp'],
     'identity': ['identity-service'],
     'image': ['image-service'],
     'compute': ['nova-compute'],
@@ -244,7 +244,6 @@ BASE_RESOURCE_MAP = OrderedDict([
                      context.OSConfigFlagContext(
                          charm_flag='nova-alchemy-flags',
                          template_flag='nova_alchemy_flags'),
-                     nova_cc_context.NovaPostgresqlDBContext(),
                      context.ImageServiceContext(),
                      context.OSConfigFlagContext(),
                      context.SubordinateConfigContext(
@@ -1166,10 +1165,7 @@ def guard_map():
         nova_services.append('nova-conductor')
 
     nova_interfaces = ['identity-service', 'amqp']
-    if relation_ids('pgsql-nova-db'):
-        nova_interfaces.append('pgsql-nova-db')
-    else:
-        nova_interfaces.append('shared-db')
+    nova_interfaces.append('shared-db')
 
     for svc in nova_services:
         gmap[svc] = nova_interfaces
