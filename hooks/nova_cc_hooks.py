@@ -59,7 +59,6 @@ from charmhelpers.fetch import (
 from charmhelpers.contrib.openstack.utils import (
     config_value_changed,
     configure_installation_source,
-    git_install_requested,
     openstack_upgrade_available,
     os_release,
     sync_db_with_multi_ipv6_addresses,
@@ -93,7 +92,6 @@ from nova_cc_utils import (
     disable_services,
     do_openstack_upgrade,
     enable_services,
-    git_install,
     is_api_ready,
     is_cellv2_init_ready,
     keystone_ca_cert_b64,
@@ -264,8 +262,6 @@ def install():
     if placement_api_enabled():
         disable_package_apache_site()
 
-    git_install(config('openstack-origin-git'))
-
     _files = os.path.join(charm_dir(), 'files')
     if os.path.isdir(_files):
         for f in os.listdir(_files):
@@ -301,11 +297,7 @@ def config_changed():
                                           relation_prefix='nova')
 
     global CONFIGS
-    if git_install_requested():
-        status_set('maintenance', 'Running Git install')
-        if config_value_changed('openstack-origin-git'):
-            git_install(config('openstack-origin-git'))
-    elif not config('action-managed-upgrade'):
+    if not config('action-managed-upgrade'):
         if openstack_upgrade_available('nova-common'):
             status_set('maintenance', 'Running openstack upgrade')
             do_openstack_upgrade(CONFIGS)
@@ -322,10 +314,9 @@ def config_changed():
 
     # NOTE(jamespage): deal with any changes to the console and serial
     #                  console configuration options
-    if not git_install_requested():
-        filtered = filter_installed_packages(determine_packages())
-        if filtered:
-            apt_install(filtered, fatal=True)
+    filtered = filter_installed_packages(determine_packages())
+    if filtered:
+        apt_install(filtered, fatal=True)
 
     for rid in relation_ids('quantum-network-service'):
         quantum_joined(rid=rid)

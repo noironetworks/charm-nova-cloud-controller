@@ -43,16 +43,12 @@ TO_PATCH = [
     'enable_policy_rcd',
     'enable_services',
     'get_os_codename_install_source',
-    'git_src_dir',
-    'git_pip_venv_dir',
     'log',
     'os_release',
     'peer_store',
-    'pip_install',
     'register_configs',
     'relation_ids',
     'remote_unit',
-    'render',
     '_save_script_rc',
     'service_start',
     'services',
@@ -172,15 +168,6 @@ ubuntu-cloud-archive/liberty-staging/ubuntu trusty main
 |
 %s
 """ % GPG_PPA_CLOUD_ARCHIVE
-
-openstack_origin_git = \
-    """repositories:
-         - {name: requirements,
-            repository: 'git://git.openstack.org/openstack/requirements',
-            branch: stable/juno}
-         - {name: nova,
-            repository: 'git://git.openstack.org/openstack/nova',
-            branch: stable/juno}"""
 
 
 class NovaCCUtilsTests(CharmTestCase):
@@ -386,9 +373,7 @@ class NovaCCUtilsTests(CharmTestCase):
                                              unit='mysql/0')
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    @patch.object(utils, 'git_install_requested')
-    def test_determine_packages_console(self, git_requested, subcontext):
-        git_requested.return_value = False
+    def test_determine_packages_console(self, subcontext):
         self.test_config.set('console-access-protocol', 'spice')
         self.relation_ids.return_value = []
         self.os_release.return_value = 'diablo'
@@ -398,9 +383,7 @@ class NovaCCUtilsTests(CharmTestCase):
             self.assertIn(console_pkg, pkgs)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    @patch.object(utils, 'git_install_requested')
-    def test_determine_packages_base_icehouse(self, git_requested, subcontext):
-        git_requested.return_value = False
+    def test_determine_packages_base_icehouse(self, subcontext):
         self.relation_ids.return_value = []
         self.os_release.return_value = 'icehouse'
         self.token_cache_pkgs.return_value = []
@@ -412,9 +395,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertEqual(ex, pkgs)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    @patch.object(utils, 'git_install_requested')
-    def test_determine_packages_base_ocata(self, git_requested, subcontext):
-        git_requested.return_value = False
+    def test_determine_packages_base_ocata(self, subcontext):
         self.relation_ids.return_value = []
         self.os_release.return_value = 'ocata'
         self.token_cache_pkgs.return_value = []
@@ -424,11 +405,8 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertEqual(ex, pkgs)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    @patch.object(utils, 'git_install_requested')
     def test_determine_packages_serial_console(self,
-                                               git_requested,
                                                subcontext):
-        git_requested.return_value = False
         self.test_config.set('enable-serial-console', True)
         self.relation_ids.return_value = []
         self.os_release.return_value = 'juno'
@@ -438,11 +416,8 @@ class NovaCCUtilsTests(CharmTestCase):
             self.assertIn(console_pkg, pkgs)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    @patch.object(utils, 'git_install_requested')
     def test_determine_packages_serial_console_icehouse(self,
-                                                        git_requested,
                                                         subcontext):
-        git_requested.return_value = False
         self.test_config.set('enable-serial-console', True)
         self.relation_ids.return_value = []
         self.os_release.return_value = 'icehouse'
@@ -924,320 +899,6 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertFalse(self.service_running.called)
         self.assertFalse(self.service_stop.called)
         self.assertTrue(contexts.complete_contexts.called)
-
-    @patch.object(utils, 'git_install_requested')
-    @patch.object(utils, 'git_clone_and_install')
-    @patch.object(utils, 'git_post_install')
-    @patch.object(utils, 'git_pre_install')
-    def test_git_install(self, git_pre, git_post, git_clone_and_install,
-                         git_requested):
-        projects_yaml = openstack_origin_git
-        git_requested.return_value = True
-        utils.git_install(projects_yaml)
-        self.assertTrue(git_pre.called)
-        git_clone_and_install.assert_called_with(openstack_origin_git,
-                                                 core_project='nova')
-        self.assertTrue(git_post.called)
-
-    @patch.object(utils, 'mkdir')
-    @patch.object(utils, 'add_user_to_group')
-    @patch.object(utils, 'add_group')
-    @patch.object(utils, 'adduser')
-    @patch('subprocess.check_call')
-    def test_git_pre_install(self, check_call, adduser, add_group,
-                             add_user_to_group, mkdir):
-        utils.git_pre_install()
-        expected = [
-            call('nova', shell='/bin/bash', system_user=True),
-            call('neutron', shell='/bin/bash', system_user=True),
-        ]
-        self.assertEqual(adduser.call_args_list, expected)
-        check_call.assert_called_with(['usermod', '--home', '/var/lib/nova',
-                                       'nova'])
-        expected = [
-            call('nova', system_group=True),
-            call('neutron', system_group=True),
-        ]
-        self.assertEqual(add_group.call_args_list, expected)
-        expected = [
-            call('nova', 'nova'),
-            call('neutron', 'neutron'),
-        ]
-        self.assertEqual(add_user_to_group.call_args_list, expected)
-        expected = [
-            call('/var/lib/nova', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/var/lib/nova/buckets', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/var/lib/nova/CA', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/var/lib/nova/CA/INTER', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/var/lib/nova/CA/newcerts', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/var/lib/nova/CA/private', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/var/lib/nova/CA/reqs', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/var/lib/nova/images', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/var/lib/nova/instances', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/var/lib/nova/keys', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/var/lib/nova/networks', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/var/lib/nova/tmp', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/var/lib/neutron', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/var/lib/neutron/lock', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/var/log/nova', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/etc/neutron', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/etc/neutron/plugins', owner='nova',
-                 group='nova', perms=0755, force=False),
-            call('/etc/neutron/plugins/ml2', owner='nova',
-                 group='nova', perms=0755, force=False),
-        ]
-        self.assertEqual(mkdir.call_args_list, expected)
-
-    @patch('os.listdir')
-    @patch('os.path.join')
-    @patch('os.path.exists')
-    @patch('os.symlink')
-    @patch('shutil.copytree')
-    @patch('shutil.rmtree')
-    def test_git_post_install_upstart(self, rmtree, copytree, symlink, exists,
-                                      join, listdir):
-        projects_yaml = openstack_origin_git
-        join.return_value = 'joined-string'
-        self.lsb_release.return_value = {'DISTRIB_RELEASE': '15.04'}
-        self.git_pip_venv_dir.return_value = '/mnt/openstack-git/venv'
-        self.os_release.return_value = 'diablo'
-        utils.git_post_install(projects_yaml)
-        expected = [
-            call('joined-string', '/etc/nova'),
-        ]
-        copytree.assert_has_calls(expected)
-        expected = [
-            call('joined-string', '/usr/local/bin/nova-manage'),
-            call('joined-string', '/usr/local/bin/nova-rootwrap'),
-        ]
-
-        nova_cc = 'nova-cloud-controller'
-        nova_user = 'nova'
-        start_dir = '/var/lib/nova'
-        nova_conf = '/etc/nova/nova.conf'
-        nova_ec2_api_context = {
-            'service_description': 'Nova EC2 API server',
-            'service_name': nova_cc,
-            'user_name': nova_user,
-            'start_dir': start_dir,
-            'process_name': 'nova-api-ec2',
-            'executable_name': 'joined-string',
-            'config_files': [nova_conf],
-        }
-        nova_api_os_compute_context = {
-            'service_description': 'Nova OpenStack Compute API server',
-            'service_name': nova_cc,
-            'user_name': nova_user,
-            'start_dir': start_dir,
-            'process_name': 'nova-api-os-compute',
-            'executable_name': 'joined-string',
-            'config_files': [nova_conf],
-        }
-        nova_cells_context = {
-            'service_description': 'Nova cells',
-            'service_name': nova_cc,
-            'user_name': nova_user,
-            'start_dir': start_dir,
-            'process_name': 'nova-cells',
-            'executable_name': 'joined-string',
-            'config_files': [nova_conf],
-        }
-        nova_cert_context = {
-            'service_description': 'Nova cert',
-            'service_name': nova_cc,
-            'user_name': nova_user,
-            'start_dir': start_dir,
-            'process_name': 'nova-cert',
-            'executable_name': 'joined-string',
-            'config_files': [nova_conf],
-        }
-        nova_conductor_context = {
-            'service_description': 'Nova conductor',
-            'service_name': nova_cc,
-            'user_name': nova_user,
-            'start_dir': start_dir,
-            'process_name': 'nova-conductor',
-            'executable_name': 'joined-string',
-            'config_files': [nova_conf],
-        }
-        nova_consoleauth_context = {
-            'service_description': 'Nova console auth',
-            'service_name': nova_cc,
-            'user_name': nova_user,
-            'start_dir': start_dir,
-            'process_name': 'nova-consoleauth',
-            'executable_name': 'joined-string',
-            'config_files': [nova_conf],
-        }
-        nova_console_context = {
-            'service_description': 'Nova console',
-            'service_name': nova_cc,
-            'user_name': nova_user,
-            'start_dir': start_dir,
-            'process_name': 'nova-console',
-            'executable_name': 'joined-string',
-            'config_files': [nova_conf],
-        }
-        nova_novncproxy_context = {
-            'service_description': 'Nova NoVNC proxy',
-            'service_name': nova_cc,
-            'user_name': nova_user,
-            'start_dir': start_dir,
-            'process_name': 'nova-novncproxy',
-            'executable_name': 'joined-string',
-            'config_files': [nova_conf],
-        }
-        nova_objectstore_context = {
-            'service_description': 'Nova object store',
-            'service_name': nova_cc,
-            'user_name': nova_user,
-            'start_dir': start_dir,
-            'process_name': 'nova-objectstore',
-            'executable_name': 'joined-string',
-            'config_files': [nova_conf],
-        }
-        nova_scheduler_context = {
-            'service_description': 'Nova scheduler',
-            'service_name': nova_cc,
-            'user_name': nova_user,
-            'start_dir': start_dir,
-            'process_name': 'nova-scheduler',
-            'executable_name': 'joined-string',
-            'config_files': [nova_conf],
-        }
-        nova_spiceproxy_context = {
-            'service_description': 'Nova spice proxy',
-            'service_name': nova_cc,
-            'user_name': nova_user,
-            'start_dir': start_dir,
-            'process_name': 'nova-spicehtml5proxy',
-            'executable_name': 'joined-string',
-            'config_files': [nova_conf],
-        }
-        nova_xvpvncproxy_context = {
-            'service_description': 'Nova XVPVNC proxy',
-            'service_name': nova_cc,
-            'user_name': nova_user,
-            'start_dir': start_dir,
-            'process_name': 'nova-xvpvncproxy',
-            'executable_name': 'joined-string',
-            'config_files': [nova_conf],
-        }
-        expected = [
-            call('git/nova_sudoers', '/etc/sudoers.d/nova_sudoers',
-                 {}, perms=0o440),
-            call('git.upstart', '/etc/init/nova-api-ec2.conf',
-                 nova_ec2_api_context, perms=0o644,
-                 templates_dir='joined-string'),
-            call('git.upstart', '/etc/init/nova-api-os-compute.conf',
-                 nova_api_os_compute_context, perms=0o644,
-                 templates_dir='joined-string'),
-            call('git.upstart', '/etc/init/nova-cells.conf',
-                 nova_cells_context, perms=0o644,
-                 templates_dir='joined-string'),
-            call('git.upstart', '/etc/init/nova-cert.conf',
-                 nova_cert_context, perms=0o644,
-                 templates_dir='joined-string'),
-            call('git.upstart', '/etc/init/nova-conductor.conf',
-                 nova_conductor_context, perms=0o644,
-                 templates_dir='joined-string'),
-            call('git.upstart', '/etc/init/nova-consoleauth.conf',
-                 nova_consoleauth_context, perms=0o644,
-                 templates_dir='joined-string'),
-            call('git.upstart', '/etc/init/nova-console.conf',
-                 nova_console_context, perms=0o644,
-                 templates_dir='joined-string'),
-            call('git.upstart', '/etc/init/nova-novncproxy.conf',
-                 nova_novncproxy_context, perms=0o644,
-                 templates_dir='joined-string'),
-            call('git.upstart', '/etc/init/nova-objectstore.conf',
-                 nova_objectstore_context, perms=0o644,
-                 templates_dir='joined-string'),
-            call('git.upstart', '/etc/init/nova-scheduler.conf',
-                 nova_scheduler_context, perms=0o644,
-                 templates_dir='joined-string'),
-            call('git.upstart', '/etc/init/nova-spiceproxy.conf',
-                 nova_spiceproxy_context, perms=0o644,
-                 templates_dir='joined-string'),
-            call('git.upstart', '/etc/init/nova-xvpvncproxy.conf',
-                 nova_xvpvncproxy_context, perms=0o644,
-                 templates_dir='joined-string'),
-        ]
-        self.assertEqual(self.render.call_args_list, expected)
-        self.assertTrue(self.apt_update.called)
-        self.apt_install.assert_called_with(['novnc', 'spice-html5',
-                                             'websockify'], fatal=True)
-
-    @patch('os.listdir')
-    @patch('os.path.join')
-    @patch('os.path.exists')
-    @patch('os.symlink')
-    @patch('shutil.copytree')
-    @patch('shutil.rmtree')
-    def test_git_post_install_systemd(self, rmtree, copytree, symlink, exists,
-                                      join, listdir):
-        projects_yaml = openstack_origin_git
-        join.return_value = 'joined-string'
-        self.lsb_release.return_value = {'DISTRIB_RELEASE': '15.10'}
-        self.git_pip_venv_dir.return_value = '/mnt/openstack-git/venv'
-        utils.git_post_install(projects_yaml)
-        expected = [
-            call('git/nova_sudoers', '/etc/sudoers.d/nova_sudoers',
-                 {}, perms=288),
-            call('git/nova-api-os-compute.init.in.template',
-                 'joined-string', {'daemon_path': 'joined-string'},
-                 perms=420),
-            call('git/nova-baremetal.init.in.template',
-                 'joined-string', {'daemon_path': 'joined-string'},
-                 perms=420),
-            call('git/nova-cells.init.in.template',
-                 'joined-string', {'daemon_path': 'joined-string'},
-                 perms=420),
-            call('git/nova-cert.init.in.template',
-                 'joined-string', {'daemon_path': 'joined-string'},
-                 perms=420),
-            call('git/nova-conductor.init.in.template',
-                 'joined-string', {'daemon_path': 'joined-string'},
-                 perms=420),
-            call('git/nova-consoleauth.init.in.template',
-                 'joined-string', {'daemon_path': 'joined-string'},
-                 perms=420),
-            call('git/nova-console.init.in.template',
-                 'joined-string', {'daemon_path': 'joined-string'},
-                 perms=420),
-            call('git/nova-novncproxy.init.in.template',
-                 'joined-string', {'daemon_path': 'joined-string'},
-                 perms=420),
-            call('git/nova-scheduler.init.in.template',
-                 'joined-string', {'daemon_path': 'joined-string'},
-                 perms=420),
-            call('git/nova-serialproxy.init.in.template',
-                 'joined-string', {'daemon_path': 'joined-string'},
-                 perms=420),
-            call('git/nova-spiceproxy.init.in.template',
-                 'joined-string', {'daemon_path': 'joined-string'},
-                 perms=420),
-            call('git/nova-xvpvncproxy.init.in.template',
-                 'joined-string', {'daemon_path': 'joined-string'},
-                 perms=420),
-        ]
-        self.assertEqual(self.render.call_args_list, expected)
 
     def _test_is_api_ready(self, tgt):
         fake_config = MagicMock()

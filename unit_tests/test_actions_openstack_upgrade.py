@@ -56,18 +56,16 @@ class TestNovaCCUpgradeActions(CharmTestCase):
 
     @patch('charmhelpers.contrib.openstack.utils.config')
     @patch('charmhelpers.contrib.openstack.utils.action_set')
-    @patch('charmhelpers.contrib.openstack.utils.git_install_requested')
     @patch('charmhelpers.contrib.openstack.utils.openstack_upgrade_available')
-    def test_openstack_upgrade_true(self, upgrade_avail, git_requested,
+    def test_openstack_upgrade_true(self, upgrade_avail,
                                     action_set, config):
-        git_requested.return_value = False
         upgrade_avail.return_value = True
         config.return_value = True
         self.relation_ids.return_value = ['relid1']
 
         openstack_upgrade.openstack_upgrade()
 
-        self.assertTrue(self.do_openstack_upgrade.called)
+        self.assertTrue(self.do_openstack_upgrade.called, config.mock_calls)
         self.neutron_api_relation_joined.assert_called_with(
             rid='relid1', remote_restart=True)
         self.db_joined.assert_called_with(relation_id='relid1')
@@ -75,11 +73,9 @@ class TestNovaCCUpgradeActions(CharmTestCase):
 
     @patch('charmhelpers.contrib.openstack.utils.config')
     @patch('charmhelpers.contrib.openstack.utils.action_set')
-    @patch('charmhelpers.contrib.openstack.utils.git_install_requested')
     @patch('charmhelpers.contrib.openstack.utils.openstack_upgrade_available')
-    def test_openstack_upgrade_false(self, upgrade_avail, git_requested,
+    def test_openstack_upgrade_false(self, upgrade_avail,
                                      action_set, config):
-        git_requested.return_value = False
         upgrade_avail.return_value = True
         config.return_value = False
 

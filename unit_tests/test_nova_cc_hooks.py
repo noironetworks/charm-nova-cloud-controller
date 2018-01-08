@@ -15,8 +15,6 @@
 import os
 import tempfile
 
-import yaml
-
 from mock import MagicMock, patch, call
 from test_utils import CharmTestCase
 
@@ -87,8 +85,6 @@ TO_PATCH = [
     'get_iface_for_address',
     'get_netmask_for_address',
     'update_nrpe_config',
-    'git_install',
-    'git_install_requested',
     'status_set',
     'update_dns_ha_resource_params',
     'serial_console_settings',
@@ -140,32 +136,6 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(self.disable_services.called)
         self.cmd_all_services.assert_called_with('stop')
 
-    def test_install_hook_git(self):
-        self.git_install_requested.return_value = True
-        self.determine_packages.return_value = ['foo', 'bar']
-        self.determine_ports.return_value = [80, 81, 82]
-        repo = 'cloud:trusty-juno'
-        openstack_origin_git = {
-            'repositories': [
-                {'name': 'requirements',
-                 'repository': 'git://git.openstack.org/openstack/requirements',  # noqa
-                 'branch': 'stable/juno'},
-                {'name': 'nova',
-                 'repository': 'git://git.openstack.org/openstack/nova',
-                 'branch': 'stable/juno'}
-            ],
-            'directory': '/mnt/openstack-git',
-        }
-        projects_yaml = yaml.dump(openstack_origin_git)
-        self.test_config.set('openstack-origin', repo)
-        self.test_config.set('openstack-origin-git', projects_yaml)
-        hooks.install()
-        self.git_install.assert_called_with(projects_yaml)
-        self.apt_install.assert_called_with(['foo', 'bar'], fatal=True)
-        self.assertTrue(self.execd_preinstall.called)
-        self.assertTrue(self.disable_services.called)
-        self.cmd_all_services.assert_called_with('stop')
-
     @patch.object(hooks, 'update_aws_compat_services')
     @patch.object(hooks, 'update_nova_consoleauth_config')
     @patch.object(hooks, 'is_db_initialised')
@@ -183,47 +153,12 @@ class NovaCCHooksTests(CharmTestCase):
         mock_determine_packages.return_value = []
         utils_config.side_effect = self.test_config.get
         self.test_config.set('console-access-protocol', 'dummy')
-        self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = False
         mock_is_db_initialised.return_value = False
         self.os_release.return_value = 'diablo'
         hooks.config_changed()
         self.assertTrue(self.save_script_rc.called)
         mock_filter_packages.assert_called_with([])
-        self.assertTrue(mock_update_nova_consoleauth_config.called)
-        self.assertTrue(mock_update_aws_compat_services.called)
-
-    @patch.object(hooks, 'update_aws_compat_services')
-    @patch.object(hooks, 'update_nova_consoleauth_config')
-    @patch.object(hooks, 'is_db_initialised')
-    @patch.object(utils, 'service_resume')
-    @patch.object(hooks, 'configure_https')
-    def test_config_changed_git(self, configure_https, mock_service_resume,
-                                mock_is_db_initialised,
-                                mock_update_nova_consoleauth_config,
-                                mock_update_aws_compat_services):
-        self.git_install_requested.return_value = True
-        repo = 'cloud:trusty-juno'
-        openstack_origin_git = {
-            'repositories': [
-                {'name': 'requirements',
-                 'repository':
-                 'git://git.openstack.org/openstack/requirements',
-                 'branch': 'stable/juno'},
-                {'name': 'nova',
-                 'repository': 'git://git.openstack.org/openstack/nova',
-                 'branch': 'stable/juno'}
-            ],
-            'directory': '/mnt/openstack-git',
-        }
-        projects_yaml = yaml.dump(openstack_origin_git)
-        self.test_config.set('openstack-origin', repo)
-        self.test_config.set('openstack-origin-git', projects_yaml)
-        mock_is_db_initialised.return_value = False
-        self.os_release.return_value = 'diablo'
-        hooks.config_changed()
-        self.git_install.assert_called_with(projects_yaml)
-        self.assertFalse(self.do_openstack_upgrade.called)
         self.assertTrue(mock_update_nova_consoleauth_config.called)
         self.assertTrue(mock_update_aws_compat_services.called)
 
@@ -257,7 +192,6 @@ class NovaCCHooksTests(CharmTestCase):
                                          mock_update_aws_compat_services):
         mock_determine_packages.return_value = []
         mock_is_db_initialised.return_value = False
-        self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = True
         self.relation_ids.return_value = ['generic_rid']
         utils_config.side_effect = self.test_config.get
@@ -291,7 +225,6 @@ class NovaCCHooksTests(CharmTestCase):
                                           mock_is_db_initialised,
                                           mock_update_nova_consoleauth_config,
                                           mock_update_aws_compat_services):
-        self.git_install_requested.return_value = False
         self.openstack_upgrade_available.return_value = False
         self.config_value_changed.return_value = True
         self.related_units.return_value = ['unit/0']
@@ -1037,7 +970,6 @@ class NovaCCHooksTests(CharmTestCase):
         mock_determine_packages.return_value = []
         mock_is_db_initialised.return_value = False
         self.config_value_changed.return_value = False
-        self.git_install_requested.return_value = False
         self.os_release.return_value = 'diablo'
 
         def cfg(k, v):
