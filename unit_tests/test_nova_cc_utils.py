@@ -60,6 +60,7 @@ TO_PATCH = [
     'os_application_version_set',
     'token_cache_pkgs',
     'enable_memcache',
+    'status_set',
 ]
 
 SCRIPTRC_ENV_VARS = {
@@ -698,15 +699,22 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertTrue(self.enable_services.called)
         self.cmd_all_services.assert_called_with('start')
 
+    @patch('subprocess.Popen')
     @patch('subprocess.check_output')
     @patch.object(utils, 'get_cell_uuid')
     @patch.object(utils, 'is_cellv2_init_ready')
     def test_migrate_nova_databases_ocata(self, cellv2_ready, get_cell_uuid,
-                                          check_output):
+                                          check_output, Popen):
         "Migrate database with nova-manage in a clustered env"
         get_cell_uuid.return_value = 'c83121db-f1c7-464a-b657-38c28fac84c6'
         self.relation_ids.return_value = ['cluster:1']
         self.os_release.return_value = 'ocata'
+        process_mock = MagicMock()
+        attrs = {
+            'communicate.return_value': ('output', 'error'),
+            'wait.return_value': 0}
+        process_mock.configure_mock(**attrs)
+        Popen.return_value = process_mock
         utils.migrate_nova_databases()
         check_output.assert_has_calls([
             call(['nova-manage', 'api_db', 'sync']),
@@ -718,6 +726,12 @@ class NovaCCUtilsTests(CharmTestCase):
             call(['nova-manage', 'cell_v2', 'discover_hosts', '--cell_uuid',
                   'c83121db-f1c7-464a-b657-38c28fac84c6', '--verbose']),
         ])
+        map_call = call([
+            'nova-manage',
+            'cell_v2', 'map_instances',
+            '--cell_uuid', 'c83121db-f1c7-464a-b657-38c28fac84c6',
+            '--max-count', '50000'], stdout=-1)
+        Popen.assert_has_calls([map_call])
         self.peer_store.assert_called_with('dbsync_state', 'complete')
         self.assertTrue(self.enable_services.called)
         self.cmd_all_services.assert_called_with('start')
@@ -1024,14 +1038,75 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertEqual(expected, utils.get_cell_uuid('cell1'))
 
     @patch.object(utils, 'get_cell_uuid')
-    @patch('subprocess.check_output')
-    def test_map_instances(self, mock_check_output, mock_get_cell_uuid):
+    @patch('subprocess.Popen')
+    def test_map_instances(self, mock_popen, mock_get_cell_uuid):
         cell_uuid = 'c83121db-f1c7-464a-b657-38c28fac84c6'
+        process_mock = MagicMock()
+        attrs = {
+            'communicate.return_value': ('output', 'error'),
+            'wait.return_value': 0}
+        process_mock.configure_mock(**attrs)
+        mock_popen.return_value = process_mock
         mock_get_cell_uuid.return_value = cell_uuid
+        expectd_calls = [
+            call([
+                'nova-manage',
+                'cell_v2',
+                'map_instances',
+                '--cell_uuid', 'c83121db-f1c7-464a-b657-38c28fac84c6',
+                '--max-count', '50000'], stdout=-1),
+            call().communicate(),
+            call().wait()]
+
         utils.map_instances()
-        mock_check_output.assert_called_with(['nova-manage', 'cell_v2',
-                                              'map_instances', '--cell_uuid',
-                                              cell_uuid])
+        mock_popen.assert_has_calls(expectd_calls, any_order=False)
+
+    @patch.object(utils, 'get_cell_uuid')
+    @patch('subprocess.Popen')
+    def test_map_instances_multi_batch(self, mock_popen, mock_get_cell_uuid):
+        cell_uuid = 'c83121db-f1c7-464a-b657-38c28fac84c6'
+        process_mock = MagicMock()
+        rcs = [0, 1]
+        attrs = {
+            'communicate.return_value': ('output', 'error'),
+            'wait.side_effect': lambda: rcs.pop()}
+        process_mock.configure_mock(**attrs)
+        mock_popen.return_value = process_mock
+        mock_get_cell_uuid.return_value = cell_uuid
+        expectd_calls = [
+            call([
+                'nova-manage',
+                'cell_v2',
+                'map_instances',
+                '--cell_uuid', 'c83121db-f1c7-464a-b657-38c28fac84c6',
+                '--max-count', '50000'], stdout=-1),
+            call().communicate(),
+            call().wait(),
+            call([
+                'nova-manage',
+                'cell_v2',
+                'map_instances',
+                '--cell_uuid', 'c83121db-f1c7-464a-b657-38c28fac84c6',
+                '--max-count', '50000'], stdout=-1),
+            call().communicate(),
+            call().wait()]
+
+        utils.map_instances()
+        self.assertEqual(mock_popen.mock_calls, expectd_calls)
+
+    @patch.object(utils, 'get_cell_uuid')
+    @patch('subprocess.Popen')
+    def test_map_instances_error(self, mock_popen, mock_get_cell_uuid):
+        cell_uuid = 'c83121db-f1c7-464a-b657-38c28fac84c6'
+        process_mock = MagicMock()
+        attrs = {
+            'communicate.return_value': ('output', 'error'),
+            'wait.return_code': 127}
+        process_mock.configure_mock(**attrs)
+        mock_popen.return_value = process_mock
+        mock_get_cell_uuid.return_value = cell_uuid
+        with self.assertRaises(Exception):
+            utils.map_instances()
 
     @patch('subprocess.Popen')
     def test_archive_deleted_rows(self, mock_popen):

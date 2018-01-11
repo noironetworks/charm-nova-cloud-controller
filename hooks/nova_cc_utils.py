@@ -763,16 +763,35 @@ def map_instances():
     '''Map instances to cell
 
     Updates nova_api.instance_mappings with pre-existing instances
+
+    :raises: Exception if Cell1 map_instances fails
     '''
-    log('Cell1 map_instances', level=INFO)
+    batch_size = '50000'
     cell1_uuid = get_cell_uuid('cell1')
     cmd = ['nova-manage', 'cell_v2', 'map_instances',
-           '--cell_uuid', cell1_uuid]
-    try:
-        subprocess.check_output(cmd)
-    except subprocess.CalledProcessError as e:
-        log('Cell1 map_instances failed\n{}'.format(e.output), level=ERROR)
-        raise
+           '--cell_uuid', cell1_uuid, '--max-count', batch_size]
+    iteration = 0
+    exit_code = 1
+    # Return code if 0 indicates all instances have been mapped. A return code
+    # of 1 indicates this batch is complete but there are more instances that
+    # still need mapping.
+    while exit_code == 1:
+        msg = 'Mapping instances. Batch number: {}'.format(iteration)
+        status_set('maintenance', msg)
+        log(msg, level=INFO)
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+        exit_code = process.wait()
+        if exit_code not in [0, 1]:
+            msg = 'Cell1 map_instances failed\nstdout: {}\nstderr: {}'.format(
+                stdout,
+                stderr)
+            log(msg, level=ERROR)
+            raise Exception(msg)
+        iteration += 1
+    msg = 'Mapping instances complete'
+    status_set('maintenance', msg)
+    log(msg, level=INFO)
 
 
 def archive_deleted_rows(max_rows=None):
