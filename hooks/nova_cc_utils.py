@@ -775,6 +775,24 @@ def map_instances():
         raise
 
 
+def archive_deleted_rows(max_rows=None):
+    log('Archiving deleted rows', level=INFO)
+    cmd = ['nova-manage', 'db', 'archive_deleted_rows', '--verbose']
+    if max_rows:
+        cmd.extend(['--max_rows', str(max_rows)])
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    exit_code = process.wait()
+    if exit_code not in [0, 1]:
+        msg = 'Archiving deleted rows failed\nstdout: {}\nstderr: {}'.format(
+            stdout,
+            stderr)
+        log(msg, level=ERROR)
+        raise Exception(msg)
+    else:
+        return stdout
+
+
 def add_hosts_to_cell():
     '''Map compute hosts to cell'''
     log('Cell1 discover_hosts', level=INFO)

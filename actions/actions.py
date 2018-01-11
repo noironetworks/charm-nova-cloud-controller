@@ -19,11 +19,16 @@ import sys
 
 sys.path.append('hooks/')
 
-from charmhelpers.core.hookenv import action_fail
+from charmhelpers.core.hookenv import (
+    action_fail,
+    action_get,
+    action_set,
+)
 from nova_cc_utils import (
     pause_unit_helper,
     resume_unit_helper,
     register_configs,
+    archive_deleted_rows,
 )
 
 
@@ -40,9 +45,20 @@ def resume(args):
     resume_unit_helper(register_configs())
 
 
+def archive_data(args):
+    """Run data archival process
+    @raises Exception should the archival fail"""
+    action_set({
+        'archive-deleted-rows': archive_deleted_rows(
+            max_rows=action_get('batch-size'))})
+
+
 # A dictionary of all the defined actions to callables (which take
 # parsed arguments).
-ACTIONS = {"pause": pause, "resume": resume}
+ACTIONS = {
+    "pause": pause,
+    "resume": resume,
+    "archive-data": archive_data}
 
 
 def main(args):

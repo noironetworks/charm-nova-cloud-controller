@@ -4,3 +4,10 @@ pause:
   description: Pause the nova-cloud-controller unit.  This action will stop related services.
 resume:
   descrpition: Resume the nova-cloud-controller unit.  This action will start related services.
+archive-data:
+  descrpition: Run job to archive deleted rows in database
+  params:
+    batch-size:
+      type: integer
+      default: 10000
+      description: Archive old data to shadow tables

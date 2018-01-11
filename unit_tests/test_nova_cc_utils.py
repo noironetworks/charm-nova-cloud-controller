@@ -1033,6 +1033,37 @@ class NovaCCUtilsTests(CharmTestCase):
                                               'map_instances', '--cell_uuid',
                                               cell_uuid])
 
+    @patch('subprocess.Popen')
+    def test_archive_deleted_rows(self, mock_popen):
+        process_mock = MagicMock()
+        attrs = {
+            'communicate.return_value': ('output', 'error'),
+            'wait.return_value': 0}
+        process_mock.configure_mock(**attrs)
+        mock_popen.return_value = process_mock
+        expectd_calls = [
+            call([
+                'nova-manage',
+                'db',
+                'archive_deleted_rows',
+                '--verbose'], stdout=-1),
+            call().communicate(),
+            call().wait()]
+
+        utils.archive_deleted_rows()
+        self.assertEqual(mock_popen.mock_calls, expectd_calls)
+
+    @patch('subprocess.Popen')
+    def test_archive_deleted_rows_excpetion(self, mock_popen):
+        process_mock = MagicMock()
+        attrs = {
+            'communicate.return_value': ('output', 'error'),
+            'wait.return_value': 123}
+        process_mock.configure_mock(**attrs)
+        mock_popen.return_value = process_mock
+        with self.assertRaises(Exception):
+            utils.archive_deleted_rows()
+
     @patch.object(utils, 'get_cell_uuid')
     @patch('subprocess.check_output')
     def test_add_hosts_to_cell(self, mock_check_output, mock_get_cell_uuid):
