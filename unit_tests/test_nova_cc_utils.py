@@ -736,6 +736,35 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertTrue(self.enable_services.called)
         self.cmd_all_services.assert_called_with('start')
 
+    @patch('subprocess.Popen')
+    @patch('subprocess.check_output')
+    @patch.object(utils, 'get_cell_uuid')
+    @patch.object(utils, 'is_cellv2_init_ready')
+    def test_migrate_nova_databases_pike(self, cellv2_ready, get_cell_uuid,
+                                         check_output, Popen):
+        "Migrate database with nova-manage in a clustered env"
+        get_cell_uuid.return_value = 'c83121db-f1c7-464a-b657-38c28fac84c6'
+        self.relation_ids.return_value = ['cluster:1']
+        self.os_release.return_value = 'pike'
+        utils.migrate_nova_databases()
+        check_output.assert_has_calls([
+            call(['nova-manage', 'api_db', 'sync']),
+            call(['nova-manage', 'cell_v2', 'map_cell0']),
+            call(['nova-manage', 'cell_v2', 'create_cell', '--name', 'cell1',
+                  '--verbose']),
+            call(['nova-manage', 'db', 'sync']),
+            call(['nova-manage', 'db', 'online_data_migrations']),
+            call(['nova-manage', 'cell_v2', 'discover_hosts', '--cell_uuid',
+                  'c83121db-f1c7-464a-b657-38c28fac84c6', '--verbose']),
+        ])
+        map_call = call([
+            'nova-manage', 'cell_v2', 'map_instances', '--cell_uuid',
+            'c83121db-f1c7-464a-b657-38c28fac84c6'])
+        self.assertFalse(map_call in Popen.call_args_list)
+        self.peer_store.assert_called_with('dbsync_state', 'complete')
+        self.assertTrue(self.enable_services.called)
+        self.cmd_all_services.assert_called_with('start')
+
     @patch('subprocess.check_output')
     def test_migrate_nova_flavors(self, check_output):
         utils.migrate_nova_flavors()

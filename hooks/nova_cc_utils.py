@@ -839,7 +839,8 @@ def finalize_migrate_nova_databases():
 @retry_on_exception(5, base_delay=3, exc_type=subprocess.CalledProcessError)
 def migrate_nova_databases():
     '''Runs nova-manage to initialize new databases or migrate existing'''
-    if CompareOpenStackReleases(os_release('nova-common')) < 'ocata':
+    release = CompareOpenStackReleases(os_release('nova-common'))
+    if release < 'ocata':
         migrate_nova_api_database()
         migrate_nova_database()
         online_data_migrations_if_needed()
@@ -851,7 +852,10 @@ def migrate_nova_databases():
         migrate_nova_database()
         online_data_migrations_if_needed()
         add_hosts_to_cell()
-        map_instances()
+        # Populate the cells mapping table if upgrading to a cells
+        # environment for the first time eg Newton -> Ocata
+        if release == 'ocata':
+            map_instances()
         finalize_migrate_nova_databases()
 
 
