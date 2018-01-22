@@ -491,7 +491,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             'auth_protocol': 'http',
             'private-address': u.valid_ip,
             'auth_host': u.valid_ip,
-            'service_username': 's3_ec2_nova',
+            'service_username': 's3_nova_ec2',
             'service_tenant_id': u.not_null,
             'service_host': u.valid_ip
         }
