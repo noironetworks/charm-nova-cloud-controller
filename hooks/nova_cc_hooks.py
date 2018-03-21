@@ -649,7 +649,7 @@ def compute_changed(rid=None, unit=None):
     if not rel_settings.get('region', None) == config('region'):
         relation_set(relation_id=rid, region=config('region'))
 
-    if is_cellv2_init_ready() and is_db_initialised():
+    if is_leader() and is_cellv2_init_ready() and is_db_initialised():
         add_hosts_to_cell()
 
     if 'migration_auth_type' not in rel_settings:
