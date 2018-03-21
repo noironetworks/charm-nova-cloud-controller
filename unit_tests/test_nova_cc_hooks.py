@@ -318,6 +318,38 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertEqual(sorted(self.relation_set.call_args_list),
                          sorted(expected_relations))
 
+    @patch.object(hooks, 'is_cellv2_init_ready')
+    @patch.object(hooks, 'is_db_initialised')
+    @patch.object(hooks, 'add_hosts_to_cell')
+    def test_compute_changed_add_hosts_leader(self,
+                                              mock_add_hosts_to_cell,
+                                              mock_is_db_initialised,
+                                              mock_is_cellv2_init_ready):
+        self.is_leader.return_value = True
+        mock_is_db_initialised.return_value = True
+        mock_is_cellv2_init_ready.return_value = True
+        hooks.compute_changed()
+        self.assertTrue(self.is_leader.called)
+        self.assertTrue(mock_is_db_initialised.called)
+        self.assertTrue(mock_is_cellv2_init_ready.called)
+        self.assertTrue(mock_add_hosts_to_cell.called)
+
+    @patch.object(hooks, 'is_cellv2_init_ready')
+    @patch.object(hooks, 'is_db_initialised')
+    @patch.object(hooks, 'add_hosts_to_cell')
+    def test_compute_changed_add_hosts_nonleader(self,
+                                                 mock_add_hosts_to_cell,
+                                                 mock_is_db_initialised,
+                                                 mock_is_cellv2_init_ready):
+        self.is_leader.return_value = False
+        mock_is_db_initialised.return_value = True
+        mock_is_cellv2_init_ready.return_value = True
+        hooks.compute_changed()
+        self.assertTrue(self.is_leader.called)
+        self.assertFalse(mock_is_db_initialised.called)
+        self.assertFalse(mock_is_cellv2_init_ready.called)
+        self.assertFalse(mock_add_hosts_to_cell.called)
+
     @patch.object(hooks, 'canonical_url')
     @patch.object(utils, 'config')
     @patch.object(hooks, '_auth_config')
