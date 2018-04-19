@@ -48,17 +48,15 @@ TO_PATCH = [
     'charm_dir',
     'do_openstack_upgrade',
     'openstack_upgrade_available',
-    'cmd_all_services',
     'config',
     'config_value_changed',
     'determine_endpoints',
     'determine_packages',
     'determine_ports',
-    'disable_services',
-    'enable_services',
     'NovaCellContext',
     'open_port',
     'is_relation_made',
+    'is_unit_paused_set',
     'local_unit',
     'log',
     'os_release',
@@ -71,7 +69,9 @@ TO_PATCH = [
     'ssh_known_hosts_lines',
     'ssh_authorized_keys_lines',
     'save_script_rc',
+    'service_pause',
     'service_reload',
+    'service_resume',
     'services',
     'execd_preinstall',
     'network_manager',
@@ -129,12 +129,13 @@ class NovaCCHooksTests(CharmTestCase):
         self.determine_packages.return_value = [
             'nova-scheduler', 'nova-api-ec2']
         self.determine_ports.return_value = [80, 81, 82]
+        self.is_unit_paused_set.return_value = False
+        self.services.return_value = ['dummy-service']
         hooks.install()
         self.apt_install.assert_called_with(
             ['nova-scheduler', 'nova-api-ec2'], fatal=True)
         self.assertTrue(self.execd_preinstall.called)
-        self.assertTrue(self.disable_services.called)
-        self.cmd_all_services.assert_called_with('stop')
+        self.assertTrue(self.service_pause.called)
 
     @patch.object(hooks, 'update_aws_compat_services')
     @patch.object(hooks, 'update_nova_consoleauth_config')
@@ -161,6 +162,63 @@ class NovaCCHooksTests(CharmTestCase):
         mock_filter_packages.assert_called_with([])
         self.assertTrue(mock_update_nova_consoleauth_config.called)
         self.assertTrue(mock_update_aws_compat_services.called)
+
+    @patch.object(hooks, 'update_aws_compat_services')
+    @patch.object(hooks, 'update_nova_consoleauth_config')
+    @patch.object(hooks, 'is_db_initialised')
+    @patch.object(hooks, 'determine_packages')
+    @patch.object(utils, 'service_resume')
+    @patch.object(utils, 'config')
+    @patch.object(hooks, 'filter_installed_packages')
+    @patch.object(hooks, 'configure_https')
+    def test_config_changed_no_upgrade_juno(self, conf_https,
+                                            mock_filter_packages,
+                                            utils_config, mock_service_resume,
+                                            mock_determine_packages,
+                                            mock_is_db_initialised,
+                                            mock_update_nova_consoleauth_cfg,
+                                            mock_update_aws_compat_services):
+        mock_determine_packages.return_value = []
+        utils_config.side_effect = self.test_config.get
+        self.test_config.set('console-access-protocol', 'dummy')
+        self.openstack_upgrade_available.return_value = False
+        mock_is_db_initialised.return_value = False
+        self.os_release.return_value = 'juno'
+        hooks.config_changed()
+        self.assertTrue(self.save_script_rc.called)
+        mock_filter_packages.assert_called_with([])
+        self.assertTrue(mock_update_nova_consoleauth_cfg.called)
+        self.assertTrue(mock_update_aws_compat_services.called)
+        self.service_pause.assert_called_with('neutron-server')
+
+    @patch.object(hooks, 'update_aws_compat_services')
+    @patch.object(hooks, 'update_nova_consoleauth_config')
+    @patch.object(hooks, 'is_db_initialised')
+    @patch.object(hooks, 'determine_packages')
+    @patch.object(utils, 'service_resume')
+    @patch.object(utils, 'config')
+    @patch.object(hooks, 'filter_installed_packages')
+    @patch.object(hooks, 'configure_https')
+    def test_config_changed_no_upgrade_juno_no_neutron_server(
+            self, conf_https, mock_filter_packages,
+            utils_config, mock_service_resume,
+            mock_determine_packages,
+            mock_is_db_initialised,
+            mock_update_nova_consoleauth_cfg,
+            mock_update_aws_compat_services):
+        mock_determine_packages.return_value = []
+        utils_config.side_effect = self.test_config.get
+        self.test_config.set('console-access-protocol', 'dummy')
+        self.openstack_upgrade_available.return_value = False
+        mock_is_db_initialised.return_value = False
+        self.os_release.return_value = 'juno'
+        self.service_pause.side_effect = ValueError
+        hooks.config_changed()
+        self.assertTrue(self.save_script_rc.called)
+        mock_filter_packages.assert_called_with([])
+        self.assertTrue(mock_update_nova_consoleauth_cfg.called)
+        self.assertTrue(mock_update_aws_compat_services.called)
+        self.service_pause.assert_called_with('neutron-server')
 
     @patch.object(hooks, 'update_aws_compat_services')
     @patch.object(hooks, 'update_nova_consoleauth_config')

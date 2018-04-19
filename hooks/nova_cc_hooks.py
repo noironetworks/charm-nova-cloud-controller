@@ -46,8 +46,9 @@ from charmhelpers.core.hookenv import (
 )
 
 from charmhelpers.core.host import (
-    service_reload,
     service_pause,
+    service_reload,
+    service_resume,
 )
 
 from charmhelpers.fetch import (
@@ -84,14 +85,11 @@ from charmhelpers.contrib.peerstorage import (
 from nova_cc_utils import (
     add_hosts_to_cell,
     auth_token_config,
-    cmd_all_services,
     determine_endpoints,
     determine_packages,
     determine_ports,
     disable_package_apache_site,
-    disable_services,
     do_openstack_upgrade,
-    enable_services,
     is_api_ready,
     is_cellv2_init_ready,
     keystone_ca_cert_b64,
@@ -159,7 +157,6 @@ CONFIGS = register_configs()
 COLO_CONSOLEAUTH = 'inf: res_nova_consoleauth grp_nova_vips'
 AGENT_CONSOLEAUTH = 'ocf:openstack:nova-consoleauth'
 AGENT_CA_PARAMS = 'op monitor interval="5s"'
-NOVA_CONSOLEAUTH_OVERRIDE = '/etc/init/nova-consoleauth.override'
 
 
 def leader_init_db_if_ready(skip_acl_check=False, skip_cells_restarts=False,
@@ -273,8 +270,11 @@ def install():
     msg = 'Disabling services into db relation joined'
     log(msg)
     status_set('maintenance', msg)
-    disable_services()
-    cmd_all_services('stop')
+    if not is_unit_paused_set():
+        for svc in services():
+            service_pause(svc)
+    else:
+        log('Unit is in paused state, not issuing stop/pause to all services')
 
 
 @hooks.hook('config-changed')
@@ -287,8 +287,11 @@ def config_changed():
     # which will subsequently cause db migrations to fail if >= juno.
     # Disable neutron-server if >= juno
     if CompareOpenStackReleases(os_release('nova-common')) >= 'juno':
-        with open('/etc/init/neutron-server.override', 'wb') as out:
-            out.write('manual\n')
+        try:
+            service_pause('neutron-server')
+        except ValueError:
+            # neutron-server service not installed, ignore.
+            pass
     if config('prefer-ipv6'):
         status_set('maintenance', 'configuring ipv6')
         setup_ipv6()
@@ -765,12 +768,21 @@ def cluster_changed():
         peer_echo(includes=['dbsync_state'])
         dbsync_state = peer_retrieve('dbsync_state')
         if dbsync_state == 'complete':
-            enable_services()
-            cmd_all_services('start')
+            if not is_unit_paused_set():
+                for svc in services():
+                    service_resume(svc)
+            else:
+                log('Unit is in paused state, not issuing start/resume to all '
+                    'services')
         else:
-            log('Database sync not ready. Shutting down services')
-            disable_services()
-            cmd_all_services('stop')
+            if not is_unit_paused_set():
+                log('Database sync not ready. Shutting down services')
+                for svc in services():
+                    service_pause(svc)
+            else:
+                log('Database sync not ready. Would shut down services but '
+                    'unit is in paused state, not issuing stop/pause to all '
+                    'services')
 
 
 @hooks.hook('ha-relation-joined')
@@ -874,8 +886,12 @@ def db_departed():
     update_cell_db_if_ready(skip_acl_check=True)
     for r_id in relation_ids('cluster'):
         relation_set(relation_id=r_id, dbsync_state='incomplete')
-    disable_services()
-    cmd_all_services('stop')
+    if not is_unit_paused_set():
+        for svc in services():
+            service_pause(svc)
+    else:
+        log('Unit is in paused state, not issuing stop/pause to all '
+            'services')
 
 
 @hooks.hook('amqp-relation-broken',
@@ -1120,10 +1136,7 @@ def update_nova_consoleauth_config():
         for rid in relation_ids('ha'):
             relation_set(rid, **data)
 
-        try:
-            os.remove(NOVA_CONSOLEAUTH_OVERRIDE)
-        except FileNotFoundError as e:
-            log(str(e), level='DEBUG')
+        service_resume('nova-consoleauth')
 
 
 def nova_api_relation_joined(rid=None):
@@ -1145,6 +1158,7 @@ def main():
     except UnregisteredHookError as e:
         log('Unknown hook {} - skipping.'.format(e))
     assess_status(CONFIGS)
+
 
 if __name__ == '__main__':
     main()
