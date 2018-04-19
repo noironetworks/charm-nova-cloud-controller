@@ -34,14 +34,13 @@ TO_PATCH = [
     'apt_update',
     'apt_upgrade',
     'apt_install',
-    'cmd_all_services',
     'config',
     'configure_installation_source',
     'disable_policy_rcd',
     'is_leader',
+    'is_unit_paused_set',
     'lsb_release',
     'enable_policy_rcd',
-    'enable_services',
     'get_os_codename_install_source',
     'log',
     'os_release',
@@ -50,6 +49,8 @@ TO_PATCH = [
     'relation_ids',
     'remote_unit',
     '_save_script_rc',
+    'service_pause',
+    'service_resume',
     'service_start',
     'services',
     'service_running',
@@ -666,29 +667,33 @@ class NovaCCUtilsTests(CharmTestCase):
         "Migrate database with nova-manage"
         self.relation_ids.return_value = []
         self.os_release.return_value = 'diablo'
+        self.is_unit_paused_set.return_value = False
+        self.services.return_value = ['dummy-service']
         utils.migrate_nova_databases()
         check_output.assert_called_with(['nova-manage', 'db', 'sync'])
-        self.assertTrue(self.enable_services.called)
-        self.cmd_all_services.assert_called_with('start')
+        self.assertTrue(self.service_resume.called)
 
     @patch('subprocess.check_output')
     def test_migrate_nova_databases_cluster(self, check_output):
         "Migrate database with nova-manage in a clustered env"
         self.relation_ids.return_value = ['cluster:1']
         self.os_release.return_value = 'diablo'
+        self.is_unit_paused_set.return_value = False
+        self.services.return_value = ['dummy-service']
         utils.migrate_nova_databases()
         check_output.assert_called_with(['nova-manage', 'db', 'sync'])
         self.assertNotIn(call(['nova-manage', 'db', 'online_data_migrations']),
                          check_output.mock_calls)
         self.peer_store.assert_called_with('dbsync_state', 'complete')
-        self.assertTrue(self.enable_services.called)
-        self.cmd_all_services.assert_called_with('start')
+        self.assertTrue(self.service_resume.called)
 
     @patch('subprocess.check_output')
     def test_migrate_nova_databases_mitaka(self, check_output):
         "Migrate database with nova-manage in a clustered env"
         self.relation_ids.return_value = ['cluster:1']
         self.os_release.return_value = 'mitaka'
+        self.is_unit_paused_set.return_value = False
+        self.services.return_value = ['dummy-service']
         utils.migrate_nova_databases()
         check_output.assert_has_calls([
             call(['nova-manage', 'api_db', 'sync']),
@@ -696,8 +701,7 @@ class NovaCCUtilsTests(CharmTestCase):
             call(['nova-manage', 'db', 'online_data_migrations']),
         ])
         self.peer_store.assert_called_with('dbsync_state', 'complete')
-        self.assertTrue(self.enable_services.called)
-        self.cmd_all_services.assert_called_with('start')
+        self.assertTrue(self.service_resume.called)
 
     @patch('subprocess.Popen')
     @patch('subprocess.check_output')
@@ -709,6 +713,8 @@ class NovaCCUtilsTests(CharmTestCase):
         get_cell_uuid.return_value = 'c83121db-f1c7-464a-b657-38c28fac84c6'
         self.relation_ids.return_value = ['cluster:1']
         self.os_release.return_value = 'ocata'
+        self.is_unit_paused_set.return_value = False
+        self.services.return_value = ['dummy-service']
         process_mock = MagicMock()
         attrs = {
             'communicate.return_value': ('output', 'error'),
@@ -733,8 +739,7 @@ class NovaCCUtilsTests(CharmTestCase):
             '--max-count', '50000'], stdout=-1)
         Popen.assert_has_calls([map_call])
         self.peer_store.assert_called_with('dbsync_state', 'complete')
-        self.assertTrue(self.enable_services.called)
-        self.cmd_all_services.assert_called_with('start')
+        self.assertTrue(self.service_resume.called)
 
     @patch('subprocess.Popen')
     @patch('subprocess.check_output')
@@ -746,6 +751,8 @@ class NovaCCUtilsTests(CharmTestCase):
         get_cell_uuid.return_value = 'c83121db-f1c7-464a-b657-38c28fac84c6'
         self.relation_ids.return_value = ['cluster:1']
         self.os_release.return_value = 'pike'
+        self.is_unit_paused_set.return_value = False
+        self.services.return_value = ['dummy-service']
         utils.migrate_nova_databases()
         check_output.assert_has_calls([
             call(['nova-manage', 'api_db', 'sync']),
@@ -762,8 +769,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'c83121db-f1c7-464a-b657-38c28fac84c6'])
         self.assertFalse(map_call in Popen.call_args_list)
         self.peer_store.assert_called_with('dbsync_state', 'complete')
-        self.assertTrue(self.enable_services.called)
-        self.cmd_all_services.assert_called_with('start')
+        self.assertTrue(self.service_resume.called)
 
     @patch('subprocess.check_output')
     def test_migrate_nova_flavors(self, check_output):

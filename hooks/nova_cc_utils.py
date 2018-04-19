@@ -75,7 +75,6 @@ from charmhelpers.core.hookenv import (
 )
 
 from charmhelpers.core.host import (
-    service,
     service_pause,
     service_resume,
     service_running,
@@ -493,6 +492,7 @@ def get_step_upgrade_source(new_src):
 
     return None
 
+
 POLICY_RC_D = """#!/bin/bash
 
 set -e
@@ -831,8 +831,12 @@ def finalize_migrate_nova_databases():
         log('Informing peers that dbsync is complete', level=INFO)
         peer_store('dbsync_state', 'complete')
     log('Enabling services', level=INFO)
-    enable_services()
-    cmd_all_services('start')
+    if not is_unit_paused_set():
+        for svc in services():
+            service_resume(svc)
+    else:
+        log('Unit is in paused state, not issuing start/resume to all '
+            'services')
 
 
 # NOTE(jamespage): Retry deals with sync issues during one-shot HA deploys.
@@ -1168,33 +1172,6 @@ def service_guard(guard_map, contexts, active=False):
                 f(*args)
         return wrapped_f
     return wrap
-
-
-def cmd_all_services(cmd):
-    if is_unit_paused_set():
-        log('Unit is in paused state, not issuing {} to all'
-            'services'.format(cmd))
-        return
-    if cmd == 'start':
-        for svc in services():
-            if not service_running(svc):
-                service_start(svc)
-    else:
-        for svc in services():
-            service(cmd, svc)
-
-
-def disable_services():
-    for svc in services():
-        with open('/etc/init/{}.override'.format(svc), 'wb') as out:
-            out.write('exec true\n')
-
-
-def enable_services():
-    for svc in services():
-        override_file = '/etc/init/{}.override'.format(svc)
-        if os.path.isfile(override_file):
-            os.remove(override_file)
 
 
 def setup_ipv6():
