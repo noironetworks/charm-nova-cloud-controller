@@ -141,6 +141,11 @@ from charmhelpers.contrib.network.ip import (
     get_relation_ip,
 )
 
+from charmhelpers.contrib.openstack.cert_utils import (
+    get_certificate_request,
+    process_certificates,
+)
+
 from charmhelpers.contrib.openstack.context import ADDRESS_TYPES
 
 from charmhelpers.contrib.charmsupport import nrpe
@@ -1144,6 +1149,20 @@ def nova_api_relation_joined(rid=None):
         'nova-api-ready': 'yes' if is_api_ready(CONFIGS) else 'no'
     }
     relation_set(rid, **rel_data)
+
+
+@hooks.hook('certificates-relation-joined')
+def certs_joined(relation_id=None):
+    relation_set(
+        relation_id=relation_id,
+        relation_settings=get_certificate_request())
+
+
+@hooks.hook('certificates-relation-changed')
+@restart_on_change(restart_map(), stopstart=True)
+def certs_changed(relation_id=None, unit=None):
+    process_certificates('nova', relation_id, unit)
+    configure_https()
 
 
 @hooks.hook('update-status')

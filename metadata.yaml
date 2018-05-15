@@ -57,6 +57,8 @@ requires:
     scope: container
   memcache:
     interface: memcache
+  certificates:
+    interface: tls-certificates
 peers:
   cluster:
     interface: nova-ha
