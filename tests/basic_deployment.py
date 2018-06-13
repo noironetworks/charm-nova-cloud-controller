@@ -886,6 +886,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 ret)
             amulet.raise_status(amulet.FAIL, msg=message)
         self.d.configure('nova-cloud-controller', {'pci-alias': ''})
+        self.d.sentry.wait()
 
     def test_400_image_instance_create(self):
         """Create an image/instance, verify they exist, and delete them."""

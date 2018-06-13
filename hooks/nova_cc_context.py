@@ -70,24 +70,6 @@ class ApacheSSLContext(context.ApacheSSLContext):
         return super(ApacheSSLContext, self).__call__()
 
 
-class NovaCellContext(context.OSContextGenerator):
-    interfaces = ['nova-cell']
-
-    def __call__(self):
-        log('Generating template context for cell')
-        ctxt = {}
-        for rid in relation_ids('cell'):
-            for unit in related_units(rid):
-                rdata = relation_get(rid=rid, unit=unit)
-                ctxt = {
-                    'cell_type': rdata.get('cell_type'),
-                    'cell_name': rdata.get('cell_name'),
-                }
-                if context.context_complete(ctxt):
-                    return ctxt
-        return {}
-
-
 class NovaCellV2SharedDBContext(context.OSContextGenerator):
     interfaces = ['shared-db']
 

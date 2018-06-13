@@ -47,8 +47,6 @@ requires:
     interface: quantum
   neutron-api:
     interface: neutron-api
-  cell:
-    interface: nova-cell
   ha:
     interface: hacluster
     scope: container

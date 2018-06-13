@@ -74,7 +74,6 @@ from charmhelpers.contrib.openstack.neutron import (
 
 from nova_cc_context import (
     NeutronAPIContext,
-    NovaCellContext,
 )
 
 from charmhelpers.contrib.peerstorage import (
@@ -164,8 +163,7 @@ AGENT_CONSOLEAUTH = 'ocf:openstack:nova-consoleauth'
 AGENT_CA_PARAMS = 'op monitor interval="5s"'
 
 
-def leader_init_db_if_ready(skip_acl_check=False, skip_cells_restarts=False,
-                            db_rid=None, unit=None):
+def leader_init_db_if_ready(skip_acl_check=False, db_rid=None, unit=None):
     """Initialise db if leader and db not yet intialised.
 
     NOTE: must be called from database context.
@@ -192,10 +190,6 @@ def leader_init_db_if_ready(skip_acl_check=False, skip_cells_restarts=False,
         log('Triggering remote neutron-network-service restarts.')
         [quantum_joined(rid=rid, remote_restart=True)
             for rid in relation_ids('quantum-network-service')]
-        if not skip_cells_restarts:
-            log('Triggering remote cell restarts.')
-            [nova_cell_relation_joined(rid=rid, remote_restart=True)
-             for rid in relation_ids('cell')]
     else:
         log('allowed_units either not presented, or local unit '
             'not in acl list: %s' % repr(allowed_units))
@@ -367,8 +361,6 @@ def amqp_changed():
     # to be set in nova.conf, so we attempt db init in here as well as the
     # db relation-changed hooks.
     update_cell_db_if_ready_allowed_units()
-    [nova_cell_relation_joined(rid=rid)
-        for rid in relation_ids('cell')]
 
     for r_id in relation_ids('nova-api'):
         nova_api_relation_joined(rid=r_id)
@@ -909,8 +901,6 @@ def db_departed():
                active=config('service-guard'))
 def relation_broken():
     CONFIGS.write_all()
-    [nova_cell_relation_joined(rid=rid)
-        for rid in relation_ids('cell')]
 
 
 def configure_https():
@@ -978,32 +968,6 @@ def upgrade_charm():
     update_nova_consoleauth_config()
 
 
-# remote_restart is defaulted to true as nova-cells may have started the
-# nova-cell process before the db migration was run so it will need a
-# kick
-@hooks.hook('cell-relation-joined')
-def nova_cell_relation_joined(rid=None, remote_restart=True):
-    rel_settings = {
-        'nova_url': "%s:8774/v2" % canonical_url(CONFIGS, INTERNAL)
-    }
-    if remote_restart:
-        rel_settings['restart_trigger'] = str(uuid.uuid4())
-    relation_set(relation_id=rid, **rel_settings)
-
-
-@hooks.hook('cell-relation-changed')
-@restart_on_change(restart_map())
-def nova_cell_relation_changed():
-    CONFIGS.write(NOVA_CONF)
-
-
-def get_cell_type():
-    cell_info = NovaCellContext()()
-    if 'cell_type' in cell_info:
-        return cell_info['cell_type']
-    return None
-
-
 @hooks.hook('neutron-api-relation-joined')
 def neutron_api_relation_joined(rid=None, remote_restart=False):
     for id_rid in relation_ids('identity-service'):
@@ -1011,8 +975,6 @@ def neutron_api_relation_joined(rid=None, remote_restart=False):
     rel_settings = {
         'nova_url': canonical_url(CONFIGS, INTERNAL) + ":8774/v2"
     }
-    if get_cell_type():
-        rel_settings['cell_type'] = get_cell_type()
     if remote_restart:
         rel_settings['restart_trigger'] = str(uuid.uuid4())
     relation_set(relation_id=rid, **rel_settings)
