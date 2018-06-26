@@ -636,7 +636,7 @@ class NovaCCHooksTests(CharmTestCase):
         def _relation_ids(rel):
             relid = {
                 'cloud-compute': ['nova-compute/0'],
-                'cell': ['nova-cell-api/0'],
+                'nova-cell-api': ['nova-cell-controller/0'],
                 'neutron-api': ['neutron-api/0'],
                 'quantum-network-service': ['neutron-gateway/0']
             }
@@ -664,6 +664,7 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.relation_broken()
         self.assertTrue(configs.write_all.called)
 
+    @patch.object(hooks, 'update_child_cell_records')
     @patch.object(hooks, 'leader_init_db_if_ready_allowed_units')
     @patch.object(hooks, 'update_cell_db_if_ready_allowed_units')
     @patch.object(hooks, 'is_db_initialised')
@@ -672,7 +673,8 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'CONFIGS')
     def test_amqp_changed_api_rel(self, configs, api_joined,
                                   quantum_joined, mock_is_db_initialised,
-                                  update_db_allowed, init_db_allowed):
+                                  update_db_allowed, init_db_allowed,
+                                  mock_update_child_cell_records):
         self.relation_ids.side_effect = [
             ['nova-api/0'],
             ['quantum-service/0'],
@@ -690,6 +692,7 @@ class NovaCCHooksTests(CharmTestCase):
         quantum_joined.assert_called_with(rid='quantum-service/0',
                                           remote_restart=True)
 
+    @patch.object(hooks, 'update_child_cell_records')
     @patch.object(hooks, 'leader_init_db_if_ready_allowed_units')
     @patch.object(hooks, 'update_cell_db_if_ready_allowed_units')
     @patch.object(hooks, 'is_db_initialised')
@@ -698,7 +701,8 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'CONFIGS')
     def test_amqp_changed_noapi_rel(self, configs, api_joined,
                                     quantum_joined, mock_is_db_initialised,
-                                    update_db_allowed, init_db_allowed):
+                                    update_db_allowed, init_db_allowed,
+                                    mock_update_child_cell_records):
         mock_is_db_initialised.return_value = False
         configs.complete_contexts = MagicMock()
         configs.complete_contexts.return_value = ['amqp']
