@@ -198,6 +198,15 @@ ubuntu-cloud-archive/liberty-staging/ubuntu trusty main
 %s
 """ % GPG_PPA_CLOUD_ARCHIVE
 
+NM_CELLS_LIST = """
++-------+--------------------------------------+--------------+-------------+
+| Name  | UUID                                 | Transport    | DB          |
++-------+--------------------------------------+--------------+-------------+
+| cell0 | 00000000-0000-0000-0000-000000000000 | none:///     | mysql_cell0 |
+| cell1 | 7a8a0e58-e127-4056-bb98-99d9579ca08b | rabbit_cell1 | mysql_cell1 |
++-------+--------------------------------------+--------------+-------------+
+"""
+
 
 class NovaCCUtilsTests(CharmTestCase):
 
@@ -1123,14 +1132,8 @@ class NovaCCUtilsTests(CharmTestCase):
 
     @patch('subprocess.check_output')
     def test_get_cell_uuid(self, mock_check_call):
-        mock_check_call.return_value = ("""
-        +-------+--------------------------------------+
-        |  Name |                 UUID                 |
-        +-------+--------------------------------------+
-        | cell0 | 00000000-0000-0000-0000-000000000000 |
-        | cell1 | c83121db-f1c7-464a-b657-38c28fac84c6 |
-        +-------+--------------------------------------+""")
-        expected = 'c83121db-f1c7-464a-b657-38c28fac84c6'
+        mock_check_call.return_value = NM_CELLS_LIST
+        expected = '7a8a0e58-e127-4056-bb98-99d9579ca08b'
         self.assertEqual(expected, utils.get_cell_uuid('cell1'))
 
     @patch.object(utils, 'get_cell_uuid')
@@ -1315,3 +1318,147 @@ class NovaCCUtilsTests(CharmTestCase):
             call().write('{\n  "a": "b"\n}')]
         for c in expected_calls:
             self.assertTrue(c in m.mock_calls)
+
+    @patch.object(utils.context, 'SharedDBContext')
+    @patch.object(utils, 'relation_id')
+    def test_get_cell_db_context(self, mock_relation_id, mock_SharedDBContext):
+        mock_relation_id.return_value = 'dbid'
+        utils.get_cell_db_context('mysql-cell2')
+        mock_SharedDBContext.assert_called_once_with(
+            relation_id='dbid',
+            relation_prefix='nova',
+            ssl_dir='/etc/nova')
+        mock_relation_id.assert_called_once_with(
+            relation_name='shared-db-cell',
+            service_or_unit='mysql-cell2')
+
+    @patch.object(utils.context, 'AMQPContext')
+    @patch.object(utils, 'relation_id')
+    def test_get_cell_amqp_context(self, mock_relation_id, mock_AMQPContext):
+        mock_relation_id.return_value = 'amqpid'
+        utils.get_cell_amqp_context('rabbitmq-server-cell2')
+        mock_AMQPContext.assert_called_once_with(
+            relation_id='amqpid',
+            ssl_dir='/etc/nova')
+        mock_relation_id.assert_called_once_with(
+            relation_name='amqp-cell',
+            service_or_unit='rabbitmq-server-cell2')
+
+    def test_get_sql_uri(self):
+        base_ctxt = {
+            'database_type': 'mysql',
+            'database_user': 'nova',
+            'database_password': 'novapass',
+            'database_host': '10.0.0.10',
+            'database': 'novadb'}
+        self.assertEqual(
+            utils.get_sql_uri(base_ctxt),
+            'mysql://nova:novapass@10.0.0.10/novadb')
+        sslca_ctxt = {'database_ssl_ca': 'myca'}
+        sslca_ctxt.update(base_ctxt)
+        self.assertEqual(
+            utils.get_sql_uri(sslca_ctxt),
+            'mysql://nova:novapass@10.0.0.10/novadb?ssl_ca=myca')
+        ssl_cert_ctxt = {
+            'database_ssl_cert': 'mycert',
+            'database_ssl_key': 'mykey'}
+        ssl_cert_ctxt.update(sslca_ctxt)
+        self.assertEqual(
+            utils.get_sql_uri(ssl_cert_ctxt),
+            ('mysql://nova:novapass@10.0.0.10/novadb?ssl_ca=myca&'
+             'ssl_cert=mycert&ssl_key=mykey'))
+
+    @patch.object(utils, 'is_db_initialised')
+    @patch.object(utils, 'get_cell_details')
+    @patch.object(utils, 'get_cell_db_context')
+    @patch.object(utils, 'get_cell_amqp_context')
+    @patch.object(utils, 'get_sql_uri')
+    @patch.object(utils.subprocess, 'check_output')
+    @patch.object(utils, 'service_restart')
+    def test_update_child_cell(self, mock_service_restart, mock_check_output,
+                               mock_get_sql_uri, mock_get_cell_amqp_context,
+                               mock_get_cell_db_context, mock_get_cell_details,
+                               mock_is_db_initialised):
+        mock_is_db_initialised.return_value = True
+        mock_get_cell_details.return_value = {'cell1': 'cell1uuid'}
+        mock_get_cell_db_context.return_value = {'ctxt': 'a full context'}
+        mock_get_cell_amqp_context.return_value = {'transport_url': 'amqp-uri'}
+        mock_get_sql_uri.return_value = 'db-uri'
+        utils.update_child_cell('cell2', 'mysql-cell2', 'amqp-cell2')
+        mock_get_cell_amqp_context.assert_called_once_with('amqp-cell2')
+        mock_get_cell_db_context.assert_called_once_with('mysql-cell2')
+        mock_check_output.assert_called_once_with([
+            'nova-manage',
+            'cell_v2',
+            'create_cell',
+            '--verbose',
+            '--name', 'cell2',
+            '--transport-url', 'amqp-uri',
+            '--database_connection', 'db-uri'])
+        mock_service_restart.assert_called_once_with('nova-scheduler')
+
+    @patch.object(utils, 'is_db_initialised')
+    @patch.object(utils.subprocess, 'check_output')
+    @patch.object(utils, 'service_restart')
+    def test_update_child_cell_no_local_db(self, mock_service_restart,
+                                           mock_check_output,
+                                           mock_is_db_initialised):
+        mock_is_db_initialised.return_value = False
+        utils.update_child_cell('cell2', 'mysql-cell2', 'amqp-cell2')
+        self.assertFalse(mock_check_output.called)
+        self.assertFalse(mock_service_restart.called)
+
+    @patch.object(utils, 'get_cell_details')
+    @patch.object(utils, 'is_db_initialised')
+    @patch.object(utils.subprocess, 'check_output')
+    @patch.object(utils, 'service_restart')
+    def test_update_child_cell_api_cell_not_registered(self,
+                                                       mock_service_restart,
+                                                       mock_check_output,
+                                                       mock_is_db_initialised,
+                                                       mock_get_cell_details):
+        mock_is_db_initialised.return_value = True
+        mock_get_cell_details.return_value = {}
+        utils.update_child_cell('cell2', 'mysql-cell2', 'amqp-cell2')
+        mock_get_cell_details.assert_called_once_with()
+        self.assertFalse(mock_check_output.called)
+        self.assertFalse(mock_service_restart.called)
+
+    @patch.object(utils.subprocess, 'check_output')
+    @patch.object(utils, 'service_restart')
+    @patch.object(utils, 'get_cell_details')
+    @patch.object(utils, 'is_db_initialised')
+    @patch.object(utils, 'get_cell_db_context')
+    def test_update_child_cell_no_cell_db(self, mock_get_cell_db_context,
+                                          mock_is_db_initialised,
+                                          mock_get_cell_details,
+                                          mock_service_restart,
+                                          mock_check_output):
+        mock_is_db_initialised.return_value = True
+        mock_get_cell_details.return_value = {'cell1': 'uuid4cell1'}
+        mock_get_cell_db_context.return_value = {}
+        utils.update_child_cell('cell2', 'mysql-cell2', 'amqp-cell2')
+        self.assertFalse(mock_check_output.called)
+        self.assertFalse(mock_service_restart.called)
+
+    @patch.object(utils, 'get_cell_amqp_context')
+    @patch.object(utils, 'get_sql_uri')
+    @patch.object(utils.subprocess, 'check_output')
+    @patch.object(utils, 'service_restart')
+    @patch.object(utils, 'get_cell_details')
+    @patch.object(utils, 'is_db_initialised')
+    @patch.object(utils, 'get_cell_db_context')
+    def test_update_child_cell_no_cell_amqp(self, mock_get_cell_db_context,
+                                            mock_is_db_initialised,
+                                            mock_get_cell_details,
+                                            mock_service_restart,
+                                            mock_check_output,
+                                            mock_get_sql_uri,
+                                            mock_get_cell_amqp_context):
+        mock_is_db_initialised.return_value = True
+        mock_get_cell_details.return_value = {'cell1': 'uuid4cell1'}
+        mock_get_cell_db_context.return_value = {'ctxt': 'a full context'}
+        mock_get_cell_amqp_context.return_value = {}
+        utils.update_child_cell('cell2', 'mysql-cell2', 'amqp-cell2')
+        self.assertFalse(mock_check_output.called)
+        self.assertFalse(mock_service_restart.called)

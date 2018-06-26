@@ -105,6 +105,7 @@ from nova_cc_utils import (
     ssh_compute_remove,
     ssh_known_hosts_lines,
     ssh_authorized_keys_lines,
+    update_child_cell,
     register_configs,
     restart_map,
     update_cell_database,
@@ -192,12 +193,8 @@ def leader_init_db_if_ready(skip_acl_check=False, db_rid=None, unit=None):
                           allowed_units.split()):
         status_set('maintenance', 'Running nova db migration')
         migrate_nova_databases()
-        log('Triggering remote cloud-compute restarts.')
-        [compute_joined(rid=rid, remote_restart=True)
-            for rid in relation_ids('cloud-compute')]
-        log('Triggering remote neutron-network-service restarts.')
-        [quantum_joined(rid=rid, remote_restart=True)
-            for rid in relation_ids('quantum-network-service')]
+        log('Triggering remote restarts.')
+        update_nova_relation(remote_restart=True)
     else:
         log('allowed_units either not presented, or local unit '
             'not in acl list: %s' % repr(allowed_units))
@@ -250,6 +247,12 @@ def update_cell_db_if_ready_allowed_units():
         for rid in relation_ids(rname):
             for unit in related_units(rid):
                 update_cell_db_if_ready(db_rid=rid, unit=unit)
+
+
+def update_child_cell_records():
+    for r_id in relation_ids('nova-cell-api'):
+        for unit in related_units(relid=r_id):
+            nova_cell_api_relation_changed(rid=r_id, unit=unit)
 
 
 @hooks.hook('install.real')
@@ -334,12 +337,10 @@ def config_changed():
     if filtered:
         apt_install(filtered, fatal=True)
 
-    for rid in relation_ids('quantum-network-service'):
-        quantum_joined(rid=rid)
     for r_id in relation_ids('identity-service'):
         identity_joined(rid=r_id)
     [cluster_joined(rid) for rid in relation_ids('cluster')]
-    [compute_joined(rid=rid) for rid in relation_ids('cloud-compute')]
+    update_nova_relation()
 
     update_nrpe_config()
 
@@ -383,6 +384,8 @@ def amqp_changed():
 
     for r_id in relation_ids('nova-api'):
         nova_api_relation_joined(rid=r_id)
+
+    update_child_cell_records()
 
     # NOTE: trigger restart on nova-api-metadata on
     #       neutron-gateway units once nova-cc has working
@@ -455,6 +458,7 @@ def db_changed():
     # be set in nova.conf, so we attempt db init in here as well as the
     # amqp-relation-changed hook.
     update_cell_db_if_ready()
+    update_child_cell_records()
 
 
 @hooks.hook('image-service-relation-changed')
@@ -498,8 +502,7 @@ def identity_changed():
         return
     CONFIGS.write('/etc/nova/api-paste.ini')
     CONFIGS.write(NOVA_CONF)
-    [compute_joined(rid) for rid in relation_ids('cloud-compute')]
-    [quantum_joined(rid) for rid in relation_ids('quantum-network-service')]
+    update_nova_relation()
     [nova_vmware_relation_joined(rid) for rid in relation_ids('nova-vmware')]
     [neutron_api_relation_joined(rid) for rid in relation_ids('neutron-api')]
     configure_https()
@@ -637,8 +640,7 @@ def console_settings():
     return rel_settings
 
 
-@hooks.hook('cloud-compute-relation-joined')
-def compute_joined(rid=None, remote_restart=False):
+def get_compute_config(rid=None, remote_restart=False):
     cons_settings = console_settings()
     relation_set(relation_id=rid, **cons_settings)
     rel_settings = {
@@ -655,6 +657,21 @@ def compute_joined(rid=None, remote_restart=False):
     if remote_restart:
         rel_settings['restart_trigger'] = str(uuid.uuid4())
 
+    return rel_settings
+
+
+def update_nova_relation(remote_restart=False):
+    for rid in relation_ids('cloud-compute'):
+        compute_joined(rid=rid, remote_restart=remote_restart)
+    for rid in relation_ids('quantum-network-service'):
+        quantum_joined(rid=rid, remote_restart=remote_restart)
+    for rid in relation_ids('nova-cell-api'):
+        nova_cell_api_relation_joined(rid=rid, remote_restart=remote_restart)
+
+
+@hooks.hook('cloud-compute-relation-joined')
+def compute_joined(rid=None, remote_restart=False):
+    rel_settings = get_compute_config(rid=rid, remote_restart=remote_restart)
     rel_settings.update(keystone_compute_settings())
     relation_set(relation_id=rid, **rel_settings)
 
@@ -1010,10 +1027,7 @@ def neutron_api_relation_joined(rid=None, remote_restart=False):
 @restart_on_change(restart_map())
 def neutron_api_relation_changed():
     CONFIGS.write(NOVA_CONF)
-    for rid in relation_ids('cloud-compute'):
-        compute_joined(rid=rid)
-    for rid in relation_ids('quantum-network-service'):
-        quantum_joined(rid=rid)
+    update_nova_relation()
 
 
 @hooks.hook('neutron-api-relation-broken')
@@ -1022,10 +1036,7 @@ def neutron_api_relation_changed():
 @restart_on_change(restart_map())
 def neutron_api_relation_broken():
     CONFIGS.write_all()
-    for rid in relation_ids('cloud-compute'):
-        compute_joined(rid=rid)
-    for rid in relation_ids('quantum-network-service'):
-        quantum_joined(rid=rid)
+    update_nova_relation()
 
 
 @hooks.hook('nrpe-external-master-relation-joined',
@@ -1149,6 +1160,65 @@ def certs_joined(relation_id=None):
 def certs_changed(relation_id=None, unit=None):
     process_certificates('nova', relation_id, unit)
     configure_https()
+
+
+@hooks.hook('amqp-cell-relation-joined')
+def amqp_cell_joined(relation_id=None):
+    relation_set(relation_id=relation_id,
+                 username='nova', vhost='nova')
+
+
+@hooks.hook('shared-db-cell-relation-joined')
+def shared_db_cell_joined(relation_id=None):
+    access_network = None
+    for unit in related_units(relid=relation_id):
+        access_network = relation_get(rid=relation_id, unit=unit,
+                                      attribute='access-network')
+        if access_network:
+            break
+        host = get_relation_ip('shared-db', cidr_network=access_network)
+    cell_db = {
+        'nova_database': 'nova',
+        'nova_username': config('database-user'),
+        'nova_hostname': host}
+    relation_set(relation_id=relation_id, **cell_db)
+
+
+@hooks.hook('nova-cell-api-relation-joined')
+def nova_cell_api_relation_joined(rid=None, remote_restart=False):
+    rel_settings = get_compute_config(rid=rid, remote_restart=remote_restart)
+    if network_manager() == 'neutron':
+        rel_settings.update(neutron_settings())
+    relation_set(relation_id=rid, **rel_settings)
+
+
+@hooks.hook('shared-db-cell-relation-changed')
+def shared_db_cell_changed(relation_id=None):
+    update_child_cell_records()
+
+
+@hooks.hook('amqp-cell-relation-changed')
+def amqp_cell_changed(relation_id=None):
+    update_child_cell_records()
+
+
+@hooks.hook('nova-cell-api-relation-changed')
+def nova_cell_api_relation_changed(rid=None, unit=None):
+    data = relation_get(rid=rid, unit=unit)
+    log("Data: {}".format(data, level=DEBUG))
+    if not data.get('cell-name'):
+        return
+    cell_updated = update_child_cell(
+        name=data['cell-name'],
+        db_service=data['db-service'],
+        amqp_service=data['amqp-service'])
+    if cell_updated:
+        log(
+            "Cell registration data changed, triggering a remote restart",
+            level=DEBUG)
+        relation_set(
+            relation_id=rid,
+            restart_trigger=str(uuid.uuid4()))
 
 
 @hooks.hook('update-status')

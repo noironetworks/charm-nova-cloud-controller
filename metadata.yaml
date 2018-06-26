@@ -30,6 +30,8 @@ provides:
     scope: container
   cloud-controller:
     interface: nova
+  nova-cell-api:
+    interface: nova-cell
 requires:
   shared-db:
     interface: mysql-shared
@@ -57,6 +59,10 @@ requires:
     interface: memcache
   certificates:
     interface: tls-certificates
+  shared-db-cell:
+    interface: mysql-shared
+  amqp-cell:
+    interface: rabbitmq
 peers:
   cluster:
     interface: nova-ha

@@ -15,6 +15,7 @@
 import os
 import subprocess
 import ConfigParser
+import uuid
 
 from base64 import b64encode
 from collections import OrderedDict
@@ -72,6 +73,7 @@ from charmhelpers.core.hookenv import (
     leader_get,
     leader_set,
     relation_get,
+    relation_id,
     relation_ids,
     remote_unit,
     DEBUG,
@@ -88,6 +90,7 @@ from charmhelpers.core.host import (
     service_running,
     service_start,
     service_stop,
+    service_restart,
     lsb_release,
     CompareHostReleases,
 )
@@ -791,23 +794,48 @@ def initialize_cell_databases():
                 'the transport_url/database combination.', level=INFO)
 
 
-def get_cell_uuid(cell):
+def get_cell_uuid(cell, fatal=True):
     '''Get cell uuid
     :param cell: string cell name i.e. 'cell1'
     :returns: string cell uuid
     '''
     log("Listing cell, '{}'".format(cell), level=INFO)
-    cmd = ['sudo', 'nova-manage', 'cell_v2', 'list_cells']
+    cells = get_cell_details()
+    cell_info = cells.get(cell)
+    if not cell_info:
+        if fatal:
+            raise Exception("Cannot find cell, '{}', in list_cells."
+                            "".format(cell))
+        return None
+    return cell_info['uuid']
+
+
+def get_cell_details():
+    '''Get cell details
+    :returns: string cell uuid
+    '''
+    log("Getting details of cells", level=INFO)
+    cells = {}
+    cmd = ['sudo', 'nova-manage', 'cell_v2', 'list_cells', '--verbose']
     try:
         out = subprocess.check_output(cmd)
     except subprocess.CalledProcessError as e:
         log('list_cells failed\n{}'.format(e.output), level=ERROR)
         raise
-    cell_uuid = out.split(cell, 1)[1].split()[1]
-    if not cell_uuid:
-        raise Exception("Cannot find cell, '{}', in list_cells."
-                        "".format(cell))
-    return cell_uuid
+    for line in out.split('\n'):
+        columns = line.split('|')
+        if len(columns) < 2:
+            continue
+        columns = [c.strip() for c in columns]
+        try:
+            uuid.UUID(columns[2].strip())
+            cells[columns[1]] = {
+                'uuid': columns[2],
+                'amqp': columns[3],
+                'db': columns[4]}
+        except ValueError:
+            pass
+    return cells
 
 
 def update_cell_database():
@@ -1480,4 +1508,110 @@ def write_vendordata(vdata):
         return False
     with open(VENDORDATA_FILE, 'w') as vdata_file:
         vdata_file.write(json.dumps(json_vdata, sort_keys=True, indent=2))
+
+
+def get_cell_db_context(db_service):
+    """Return the database context for the given service name"""
+    db_rid = relation_id(
+        relation_name='shared-db-cell',
+        service_or_unit=db_service)
+    return context.SharedDBContext(
+        relation_prefix='nova',
+        ssl_dir=NOVA_CONF_DIR,
+        relation_id=db_rid)()
+
+
+def get_cell_amqp_context(amqp_service):
+    """Return the amqp context for the given service name"""
+    amq_rid = relation_id(
+        relation_name='amqp-cell',
+        service_or_unit=amqp_service)
+    return context.AMQPContext(
+        ssl_dir=NOVA_CONF_DIR,
+        relation_id=amq_rid)()
+
+
+def get_sql_uri(db_ctxt):
+    """Return the uri for conextind to the database in the supplied context"""
+    uri_template = ("{database_type}://{database_user}:{database_password}"
+                    "@{database_host}/{database}")
+    uri = uri_template.format(**db_ctxt)
+    if db_ctxt.get('database_ssl_ca'):
+        uri = uri + '?ssl_ca={database_ssl_ca}'.format(**db_ctxt)
+        if db_ctxt.get('database_ssl_cert'):
+            uri = uri + ('&ssl_cert={database_ssl_cert}'
+                         '&ssl_key={database_ssl_key}').format(**db_ctxt)
+    return uri
+
+
+def update_child_cell(name, db_service, amqp_service, skip_acl_check=True):
+    """Register cell.
+
+    Registering a cell requires:
+        1) Complete relation with api db service.
+        2) Complete relation with cells db service.
+        3) Complete relation with cells amqp service.
+    """
+    if not is_db_initialised():
+        log(
+            'Defering registering Cell {}, api db not ready.'.format(name),
+            level=DEBUG)
+        return False
+
+    existing_cells = get_cell_details()
+    if not existing_cells.get('cell1'):
+        log('Defering registering cell {}, api cell setup is not complete.'
+            ''.format(name),
+            level=DEBUG)
+        return False
+
+    db_ctxt = get_cell_db_context(db_service)
+    if not db_ctxt:
+        log('Defering registering cell {}, cell db relation not '
+            'ready.'.format(name),
+            level=DEBUG)
+        return False
+    sql_connection = get_sql_uri(db_ctxt)
+
+    amqp_ctxt = get_cell_amqp_context(amqp_service)
+    if not amqp_ctxt:
+        log('Defering registering cell {}, cell amqp relation not '
+            'ready.'.format(name),
+            level=DEBUG)
+        return False
+
+    cmd = [
+        'nova-manage',
+        'cell_v2',
+    ]
+
+    if existing_cells.get(name):
+        log('Cell {} already registered, checking if details are correct.'
+            ''.format(name), level=DEBUG)
+        if (amqp_ctxt['transport_url'] == existing_cells[name]['amqp'] and
+           sql_connection == existing_cells[name]['db']):
+            log('Cell details are correct no update needed', level=DEBUG)
+            return False
+        else:
+            log('Cell details have changed', level=DEBUG)
+            cmd.extend([
+                'update_cell',
+                '--cell_uuid', existing_cells[name]['uuid']])
+    else:
+        log(
+            'Cell {} is new and needs to be created.'.format(name),
+            level=DEBUG)
+        cmd.extend(['create_cell', '--verbose'])
+
+    cmd.extend([
+        '--name', name,
+        '--transport-url', amqp_ctxt['transport_url'],
+        '--database_connection', sql_connection])
+    try:
+        log('Updating cell {}'.format(name), level=DEBUG)
+        subprocess.check_output(cmd)
+    except subprocess.CalledProcessError as e:
+        log('Register cell failed\n{}'.format(e.output), level=ERROR)
+        raise
+    service_restart('nova-scheduler')
     return True
