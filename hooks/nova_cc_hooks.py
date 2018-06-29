@@ -1102,7 +1102,8 @@ def update_nova_consoleauth_config():
         for rid in hookenv.relation_ids('ha'):
             hookenv.relation_set(rid, **data)
 
-        ch_host.service_resume('nova-consoleauth')
+        if not ch_utils.is_unit_paused_set():
+            ch_host.service_resume('nova-consoleauth')
 
 
 def nova_api_relation_joined(rid=None):

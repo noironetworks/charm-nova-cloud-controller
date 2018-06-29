@@ -1104,6 +1104,7 @@ class NovaCCHooksTests(CharmTestCase):
         mock_resource_map.return_value = {}
         self.determine_packages.return_value = []
         mock_is_db_initialised.return_value = False
+        self.is_unit_paused_set.return_value = False
         self.config_value_changed.return_value = False
         self.os_release.return_value = 'diablo'
 
@@ -1135,6 +1136,55 @@ class NovaCCHooksTests(CharmTestCase):
         )
         mock_filter_packages.assert_called_with([])
 
+        self.assertTrue(mock_update_aws_compat_svcs.called)
+
+    @patch.object(utils, 'get_shared_metadatasecret')
+    @patch.object(hooks, 'update_nrpe_config')
+    @patch.object(utils, 'resource_map')
+    @patch('hooks.nova_cc_utils.update_aws_compat_services')
+    @patch('hooks.nova_cc_utils.is_db_initialised')
+    @patch('charmhelpers.fetch.filter_installed_packages')
+    @patch('hooks.nova_cc_hooks.configure_https')
+    def test_config_changed_single_ca_paused(self,
+                                             mock_configure_https,
+                                             mock_filter_packages,
+                                             mock_is_db_initialised,
+                                             mock_update_aws_compat_svcs,
+                                             mock_resource_map,
+                                             mock_update_nrpe_config,
+                                             mock_get_shared_metadata_secret):
+        mock_resource_map.return_value = {}
+        self.determine_packages.return_value = []
+        mock_is_db_initialised.return_value = False
+        self.is_unit_paused_set.return_value = False
+        self.config_value_changed.return_value = False
+        self.os_release.return_value = 'diablo'
+        self.service_pause.side_effect = Exception
+
+        self.test_config.set('single-nova-consoleauth', False)
+        self.test_config.set('console-access-protocol', 'novnc')
+        rids = {'ha': ['ha:1']}
+
+        def f(r):
+            return rids.get(r, [])
+
+        self.relation_ids.side_effect = f
+        hooks.resolve_CONFIGS()
+        hooks.config_changed()
+        args = {
+            'delete_resources': ['vip_consoleauth', 'res_nova_consoleauth'],
+            'init_services': {},
+            'resources': {},
+            'resource_params': {},
+            'colocations': {}
+        }
+        print("in-test: self.relation_set:", self.relation_set)
+        self.relation_set.assert_has_calls([
+            call(v, **args) for v in rids['ha']
+        ])
+
+        self.assertEqual(self.service_pause.call_count, 0)
+        mock_filter_packages.assert_called_with([])
         self.assertTrue(mock_update_aws_compat_svcs.called)
 
     @patch('hooks.nova_cc_utils.is_api_ready')
