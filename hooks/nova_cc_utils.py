@@ -985,24 +985,30 @@ def ssh_compute_add(public_key, rid=None, unit=None, user=None):
     # known hosts entry for its IP, hostname and FQDN.
     private_address = relation_get(rid=rid, unit=unit,
                                    attribute='private-address')
-    hosts = [private_address]
+    hosts = []
 
     if not is_ipv6(private_address):
-        if relation_get('hostname'):
-            hosts.append(relation_get('hostname'))
+        hostname = relation_get(rid=rid, unit=unit,
+                                attribute='hostname')
+        if hostname:
+            hosts.append(hostname.lower())
 
         if not is_ip(private_address):
+            hosts.append(private_address.lower())
             hosts.append(get_host_ip(private_address))
             short = private_address.split('.')[0]
             if ns_query(short):
-                hosts.append(short)
+                hosts.append(short.lower())
         else:
+            hosts.append(private_address)
             hn = get_hostname(private_address)
             if hn:
-                hosts.append(hn)
+                hosts.append(hn.lower())
                 short = hn.split('.')[0]
                 if ns_query(short):
-                    hosts.append(short)
+                    hosts.append(short.lower())
+    else:
+        hosts.append(private_address)
 
     for host in list(set(hosts)):
         add_known_host(host, unit, user)
