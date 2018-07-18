@@ -119,7 +119,6 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                                                    'cloud-compute',
             'nova-cloud-controller:image-service': 'glance:image-service',
             'nova-compute:image-service': 'glance:image-service',
-            'nova-compute:shared-db': 'percona-cluster:shared-db',
             'nova-compute:amqp': 'rabbitmq-server:amqp',
             'keystone:shared-db': 'percona-cluster:shared-db',
             'glance:identity-service': 'keystone:identity-service',
