@@ -137,6 +137,9 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(self.execd_preinstall.called)
         self.assertTrue(self.service_pause.called)
 
+    @patch.object(hooks, 'set_shared_metadatasecret')
+    @patch.object(hooks, 'get_shared_metadatasecret')
+    @patch.object(hooks, 'is_leader')
     @patch.object(hooks, 'update_aws_compat_services')
     @patch.object(hooks, 'update_nova_consoleauth_config')
     @patch.object(hooks, 'is_db_initialised')
@@ -150,7 +153,11 @@ class NovaCCHooksTests(CharmTestCase):
                                        mock_determine_packages,
                                        mock_is_db_initialised,
                                        mock_update_nova_consoleauth_config,
-                                       mock_update_aws_compat_services):
+                                       mock_update_aws_compat_services,
+                                       mock_is_leader,
+                                       mock_get_shared_metadatasecret,
+                                       mock_set_shared_metadatasecret):
+        self.get_shared_metadatasecret = None
         mock_determine_packages.return_value = []
         utils_config.side_effect = self.test_config.get
         self.test_config.set('console-access-protocol', 'dummy')
@@ -163,6 +170,41 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(mock_update_nova_consoleauth_config.called)
         self.assertTrue(mock_update_aws_compat_services.called)
 
+    @patch.object(hooks, 'set_shared_metadatasecret')
+    @patch.object(hooks, 'get_shared_metadatasecret')
+    @patch.object(hooks, 'update_aws_compat_services')
+    @patch.object(hooks, 'update_nova_consoleauth_config')
+    @patch.object(hooks, 'is_db_initialised')
+    @patch.object(hooks, 'determine_packages')
+    @patch.object(utils, 'service_resume')
+    @patch.object(utils, 'config')
+    @patch.object(hooks, 'filter_installed_packages')
+    @patch.object(hooks, 'configure_https')
+    def test_config_changed_ocata(self, conf_https, mock_filter_packages,
+                                  utils_config, mock_service_resume,
+                                  mock_determine_packages,
+                                  mock_is_db_initialised,
+                                  mock_update_nova_consoleauth_config,
+                                  mock_update_aws_compat_services,
+                                  mock_get_shared_metadatasecret,
+                                  mock_set_shared_metadatasecret):
+        mock_get_shared_metadatasecret.return_value = None
+        self.is_leader.return_value = True
+        mock_determine_packages.return_value = []
+        utils_config.side_effect = self.test_config.get
+        self.test_config.set('console-access-protocol', 'dummy')
+        self.openstack_upgrade_available.return_value = False
+        mock_is_db_initialised.return_value = False
+        self.os_release.return_value = 'diablo'
+        hooks.config_changed()
+        self.assertTrue(self.save_script_rc.called)
+        mock_filter_packages.assert_called_with([])
+        self.assertTrue(mock_update_nova_consoleauth_config.called)
+        self.assertTrue(mock_update_aws_compat_services.called)
+        mock_set_shared_metadatasecret.assert_called_once_with()
+
+    @patch.object(hooks, 'set_shared_metadatasecret')
+    @patch.object(hooks, 'get_shared_metadatasecret')
     @patch.object(hooks, 'update_aws_compat_services')
     @patch.object(hooks, 'update_nova_consoleauth_config')
     @patch.object(hooks, 'is_db_initialised')
@@ -177,7 +219,9 @@ class NovaCCHooksTests(CharmTestCase):
                                             mock_determine_packages,
                                             mock_is_db_initialised,
                                             mock_update_nova_consoleauth_cfg,
-                                            mock_update_aws_compat_services):
+                                            mock_update_aws_compat_services,
+                                            mock_get_shared_metadatasecret,
+                                            mock_set_shared_metadatasecret):
         mock_determine_packages.return_value = []
         utils_config.side_effect = self.test_config.get
         self.test_config.set('console-access-protocol', 'dummy')
@@ -191,6 +235,8 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(mock_update_aws_compat_services.called)
         self.service_pause.assert_called_with('neutron-server')
 
+    @patch.object(hooks, 'set_shared_metadatasecret')
+    @patch.object(hooks, 'get_shared_metadatasecret')
     @patch.object(hooks, 'update_aws_compat_services')
     @patch.object(hooks, 'update_nova_consoleauth_config')
     @patch.object(hooks, 'is_db_initialised')
@@ -205,7 +251,9 @@ class NovaCCHooksTests(CharmTestCase):
             mock_determine_packages,
             mock_is_db_initialised,
             mock_update_nova_consoleauth_cfg,
-            mock_update_aws_compat_services):
+            mock_update_aws_compat_services,
+            mock_get_shared_metadatasecret,
+            mock_set_shared_metadatasecret):
         mock_determine_packages.return_value = []
         utils_config.side_effect = self.test_config.get
         self.test_config.set('console-access-protocol', 'dummy')
@@ -220,6 +268,8 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(mock_update_aws_compat_services.called)
         self.service_pause.assert_called_with('neutron-server')
 
+    @patch.object(hooks, 'set_shared_metadatasecret')
+    @patch.object(hooks, 'get_shared_metadatasecret')
     @patch.object(hooks, 'update_aws_compat_services')
     @patch.object(hooks, 'update_nova_consoleauth_config')
     @patch.object(hooks, 'is_db_initialised')
@@ -247,7 +297,9 @@ class NovaCCHooksTests(CharmTestCase):
                                          mock_quantum_joined,
                                          mock_is_db_initialised,
                                          mock_update_nova_consoleauth_config,
-                                         mock_update_aws_compat_services):
+                                         mock_update_aws_compat_services,
+                                         mock_get_shared_metadatasecret,
+                                         mock_set_shared_metadatasecret):
         mock_determine_packages.return_value = []
         mock_is_db_initialised.return_value = False
         self.openstack_upgrade_available.return_value = True
@@ -269,6 +321,8 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(mock_update_nova_consoleauth_config.called)
         self.assertTrue(mock_update_aws_compat_services.called)
 
+    @patch.object(hooks, 'set_shared_metadatasecret')
+    @patch.object(hooks, 'get_shared_metadatasecret')
     @patch.object(hooks, 'update_aws_compat_services')
     @patch.object(hooks, 'update_nova_consoleauth_config')
     @patch.object(hooks, 'is_db_initialised')
@@ -282,7 +336,9 @@ class NovaCCHooksTests(CharmTestCase):
                                           mock_service_resume,
                                           mock_is_db_initialised,
                                           mock_update_nova_consoleauth_config,
-                                          mock_update_aws_compat_services):
+                                          mock_update_aws_compat_services,
+                                          mock_get_shared_metadatasecret,
+                                          mock_set_shared_metadatasecret):
         self.openstack_upgrade_available.return_value = False
         self.config_value_changed.return_value = True
         self.related_units.return_value = ['unit/0']
@@ -1007,6 +1063,8 @@ class NovaCCHooksTests(CharmTestCase):
             call(**args),
         ])
 
+    @patch.object(hooks, 'set_shared_metadatasecret')
+    @patch.object(hooks, 'get_shared_metadatasecret')
     @patch.object(hooks, 'update_aws_compat_services')
     @patch.object(hooks, 'is_db_initialised')
     @patch.object(hooks, 'determine_packages')
@@ -1020,7 +1078,9 @@ class NovaCCHooksTests(CharmTestCase):
                                                mock_service_pause,
                                                mock_determine_packages,
                                                mock_is_db_initialised,
-                                               mock_update_aws_compat_svcs):
+                                               mock_update_aws_compat_svcs,
+                                               mock_get_shared_metadatasecret,
+                                               mock_set_shared_metadatasecret):
         mock_determine_packages.return_value = []
         mock_is_db_initialised.return_value = False
         self.config_value_changed.return_value = False

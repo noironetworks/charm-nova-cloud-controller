@@ -91,6 +91,8 @@ from nova_cc_utils import (
     determine_ports,
     disable_package_apache_site,
     do_openstack_upgrade,
+    get_metadata_settings,
+    get_shared_metadatasecret,
     is_api_ready,
     is_cellv2_init_ready,
     keystone_ca_cert_b64,
@@ -98,6 +100,7 @@ from nova_cc_utils import (
     placement_api_enabled,
     save_script_rc,
     services,
+    set_shared_metadatasecret,
     ssh_compute_add,
     ssh_compute_remove,
     ssh_known_hosts_lines,
@@ -116,6 +119,7 @@ from nova_cc_utils import (
     serial_console_settings,
     pause_unit_helper,
     resume_unit_helper,
+    write_vendordata,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -348,6 +352,11 @@ def config_changed():
 
     update_nova_consoleauth_config()
     update_aws_compat_services()
+
+    if config('vendor-data'):
+        write_vendordata(config('vendor-data'))
+    if is_leader() and not get_shared_metadatasecret():
+        set_shared_metadatasecret()
 
 
 @hooks.hook('amqp-relation-joined')
@@ -744,6 +753,7 @@ def quantum_joined(rid=None, remote_restart=False):
     if remote_restart:
         rel_settings['restart_trigger'] = str(uuid.uuid4())
 
+    rel_settings.update(get_metadata_settings(CONFIGS))
     relation_set(relation_id=rid, **rel_settings)
 
 
@@ -790,6 +800,10 @@ def cluster_changed():
                 log('Database sync not ready. Would shut down services but '
                     'unit is in paused state, not issuing stop/pause to all '
                     'services')
+    # The shared metadata secret is stored in the leader-db and if its changed
+    # the gateway needs to know.
+    for rid in relation_ids('quantum-network-service'):
+        quantum_joined(rid=rid, remote_restart=False)
 
 
 @hooks.hook('ha-relation-joined')

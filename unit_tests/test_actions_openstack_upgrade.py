@@ -14,7 +14,7 @@
 
 import os
 
-from mock import patch, MagicMock
+from mock import patch
 
 os.environ['JUJU_UNIT_NAME'] = 'nova-cloud-controller'
 with patch('charmhelpers.core.hookenv.config') as config:
@@ -22,20 +22,11 @@ with patch('charmhelpers.core.hookenv.config') as config:
         config.return_value = 'nova'
         import nova_cc_utils as utils  # noqa
 
-_reg = utils.register_configs
-_map = utils.restart_map
-
-utils.register_configs = MagicMock()
-utils.restart_map = MagicMock()
-
-with patch('nova_cc_utils.guard_map') as gmap:
-    with patch('charmhelpers.core.hookenv.config') as config:
-        config.return_value = False
-        gmap.return_value = {}
-        import openstack_upgrade
-
-utils.register_configs = _reg
-utils.restart_map = _map
+with patch('charmhelpers.core.hookenv.config') as config:
+    with patch('nova_cc_utils.restart_map'):
+        config.return_value = 'ovs'
+        with patch('nova_cc_utils.register_configs') as register_configs:
+            import openstack_upgrade
 
 from test_utils import CharmTestCase
 

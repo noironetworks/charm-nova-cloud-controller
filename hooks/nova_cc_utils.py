@@ -19,6 +19,9 @@ import ConfigParser
 from base64 import b64encode
 from collections import OrderedDict
 from copy import deepcopy
+from urlparse import urlparse
+from uuid import uuid1
+import json
 
 from charmhelpers.contrib.openstack import context, templating
 
@@ -63,12 +66,14 @@ from charmhelpers.core.hookenv import (
     config,
     is_leader,
     log,
+    leader_get,
+    leader_set,
     relation_get,
     relation_ids,
     remote_unit,
     DEBUG,
-    INFO,
     ERROR,
+    INFO,
     status_set,
     related_units,
     local_unit,
@@ -93,11 +98,18 @@ from charmhelpers.core.decorators import (
     retry_on_exception,
 )
 
+from charmhelpers.contrib.openstack.ip import (
+    canonical_url,
+    INTERNAL,
+)
+
 import nova_cc_context
 
 TEMPLATES = 'templates/'
 
 CLUSTER_RES = 'grp_nova_vips'
+
+SHARED_METADATA_SECRET_KEY = 'shared-metadata-secret'
 
 # The interface is said to be satisfied if anyone of the interfaces in the
 # list has a complete context.
@@ -119,7 +131,6 @@ BASE_PACKAGES = [
     'python-psycopg2',
     'python-psutil',
     'python-six',
-    'uuid',
     'python-memcache',
 ]
 
@@ -144,6 +155,7 @@ SERVICE_BLACKLIST = {
 API_PORTS = {
     'nova-api-ec2': 8773,
     'nova-api-os-compute': 8774,
+    'nova-api-metadata': 8775,
     'nova-api-os-volume': 8776,
     'nova-placement-api': 8778,
     'nova-objectstore': 3333,
@@ -162,6 +174,9 @@ WSGI_NOVA_PLACEMENT_API_CONF = \
     '/etc/apache2/sites-enabled/wsgi-openstack-api.conf'
 PACKAGE_NOVA_PLACEMENT_API_CONF = \
     '/etc/apache2/sites-enabled/nova-placement-api.conf'
+WSGI_NOVA_METADATA_API_CONF = \
+    '/etc/apache2/sites-enabled/wsgi-openstack-metadata.conf'
+VENDORDATA_FILE = '/etc/nova/vendor_data.json'
 
 
 def resolve_services():
@@ -208,7 +223,8 @@ BASE_RESOURCE_MAP = OrderedDict([
                      context.VolumeAPIContext('nova-common'),
                      nova_cc_context.NeutronAPIContext(),
                      nova_cc_context.SerialConsoleContext(),
-                     context.MemcacheContext()],
+                     context.MemcacheContext(),
+                     nova_cc_context.NovaMetadataContext()],
     }),
     (NOVA_API_PASTE, {
         'services': [s for s in resolve_services() if 'api' in s],
@@ -337,7 +353,20 @@ def resource_map(actual_services=True):
             svcs = resource_map[cfile]['services']
             if 'nova-placement-api' in svcs:
                 svcs.remove('nova-placement-api')
-
+    if enable_metadata_api():
+        if actual_services:
+            svcs = ['apache2']
+        else:
+            svcs = ['nova-api-metadata']
+        resource_map[WSGI_NOVA_METADATA_API_CONF] = {
+            'contexts': [
+                context.WSGIWorkerConfigContext(
+                    name="nova_meta",
+                    user='nova',
+                    group='nova',
+                    script='/usr/bin/nova-metadata-wsgi'),
+                nova_cc_context.MetaDataHAProxyContext()],
+            'services': svcs}
     return resource_map
 
 
@@ -413,13 +442,20 @@ def console_attributes(attr, proto=None):
 
 def determine_packages():
     # currently all packages match service names
+    cmp_os_release = CompareOpenStackReleases(os_release('nova-common'))
     packages = deepcopy(BASE_PACKAGES)
     for v in resource_map(actual_services=False).values():
         packages.extend(v['services'])
+    # The nova-api-metadata service is served via wsgi and the package is
+    # only needed for the standalone service so remove it to avoid port
+    # clashes.
+    try:
+        packages.remove("nova-api-metadata")
+    except ValueError:
+        pass
     if console_attributes('packages'):
         packages.extend(console_attributes('packages'))
-    if (config('enable-serial-console') and
-            CompareOpenStackReleases(os_release('nova-common')) >= 'juno'):
+    if (config('enable-serial-console') and cmp_os_release >= 'juno'):
         packages.extend(SERIAL_CONSOLE['packages'])
 
     packages.extend(token_cache_pkgs(source=config('openstack-origin')))
@@ -1359,9 +1395,52 @@ def placement_api_enabled():
     return CompareOpenStackReleases(os_release('nova-common')) >= 'ocata'
 
 
+def enable_metadata_api(release=None):
+    """Should nova-metadata-api be running on this unit for this release."""
+    if not release:
+        release = os_release('nova-common')
+    return CompareOpenStackReleases(os_release('nova-common')) >= 'rocky'
+
+
 def disable_package_apache_site():
     """Ensure that the package-provided apache configuration is disabled to
     prevent it from conflicting with the charm-provided version.
     """
     if os.path.exists(PACKAGE_NOVA_PLACEMENT_API_CONF):
         subprocess.check_call(['a2dissite', 'nova-placement-api'])
+
+
+def get_shared_metadatasecret():
+    """Return the shared metadata secret."""
+    return leader_get(SHARED_METADATA_SECRET_KEY)
+
+
+def set_shared_metadatasecret():
+    """Store the shared metadata secret."""
+    leader_set({SHARED_METADATA_SECRET_KEY: uuid1()})
+
+
+def get_metadata_settings(configs):
+    """Return the settings for accessing the metadata service."""
+    if enable_metadata_api():
+        url = urlparse(canonical_url(configs, INTERNAL))
+        settings = {
+            'nova-metadata-host': url.netloc,
+            'nova-metadata-protocol': url.scheme,
+            'nova-metadata-port': API_PORTS['nova-api-metadata'],
+            'shared-metadata-secret': get_shared_metadatasecret()}
+    else:
+        settings = {}
+    return settings
+
+
+def write_vendordata(vdata):
+    """Write supplied vendor data out to a file."""
+    try:
+        json_vdata = json.loads(vdata)
+    except (TypeError, json.decoder.JSONDecodeError) as e:
+        log('Error decoding vendor-data. {}'.format(e), level=ERROR)
+        return False
+    with open(VENDORDATA_FILE, 'w') as vdata_file:
+        vdata_file.write(json.dumps(json_vdata, sort_keys=True, indent=2))
+    return True

@@ -660,16 +660,6 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
 
         ks_ec2 = "{}/ec2tokens".format(ks_ep)
 
-        ks_ncc_rel = self.keystone_sentry.relation(
-            'identity-service', 'nova-cloud-controller:identity-service')
-
-        ks_uri = "http://{}:{}/".format(ks_ncc_rel['service_host'],
-                                        ks_ncc_rel['service_port'])
-
-        id_uri = "{}://{}:{}/".format(ks_ncc_rel['auth_protocol'],
-                                      ks_ncc_rel['service_host'],
-                                      ks_ncc_rel['auth_port'])
-
         db_ncc_rel = self.pxc_sentry.relation(
             'shared-db', 'nova-cloud-controller:shared-db')
 
@@ -706,15 +696,6 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             expected['database'] = {
                 'connection': db_uri
             }
-            expected['keystone_authtoken'] = {
-                'auth_uri': ks_uri,
-                'auth_host': ks_ncc_rel['service_host'],
-                'auth_port': ks_ncc_rel['auth_port'],
-                'auth_protocol': ks_ncc_rel['auth_protocol'],
-                'admin_tenant_name': ks_ncc_rel['service_tenant'],
-                'admin_user': ks_ncc_rel['service_username'],
-                'admin_password': ks_ncc_rel['service_password'],
-            }
             expected['DEFAULT'].update({
                 'lock_path': '/var/lock/nova',
                 'libvirt_use_virtio_for_bridges': 'True',
@@ -734,14 +715,6 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             expected['glance'] = {
                 'api_servers': gl_ncc_rel['glance-api-server'],
             }
-            expected['keystone_authtoken'] = {
-                'identity_uri': id_uri.rstrip('/'),
-                'auth_uri': ks_uri,
-                'admin_tenant_name': ks_ncc_rel['service_tenant'],
-                'admin_user': ks_ncc_rel['service_username'],
-                'admin_password': ks_ncc_rel['service_password'],
-                'signing_dir': '/var/cache/nova',
-            }
             expected['osapi_v3'] = {
                 'enabled': 'True',
             }
@@ -759,44 +732,6 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             }
             expected['oslo_concurrency'] = {
                 'lock_path': '/var/lock/nova',
-            }
-
-        if self._get_openstack_release() >= self.xenial_queens:
-            expected['keystone_authtoken'] = {
-                'auth_uri': ks_uri.rstrip('/'),
-                'auth_url': id_uri.rstrip('/'),
-                'auth_type': 'password',
-                'project_domain_name': 'service_domain',
-                'user_domain_name': 'service_domain',
-                'project_name': 'services',
-                'username': ks_ncc_rel['service_username'],
-                'password': ks_ncc_rel['service_password'],
-                'signing_dir': '/var/cache/nova'
-            }
-        elif self._get_openstack_release() >= self.trusty_mitaka:
-            expected['keystone_authtoken'] = {
-                'auth_uri': ks_uri.rstrip('/'),
-                'auth_url': id_uri.rstrip('/'),
-                'auth_type': 'password',
-                'project_domain_name': 'default',
-                'user_domain_name': 'default',
-                'project_name': 'services',
-                'username': ks_ncc_rel['service_username'],
-                'password': ks_ncc_rel['service_password'],
-                'signing_dir': '/var/cache/nova'
-            }
-        elif self._get_openstack_release() >= self.trusty_liberty:
-            # Liberty
-            expected['keystone_authtoken'] = {
-                'auth_uri': ks_uri.rstrip('/'),
-                'auth_url': id_uri.rstrip('/'),
-                'auth_plugin': 'password',
-                'project_domain_id': 'default',
-                'user_domain_id': 'default',
-                'project_name': 'services',
-                'username': 'nova',
-                'password': ks_ncc_rel['service_password'],
-                'signing_dir': '/var/cache/nova',
             }
 
         if self._get_openstack_release() < self.trusty_mitaka:

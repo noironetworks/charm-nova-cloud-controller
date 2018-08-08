@@ -26,13 +26,15 @@ from charmhelpers.contrib.openstack import utils
 from test_utils import CharmTestCase
 
 TO_PATCH = [
-    'relation_ids',
-    'relation_get',
-    'related_units',
     'config',
-    'log',
-    'relations_for_id',
     'https',
+    'leader_get',
+    'log',
+    'os_release',
+    'related_units',
+    'relation_get',
+    'relation_ids',
+    'relations_for_id',
 ]
 
 
@@ -392,3 +394,47 @@ class NovaComputeContextTests(CharmTestCase):
         expected['additional_neutron_filters'] = 'PciPassthroughFilter'
         ctxt = context.NeutronAPIContext()()
         self.assertEqual(ctxt, expected)
+
+    def test_vendordata_static(self):
+        _vdata = '{"good": "json"}'
+        self.os_release.return_value = 'rocky'
+
+        self.test_config.set('vendor-data', _vdata)
+        ctxt = context.NovaMetadataContext()()
+
+        self.assertTrue(ctxt['vendor_data'])
+        self.assertEqual(ctxt['vendordata_providers'], ['StaticJSON'])
+
+    def test_vendordata_dynamic(self):
+        _vdata_url = 'http://example.org/vdata'
+        self.os_release.return_value = 'rocky'
+
+        self.test_config.set('vendor-data-url', _vdata_url)
+        ctxt = context.NovaMetadataContext()()
+
+        self.assertEqual(ctxt['vendor_data_url'], _vdata_url)
+        self.assertEqual(ctxt['vendordata_providers'], ['DynamicJSON'])
+
+    def test_vendordata_static_and_dynamic(self):
+        self.os_release.return_value = 'rocky'
+        _vdata = '{"good": "json"}'
+        _vdata_url = 'http://example.org/vdata'
+
+        self.test_config.set('vendor-data', _vdata)
+        self.test_config.set('vendor-data-url', _vdata_url)
+        ctxt = context.NovaMetadataContext()()
+
+        self.assertTrue(ctxt['vendor_data'])
+        self.assertEqual(ctxt['vendor_data_url'], _vdata_url)
+        self.assertEqual(ctxt['vendordata_providers'], ['StaticJSON',
+                                                        'DynamicJSON'])
+
+    def test_vendordata_mitaka(self):
+        self.os_release.return_value = 'mitaka'
+        self.leader_get.return_value = 'auuid'
+        _vdata_url = 'http://example.org/vdata'
+
+        self.test_config.set('vendor-data-url', _vdata_url)
+        ctxt = context.NovaMetadataContext()()
+
+        self.assertEqual(ctxt, {'enable_metadata': False})

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import OrderedDict
-from mock import patch, MagicMock, call
+from mock import patch, MagicMock, call, mock_open
 
 from test_utils import (
     CharmTestCase,
@@ -36,10 +36,13 @@ TO_PATCH = [
     'apt_install',
     'config',
     'configure_installation_source',
+    'canonical_url',
     'disable_policy_rcd',
     'is_leader',
     'is_unit_paused_set',
     'lsb_release',
+    'leader_get',
+    'leader_set',
     'enable_policy_rcd',
     'get_os_codename_install_source',
     'log',
@@ -62,6 +65,7 @@ TO_PATCH = [
     'token_cache_pkgs',
     'enable_memcache',
     'status_set',
+    'uuid1',
 ]
 
 SCRIPTRC_ENV_VARS = {
@@ -138,7 +142,7 @@ RESTART_MAP_ICEHOUSE = OrderedDict([
 RESTART_MAP_OCATA_ACTUAL = OrderedDict([
     ('/etc/nova/nova.conf', [
         'nova-api-ec2', 'nova-api-os-compute', 'nova-objectstore',
-        'nova-cert', 'nova-scheduler', 'nova-conductor', 'apache2'
+        'nova-cert', 'nova-scheduler', 'nova-conductor', 'apache2',
     ]),
     ('/etc/nova/api-paste.ini', [
         'nova-api-ec2', 'nova-api-os-compute', 'apache2'
@@ -417,7 +421,7 @@ class NovaCCUtilsTests(CharmTestCase):
         ex = list(set(utils.BASE_PACKAGES + utils.BASE_SERVICES))
         # nova-placement-api is purposely dropped unless it's ocata
         ex.remove('nova-placement-api')
-        self.assertEqual(ex, pkgs)
+        self.assertEqual(sorted(ex), sorted(pkgs))
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_determine_packages_base_ocata(self, subcontext):
@@ -427,7 +431,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.enable_memcache.return_value = False
         pkgs = utils.determine_packages()
         ex = list(set(utils.BASE_PACKAGES + utils.BASE_SERVICES))
-        self.assertEqual(ex, pkgs)
+        self.assertEqual(sorted(ex), sorted(pkgs))
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_determine_packages_serial_console(self,
@@ -1234,3 +1238,54 @@ class NovaCCUtilsTests(CharmTestCase):
         amqp.assert_called_once()
         shared_db.assert_called_once()
         self.log.assert_not_called()
+
+    def test_placement_api_enabled(self):
+        self.os_release.return_value = 'ocata'
+        self.assertTrue(utils.placement_api_enabled())
+        self.os_release.return_value = 'mitaka'
+        self.assertFalse(utils.placement_api_enabled())
+
+    def test_enable_metadata_api(self):
+        self.os_release.return_value = 'pike'
+        self.assertFalse(utils.enable_metadata_api())
+        self.os_release.return_value = 'rocky'
+        self.assertTrue(utils.enable_metadata_api())
+
+    def test_get_shared_metadatasecret(self):
+        self.leader_get.return_value = 'auuid'
+        self.assertEqual(utils.get_shared_metadatasecret(), 'auuid')
+
+    def test_set_shared_metadatasecret(self):
+        self.uuid1.return_value = 'auuid'
+        utils.set_shared_metadatasecret()
+        self.leader_set.assert_called_once_with({
+            'shared-metadata-secret': 'auuid'})
+
+    @patch.object(utils, 'get_shared_metadatasecret')
+    def test_get_metadata_settings(self, mock_get_shared_metadatasecret):
+        self.os_release.return_value = 'rocky'
+        self.canonical_url.return_value = 'http://someaddr'
+        mock_get_shared_metadatasecret.return_value = 'auuid'
+        self.assertEqual(
+            utils.get_metadata_settings('configs'),
+            {
+                'nova-metadata-host': 'someaddr',
+                'nova-metadata-port': 8775,
+                'nova-metadata-protocol': 'http',
+                'shared-metadata-secret': 'auuid'})
+
+    def test_get_metadata_settings_pike(self):
+        self.os_release.return_value = 'pike'
+        self.assertEqual(
+            utils.get_metadata_settings('configs'),
+            {})
+
+    def test_write_vendordata(self):
+        m = mock_open()
+        with patch.object(utils, 'open', m, create=True):
+            utils.write_vendordata('{"a": "b"}')
+        expected_calls = [
+            call('/etc/nova/vendor_data.json', 'w'),
+            call().write('{\n  "a": "b"\n}')]
+        for c in expected_calls:
+            self.assertTrue(c in m.mock_calls)

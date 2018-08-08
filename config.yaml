@@ -431,3 +431,21 @@ options:
     description: |
       A comma-separated list of nagios servicegroups. If left empty, the
       nagios_context will be used as the servicegroup.
+  vendor-data:
+    type: string
+    default:
+    description: |
+      A JSON-formatted string that will serve as vendor metadata
+      (via "StaticJSON" provider) to all VM's within an OpenStack deployment,
+      regardless of project or domain. For deployments prior to Queens this
+      value should be set in the neutron-gateway charm.
+  vendor-data-url:
+    type: string
+    default:
+    description: |
+      A URL serving JSON-formatted data that will serve as vendor metadata
+      (via "DynamicJSON" provider) to all VM's within an OpenStack deployment,
+      regardless of project or domain.
+      .
+      Only supported in OpenStack Newton and higher. For deployments prior to
+      Queens this value should be set in the neutron-gateway charm.

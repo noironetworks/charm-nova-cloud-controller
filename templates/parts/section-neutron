@@ -1,0 +1,21 @@
+[neutron]
+url = {{ neutron_url }}
+{% if auth_host -%}
+auth_url = {{ auth_protocol }}://{{ auth_host }}:{{ auth_port }}
+auth_type = password
+{% if api_version == "3" -%}
+project_domain_name = {{ admin_domain_name }}
+user_domain_name = {{ admin_domain_name }}
+{% else -%}
+project_domain_name = default
+user_domain_name = default
+{% endif -%}
+project_name = {{ admin_tenant_name }}
+username = {{ admin_user }}
+password = {{ admin_password }}
+{% endif -%}
+# {{  enable_metadata }}
+{% if enable_metadata -%}
+service_metadata_proxy = True
+metadata_proxy_shared_secret = {{ metadata_proxy_shared_secret }}
+{% endif -%}

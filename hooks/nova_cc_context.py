@@ -19,6 +19,7 @@ from charmhelpers.core.hookenv import (
     config,
     relation_ids,
     relation_set,
+    leader_get,
     log,
     DEBUG,
     related_units,
@@ -43,6 +44,10 @@ from charmhelpers.contrib.openstack.ip import (
     resolve_address,
     INTERNAL,
     PUBLIC,
+)
+from charmhelpers.contrib.openstack.utils import (
+    os_release,
+    CompareOpenStackReleases,
 )
 
 
@@ -159,6 +164,8 @@ class HAProxyContext(context.HAProxyContext):
                                     singlenode_mode=True)
         placement_api = determine_api_port(api_port('nova-placement-api'),
                                            singlenode_mode=True)
+        metadata_api = determine_api_port(api_port('nova-api-metadata'),
+                                          singlenode_mode=True)
         # Apache ports
         a_compute_api = determine_apache_port(api_port('nova-api-os-compute'),
                                               singlenode_mode=True)
@@ -168,12 +175,15 @@ class HAProxyContext(context.HAProxyContext):
                                          singlenode_mode=True)
         a_placement_api = determine_apache_port(api_port('nova-placement-api'),
                                                 singlenode_mode=True)
+        a_metadata_api = determine_apache_port(api_port('nova-api-metadata'),
+                                               singlenode_mode=True)
         # to be set in nova.conf accordingly.
         listen_ports = {
             'osapi_compute_listen_port': compute_api,
             'ec2_listen_port': ec2_api,
             's3_listen_port': s3_api,
             'placement_listen_port': placement_api,
+            'metadata_listen_port': metadata_api,
         }
 
         port_mapping = {
@@ -185,6 +195,8 @@ class HAProxyContext(context.HAProxyContext):
                 api_port('nova-objectstore'), a_s3_api],
             'nova-placement-api': [
                 api_port('nova-placement-api'), a_placement_api],
+            'nova-api-metadata': [
+                api_port('nova-api-metadata'), a_metadata_api],
         }
 
         # for haproxy.conf
@@ -192,6 +204,15 @@ class HAProxyContext(context.HAProxyContext):
         # for nova.conf
         ctxt['listen_ports'] = listen_ports
         ctxt['port'] = placement_api
+        return ctxt
+
+
+class MetaDataHAProxyContext(HAProxyContext):
+    """Context for the nova metadata service."""
+
+    def __call__(self):
+        ctxt = super(MetaDataHAProxyContext, self).__call__()
+        ctxt['port'] = ctxt['listen_ports']['metadata_listen_port']
         return ctxt
 
 
@@ -394,4 +415,32 @@ class NovaAPISharedDBContext(context.SharedDBContext):
         if ctxt is not None:
             prefix = 'nova_api_{}'
             ctxt = {prefix.format(k): v for k, v in ctxt.items()}
+        return ctxt
+
+
+class NovaMetadataContext(context.OSContextGenerator):
+    '''
+    Context used for configuring the nova metadata service.
+    '''
+    def __call__(self):
+        cmp_os_release = CompareOpenStackReleases(os_release('nova-common'))
+        ctxt = {}
+        if cmp_os_release >= 'rocky':
+            ctxt['vendordata_providers'] = []
+            vdata = config('vendor-data')
+            vdata_url = config('vendor-data-url')
+
+            if vdata:
+                ctxt['vendor_data'] = True
+                ctxt['vendordata_providers'].append('StaticJSON')
+
+            if vdata_url:
+                ctxt['vendor_data_url'] = vdata_url
+                ctxt['vendordata_providers'].append('DynamicJSON')
+            ctxt['metadata_proxy_shared_secret'] = leader_get(
+                'shared-metadata-secret')
+            ctxt['enable_metadata'] = True
+        else:
+            ctxt['enable_metadata'] = False
+
         return ctxt
