@@ -115,6 +115,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.config.side_effect = self.test_config.get
         self.relation_get.side_effect = self.test_relation.get
         self.charm_dir.return_value = '/var/lib/juju/charms/nova/charm'
+        self.is_unit_paused_set.return_value = False
 
     def tearDown(self):
         try:

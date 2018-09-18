@@ -66,6 +66,8 @@ from charmhelpers.contrib.openstack.utils import (
     pausable_restart_on_change as restart_on_change,
     is_unit_paused_set,
     CompareOpenStackReleases,
+    series_upgrade_prepare,
+    series_upgrade_complete,
 )
 
 from charmhelpers.contrib.openstack.neutron import (
@@ -112,6 +114,8 @@ from nova_cc_utils import (
     assess_status,
     update_aws_compat_services,
     serial_console_settings,
+    pause_unit_helper,
+    resume_unit_helper,
 )
 
 from charmhelpers.contrib.hahelpers.cluster import (
@@ -282,6 +286,12 @@ def install():
 @restart_on_change(restart_map(), stopstart=True)
 @harden()
 def config_changed():
+    # if we are paused, delay doing any config changed hooks.
+    # It is forced on the resume.
+    if is_unit_paused_set():
+        log("Unit is pause or upgrading. Skipping config_changed", "WARN")
+        return
+
     # neutron-server runs if < juno. Neutron-server creates mysql tables
     # which will subsequently cause db migrations to fail if >= juno.
     # Disable neutron-server if >= juno
@@ -1131,6 +1141,20 @@ def certs_changed(relation_id=None, unit=None):
 @harden()
 def update_status():
     log('Updating status.')
+
+
+@hooks.hook('pre-series-upgrade')
+def pre_series_upgrade():
+    log("Running prepare series upgrade hook", "INFO")
+    series_upgrade_prepare(
+        pause_unit_helper, CONFIGS)
+
+
+@hooks.hook('post-series-upgrade')
+def post_series_upgrade():
+    log("Running complete series upgrade hook", "INFO")
+    series_upgrade_complete(
+        resume_unit_helper, CONFIGS)
 
 
 def main():
