@@ -190,8 +190,22 @@ def install():
     ch_fetch.apt_update()
     ch_fetch.apt_install(ncc_utils.determine_packages(), fatal=True)
 
+
     ncc_utils.disable_package_apache_site()
     ncc_utils.stop_deprecated_services()
+
+    opt = ['--option=Dpkg::Options::=--force-confdef' ,'--option=Dpkg::Options::=--force-confold']
+    if config('aci-repo'):
+       if config('aci-repo-key'):
+           ch_fetch.add_source(config('aci-repo'), key=config('aci-repo-key'))
+       else:
+           ch_fetch.add_source(config('aci-repo'))
+           opt.append('--allow-unauthenticated')
+       ch_fetch.apt_update()
+
+    if config('enable-sriov-nic-selection'):
+        ch_fetch.apt_install(['python-nova-sriov-nics'], options=opt, fatal=True)
+
 
     _files = os.path.join(hookenv.charm_dir(), 'files')
     if os.path.isdir(_files):
@@ -266,6 +280,18 @@ def config_changed():
         ncc_utils.determine_packages())
     if filtered:
         ch_fetch.apt_install(filtered, fatal=True)
+
+    opt = ['--option=Dpkg::Options::=--force-confdef' ,'--option=Dpkg::Options::=--force-confold']
+    if config('aci-repo'):
+       if config('aci-repo-key'):
+           ch_fetch.add_source(config('aci-repo'), key=config('aci-repo-key'))
+       else:
+           ch_fetch.add_source(config('aci-repo'))
+           opt.append('--allow-unauthenticated')
+       ch_fetch.apt_update()
+
+    if config('enable-sriov-nic-selection'):
+        ch_fetch.apt_install(['python-nova-sriov-nics'], options=opt, fatal=True)
 
     for r_id in hookenv.relation_ids('identity-service'):
         identity_joined(rid=r_id)
@@ -1107,6 +1133,18 @@ def upgrade_charm():
     # configurations installed at the same time.
     ncc_utils.stop_deprecated_services()
     ncc_utils.disable_package_apache_site(service_reload=True)
+
+    opt = ['--option=Dpkg::Options::=--force-confdef' ,'--option=Dpkg::Options::=--force-confold']
+    if config('aci-repo'):
+       if config('aci-repo-key'):
+           ch_fetch.add_source(config('aci-repo'), key=config('aci-repo-key'))
+       else:
+           ch_fetch.add_source(config('aci-repo'))
+           opt.append('--allow-unauthenticated')
+       ch_fetch.apt_update()
+
+    if config('enable-sriov-nic-selection'):
+        ch_fetch.apt_install(['python-nova-sriov-nics'], options=opt, fatal=True)
 
     for r_id in hookenv.relation_ids('amqp'):
         amqp_joined(relation_id=r_id)
