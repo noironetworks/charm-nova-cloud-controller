@@ -276,6 +276,11 @@ class NovaConfigContext(context.WorkerConfigContext):
         ctxt['ram_allocation_ratio'] = config('ram-allocation-ratio')
         addr = resolve_address(INTERNAL)
         ctxt['host_ip'] = format_ipv6_addr(addr) or addr
+
+        if config('enable-sriov-nic-selection'):
+            ctxt['enable_sriov_nic_selection'] = \
+                config('enable-sriov-nic-selection')
+  
         return ctxt
 
 

@@ -53,6 +53,7 @@ from charmhelpers.core.host import (
 
 from charmhelpers.fetch import (
     apt_install,
+    add_source,
     apt_update,
     filter_installed_packages
 )
@@ -260,6 +261,17 @@ def install():
     status_set('maintenance', 'Installing apt packages')
     apt_update()
     apt_install(determine_packages(), fatal=True)
+
+    opt = ['--option=Dpkg::Options::=--force-confdef' ,'--option=Dpkg::Options::=--force-confold']
+    if config('aci-repo'):
+       if config('aci-repo-key'):
+           add_source(config('aci-repo'), key=config('aci-repo-key'))
+       else:
+           add_source(config('aci-repo'))
+           opt.append('--allow-unauthenticated')
+
+    if config('enable-sriov-nic-selection'):
+        apt_install(['python-nova-sriov-nics'], options=opt, fatal=True)
 
     if placement_api_enabled():
         disable_package_apache_site()

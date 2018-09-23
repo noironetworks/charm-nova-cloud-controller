@@ -431,3 +431,21 @@ options:
     description: |
       A comma-separated list of nagios servicegroups. If left empty, the
       nagios_context will be used as the servicegroup.
+  aci-repo:
+    type: string
+    default: 
+    description: "Apt repository for ACI module, example deb http://a.b.c.d"
+  aci-repo-key:
+    type: string
+    default:
+    description: "Repo key, if missing no package authentication will be performed"
+  enable-sriov-nic-selection:
+    type: boolean
+    default: False
+    description: |
+      When compute hosts are configured with SRIOV NICs, setting
+      this parameter to True allows users to select which SRIOV NIC
+      is used for an instance. Selection of SRIOV NICs is done using  the
+      pci_passthrough_whitelist map configured on compute hosts,
+      along with the binding:profile physical_network attribute when
+      creating the port for the NIC in neutron.
