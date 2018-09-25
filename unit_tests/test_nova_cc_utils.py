@@ -99,6 +99,29 @@ BASE_ENDPOINTS = {
     's3_service': 's3'
 }
 
+QUEENS_ENDPOINTS = {
+    'ec2_admin_url': None,
+    'ec2_internal_url': None,
+    'ec2_public_url': None,
+    'ec2_region': None,
+    'ec2_service': None,
+    'nova_admin_url': 'http://foohost.com:8774/v2.1',
+    'nova_internal_url': 'http://foohost.com:8774/v2.1',
+    'nova_public_url': 'http://foohost.com:8774/v2.1',
+    'nova_region': 'RegionOne',
+    'nova_service': 'nova',
+    's3_admin_url': None,
+    's3_internal_url': None,
+    's3_public_url': None,
+    's3_region': None,
+    's3_service': None,
+    'placement_region': 'RegionOne',
+    'placement_service': 'placement',
+    'placement_admin_url': 'http://foohost.com:8778',
+    'placement_internal_url': 'http://foohost.com:8778',
+    'placement_public_url': 'http://foohost.com:8778',
+}
+
 # Restart map should be constructed such that API services restart
 # before frontends (haproxy/apache) to avoid port conflicts.
 RESTART_MAP_ICEHOUSE = OrderedDict([
@@ -627,6 +650,14 @@ class NovaCCUtilsTests(CharmTestCase):
             BASE_ENDPOINTS, utils.determine_endpoints('http://foohost.com',
                                                       'http://foohost.com',
                                                       'http://foohost.com'))
+
+    def test_determine_endpoints_queens(self):
+        self.relation_ids.return_value = []
+        self.os_release.return_value = 'queens'
+        self.assertEqual(
+            QUEENS_ENDPOINTS, utils.determine_endpoints('http://foohost.com',
+                                                        'http://foohost.com',
+                                                        'http://foohost.com'))
 
     @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_output')

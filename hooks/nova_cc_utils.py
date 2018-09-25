@@ -1072,6 +1072,20 @@ def determine_endpoints(public_url, internal_url, admin_url):
                          (internal_url, api_port('nova-api-os-compute')))
     nova_admin_url = ('%s:%s/v2/$(tenant_id)s' %
                       (admin_url, api_port('nova-api-os-compute')))
+    if cmp_os_rel >= 'queens':
+        nova_public_url = (
+            '%s:%s/v2.1' %
+            (public_url, api_port('nova-api-os-compute'))
+        )
+        nova_internal_url = (
+            '%s:%s/v2.1' %
+            (internal_url, api_port('nova-api-os-compute'))
+        )
+        nova_admin_url = (
+            '%s:%s/v2.1' %
+            (admin_url, api_port('nova-api-os-compute'))
+        )
+
     ec2_public_url = '%s:%s/services/Cloud' % (
         public_url, api_port('nova-api-ec2'))
     ec2_internal_url = '%s:%s/services/Cloud' % (
