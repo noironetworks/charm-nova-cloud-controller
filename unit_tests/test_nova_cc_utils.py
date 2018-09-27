@@ -424,13 +424,25 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertEqual(sorted(ex), sorted(pkgs))
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
-    def test_determine_packages_base_ocata(self, subcontext):
+    def test_determine_packages_base_queens(self, subcontext):
         self.relation_ids.return_value = []
-        self.os_release.return_value = 'ocata'
+        self.os_release.return_value = 'queens'
         self.token_cache_pkgs.return_value = []
         self.enable_memcache.return_value = False
         pkgs = utils.determine_packages()
         ex = list(set(utils.BASE_PACKAGES + utils.BASE_SERVICES))
+        self.assertEqual(sorted(ex), sorted(pkgs))
+
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_determine_packages_base_rocky(self, subcontext):
+        self.relation_ids.return_value = []
+        self.os_release.return_value = 'rocky'
+        self.token_cache_pkgs.return_value = []
+        self.enable_memcache.return_value = False
+        pkgs = utils.determine_packages()
+        ex = list(set([p for p in utils.BASE_PACKAGES + utils.BASE_SERVICES
+                      if not p.startswith('python-')] + utils.PY3_PACKAGES))
+        ex.remove('libapache2-mod-wsgi')
         self.assertEqual(sorted(ex), sorted(pkgs))
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
@@ -454,6 +466,20 @@ class NovaCCUtilsTests(CharmTestCase):
         console_pkgs = ['nova-serialproxy', 'nova-consoleauth']
         for console_pkg in console_pkgs:
             self.assertNotIn(console_pkg, pkgs)
+
+    def test_determine_purge_packages(self):
+        'Ensure no packages are identified for purge prior to rocky'
+        self.os_release.return_value = 'queens'
+        self.assertEqual(utils.determine_purge_packages(), [])
+
+    def test_determine_purge_packages_rocky(self):
+        'Ensure python packages are identified for purge at rocky'
+        self.os_release.return_value = 'rocky'
+        self.assertEqual(utils.determine_purge_packages(),
+                         [p for p in utils.BASE_PACKAGES
+                          if p.startswith('python-')] +
+                         ['python-nova', 'python-memcache',
+                          'libapache2-mod-wsgi'])
 
     @patch.object(utils, 'restart_map')
     def test_determine_ports(self, restart_map):

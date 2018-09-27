@@ -58,8 +58,11 @@ from charmhelpers.fetch import (
     apt_upgrade,
     apt_update,
     apt_install,
+    apt_purge,
+    apt_autoremove,
     add_source,
-    filter_installed_packages
+    filter_installed_packages,
+    filter_missing_packages,
 )
 
 from charmhelpers.core.hookenv import (
@@ -132,6 +135,16 @@ BASE_PACKAGES = [
     'python-psutil',
     'python-six',
     'python-memcache',
+    'uuid',
+]
+
+PY3_PACKAGES = [
+    'libapache2-mod-wsgi-py3',
+    'python3-nova',
+    'python3-keystoneclient',
+    'python3-psutil',
+    'python3-six',
+    'python3-memcache',
 ]
 
 VERSION_PACKAGE = 'nova-common'
@@ -442,7 +455,7 @@ def console_attributes(attr, proto=None):
 
 def determine_packages():
     # currently all packages match service names
-    cmp_os_release = CompareOpenStackReleases(os_release('nova-common'))
+    release = CompareOpenStackReleases(os_release('nova-common'))
     packages = deepcopy(BASE_PACKAGES)
     for v in resource_map(actual_services=False).values():
         packages.extend(v['services'])
@@ -455,11 +468,30 @@ def determine_packages():
         pass
     if console_attributes('packages'):
         packages.extend(console_attributes('packages'))
-    if (config('enable-serial-console') and cmp_os_release >= 'juno'):
+    if (config('enable-serial-console') and release >= 'juno'):
         packages.extend(SERIAL_CONSOLE['packages'])
-
     packages.extend(token_cache_pkgs(source=config('openstack-origin')))
+    if release >= 'rocky':
+        packages = [p for p in packages if not p.startswith('python-')]
+        packages.extend(PY3_PACKAGES)
+        packages.remove('libapache2-mod-wsgi')
+
     return list(set(packages))
+
+
+def determine_purge_packages():
+    '''
+    Determine list of packages that where previously installed which are no
+    longer needed.
+
+    :returns: list of package names
+    '''
+    release = CompareOpenStackReleases(os_release('keystone'))
+    if release >= 'rocky':
+        pkgs = [p for p in BASE_PACKAGES if p.startswith('python-')]
+        pkgs.extend(['python-nova', 'python-memcache', 'libapache2-mod-wsgi'])
+        return pkgs
+    return []
 
 
 def save_script_rc():
@@ -610,6 +642,11 @@ def _do_openstack_upgrade(new_src):
     apt_upgrade(options=dpkg_opts, fatal=True, dist=True)
     reset_os_release()
     apt_install(determine_packages(), fatal=True)
+
+    installed_pkgs = filter_missing_packages(determine_purge_packages())
+    if installed_pkgs:
+        apt_purge(installed_pkgs, fatal=True)
+        apt_autoremove(purge=True, fatal=True)
 
     disable_policy_rcd()
 
