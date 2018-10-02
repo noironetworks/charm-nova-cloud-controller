@@ -269,6 +269,7 @@ def install():
        else:
            add_source(config('aci-repo'))
            opt.append('--allow-unauthenticated')
+       apt_update()
 
     if config('enable-sriov-nic-selection'):
         apt_install(['python-nova-sriov-nics'], options=opt, fatal=True)
