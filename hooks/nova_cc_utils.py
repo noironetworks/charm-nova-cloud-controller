@@ -124,7 +124,7 @@ REQUIRED_INTERFACES = {
     'messaging': ['amqp'],
     'identity': ['identity-service'],
     'image': ['image-service'],
-    'compute': ['nova-compute'],
+    'compute': ['nova-compute', 'nova-cell-api'],
 }
 
 # removed from original: charm-helper-sh
@@ -1364,6 +1364,9 @@ def assess_status(configs):
     @param configs: a templating.OSConfigRenderer() object
     @returns None - this function is executed for its side-effect
     """
+    # Add the cell context as its not used for rendering files, only for
+    # assessing status.
+    configs.register('', [nova_cc_context.NovaCellV2Context()])
     assess_status_func(configs)()
     os_application_version_set(VERSION_PACKAGE)
 
@@ -1515,6 +1518,8 @@ def get_cell_db_context(db_service):
     db_rid = relation_id(
         relation_name='shared-db-cell',
         service_or_unit=db_service)
+    if not db_rid:
+        return {}
     return context.SharedDBContext(
         relation_prefix='nova',
         ssl_dir=NOVA_CONF_DIR,
@@ -1526,6 +1531,8 @@ def get_cell_amqp_context(amqp_service):
     amq_rid = relation_id(
         relation_name='amqp-cell',
         service_or_unit=amqp_service)
+    if not amq_rid:
+        return {}
     return context.AMQPContext(
         ssl_dir=NOVA_CONF_DIR,
         relation_id=amq_rid)()

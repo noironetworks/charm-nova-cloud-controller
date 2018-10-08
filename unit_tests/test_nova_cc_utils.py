@@ -1035,10 +1035,11 @@ class NovaCCUtilsTests(CharmTestCase):
 
     def test_assess_status(self):
         with patch.object(utils, 'assess_status_func') as asf:
+            configs = MagicMock()
             callee = MagicMock()
             asf.return_value = callee
-            utils.assess_status('test-config')
-            asf.assert_called_once_with('test-config')
+            utils.assess_status(configs)
+            asf.assert_called_once_with(configs)
             callee.assert_called_once_with()
             self.os_application_version_set.assert_called_with(
                 utils.VERSION_PACKAGE

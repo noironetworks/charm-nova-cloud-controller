@@ -438,3 +438,40 @@ class NovaComputeContextTests(CharmTestCase):
         ctxt = context.NovaMetadataContext()()
 
         self.assertEqual(ctxt, {'enable_metadata': False})
+
+    def test_NovaCellV2Context(self):
+        settings = {'cell-name': 'cell32',
+                    'amqp-service': 'rabbitmq-cell2',
+                    'db-service': 'percona-cell2'}
+
+        def fake_rel_get(attribute=None, unit=None, rid=None):
+            if attribute:
+                return settings.get(attribute)
+
+            return settings
+
+        self.relation_get.side_effect = fake_rel_get
+        self.relation_ids.return_value = ['nova-cell:0']
+        self.related_units.return_value = ['nova-cell-conductor/0']
+        ctxt = context.NovaCellV2Context()()
+        self.assertEqual(
+            ctxt,
+            {'cell32': {
+                'amqp_service': 'rabbitmq-cell2',
+                'db_service': 'percona-cell2'}})
+
+    def test_NovaCellV2Context_missing_amqp(self):
+        settings = {'cell-name': 'cell32',
+                    'db-service': 'percona-cell2'}
+
+        def fake_rel_get(attribute=None, unit=None, rid=None):
+            if attribute:
+                return settings.get(attribute)
+
+            return settings
+
+        self.relation_get.side_effect = fake_rel_get
+        self.relation_ids.return_value = ['nova-cell:0']
+        self.related_units.return_value = ['nova-cell-conductor/0']
+        ctxt = context.NovaCellV2Context()()
+        self.assertEqual(ctxt, {})

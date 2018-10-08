@@ -75,6 +75,23 @@ class ApacheSSLContext(context.ApacheSSLContext):
         return super(ApacheSSLContext, self).__call__()
 
 
+class NovaCellV2Context(context.OSContextGenerator):
+
+    interfaces = ['nova-cell-api']
+
+    def __call__(self):
+        ctxt = {}
+        required_keys = ['cell-name', 'amqp-service', 'db-service']
+        for rid in relation_ids('nova-cell-api'):
+            for unit in related_units(rid):
+                data = relation_get(rid=rid, unit=unit)
+                if set(required_keys).issubset(data.keys()):
+                    ctxt[data['cell-name']] = {
+                        'amqp_service': data['amqp-service'],
+                        'db_service': data['db-service']}
+        return ctxt
+
+
 class NovaCellV2SharedDBContext(context.OSContextGenerator):
     interfaces = ['shared-db']
 
