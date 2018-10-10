@@ -14,6 +14,7 @@
 
 import amulet
 import json
+import tempfile
 
 from charmhelpers.contrib.openstack.amulet.deployment import (
     OpenStackAmuletDeployment
@@ -25,6 +26,7 @@ from charmhelpers.contrib.openstack.amulet.utils import (
     # ERROR
 )
 from charmhelpers.contrib.openstack.utils import CompareOpenStackReleases
+from oslo_config import cfg
 
 import keystoneclient
 from keystoneclient.v3 import client as keystone_client_v3
@@ -64,8 +66,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         self._deploy()
 
         u.log.info('Waiting on extended status checks...')
-        exclude_services = []
-        self._auto_wait_for_status(exclude_services=exclude_services)
+        self.exclude_services = []
+        self._auto_wait_for_status(exclude_services=self.exclude_services)
 
         self.d.sentry.wait()
         self._initialize_tests()
@@ -685,11 +687,33 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             section = "DEFAULT"
             key_name = "pci_alias"
 
+        CONF = cfg.CONF
+        opt_group = cfg.OptGroup(name=section)
+        pci_opts = [cfg.MultiStrOpt(key_name)]
+        CONF.register_group(opt_group)
+        CONF.register_opts(pci_opts, opt_group)
+
+        _pci_alias2 = {
+            "name": " Cirrus Logic ",
+            "capability_type": "pci",
+            "product_id": "0ff2",
+            "vendor_id": "10de",
+            "device_type": "type-PCI"}
+
+        _pci_alias_list = "[{}, {}]".format(
+            json.dumps(_pci_alias1, sort_keys=True),
+            json.dumps(_pci_alias2, sort_keys=True))
+
         unit = self.nova_cc_sentry
         conf = '/etc/nova/nova.conf'
+        u.log.debug('Setting pci-alias to {}'.format(json.dumps(
+            _pci_alias1,
+            sort_keys=True)))
         self.d.configure(
             'nova-cloud-controller',
             {'pci-alias': json.dumps(_pci_alias1, sort_keys=True)})
+
+        u.log.debug('Waiting for config change to take effect')
         self.d.sentry.wait()
         ret = u.validate_config_data(
             unit,
@@ -703,6 +727,29 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 section,
                 ret)
             amulet.raise_status(amulet.FAIL, msg=message)
+
+        u.log.debug('Setting pci-alias to {}'.format(_pci_alias_list))
+        self.d.configure(
+            'nova-cloud-controller',
+            {'pci-alias': _pci_alias_list})
+        u.log.debug('Waiting for config change to take effect')
+        self.d.sentry.wait()
+
+        f = tempfile.NamedTemporaryFile(delete=False)
+        f.write(unit.file_contents(conf))
+        f.close()
+        CONF(default_config_files=[f.name])
+        if CompareOpenStackReleases(os_release) >= 'ocata':
+            alias_entries = CONF.pci.alias
+        else:
+            alias_entries = CONF.DEFAULT.pci_alias
+        assert alias_entries[0] == (
+            '{"capability_type": "pci", "device_type": "type-PF", '
+            '"name": "IntelNIC", "product_id": "1111", "vendor_id": "8086"}')
+        assert alias_entries[1] == (
+            '{"capability_type": "pci", "device_type": "type-PCI", '
+            '"name": " Cirrus Logic ", "product_id": "0ff2", '
+            '"vendor_id": "10de"}')
         self.d.configure('nova-cloud-controller', {'pci-alias': ''})
         self.d.sentry.wait()
 
