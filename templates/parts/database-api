@@ -6,7 +6,7 @@ connection = {{ nova_api_database_type }}://{{ nova_api_database_user }}:{{ nova
 max_pool_size = {{ workers }}
 {% endif -%}
 {% if nova_alchemy_flags -%}
-{% for key, value in nova_alchemy_flags.iteritems() -%}
+{% for key, value in nova_alchemy_flags.items() -%}
 {{ key }} = {{ value }}
 {% endfor -%}
 {% endif -%}

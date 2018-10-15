@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import sys
 import mock
 
@@ -21,6 +22,12 @@ mock_apt = mock.MagicMock()
 sys.modules['apt'] = mock_apt
 mock_apt.apt_pkg = mock.MagicMock()
 
+_path = os.path.dirname(os.path.realpath(__file__))
+_root = os.path.abspath(os.path.join(_path, '..'))
 
-sys.path.append('actions/')
-sys.path.append('hooks/')
+
+def _add_path(path):
+    if path not in sys.path:
+        sys.path.insert(1, path)
+
+_add_path(_root)

@@ -15,77 +15,61 @@
 import json
 import os
 
-from base64 import b64decode
-from charmhelpers.core.hookenv import (
-    config,
-    relation_ids,
-    relation_set,
-    leader_get,
-    log,
-    DEBUG,
-    related_units,
-    relations_for_id,
-    relation_get,
-    unit_get,
-)
-from charmhelpers.contrib.openstack import (
-    context,
-    neutron,
-)
-from charmhelpers.contrib.hahelpers.cluster import (
-    determine_apache_port,
-    determine_api_port,
-    https,
-    is_clustered,
-)
-from charmhelpers.contrib.network.ip import (
-    format_ipv6_addr,
-)
-from charmhelpers.contrib.openstack.ip import (
-    resolve_address,
-    INTERNAL,
-    PUBLIC,
-)
-from charmhelpers.contrib.openstack.utils import (
-    os_release,
-    CompareOpenStackReleases,
-)
+import base64
+
+import charmhelpers.contrib.hahelpers.cluster as ch_cluster
+import charmhelpers.contrib.network.ip as ch_network_ip
+import charmhelpers.contrib.openstack.context as ch_context
+import charmhelpers.contrib.openstack.ip as ch_ip
+import charmhelpers.contrib.openstack.neutron as ch_neutron
+import charmhelpers.contrib.openstack.utils as ch_utils
+import charmhelpers.core.hookenv as hookenv
+
+import hooks.nova_cc_common as common
 
 
 def context_complete(ctxt):
     _missing = []
-    for k, v in ctxt.iteritems():
+    for k, v in ctxt.items():
         if v is None or v == '':
             _missing.append(k)
     if _missing:
-        log('Missing required data: %s' % ' '.join(_missing), level='INFO')
+        hookenv.log('Missing required data: %s' % ' '.join(_missing),
+                    level='INFO')
         return False
     return True
 
 
-class ApacheSSLContext(context.ApacheSSLContext):
+class ApacheSSLContext(ch_context.ApacheSSLContext):
 
     interfaces = ['https']
     external_ports = []
     service_namespace = 'nova'
 
+    def __init__(self, _external_ports_maybe_callable):
+        self._external_ports_maybe_callable = _external_ports_maybe_callable
+        self.external_ports = None
+        super(ApacheSSLContext, self).__init__()
+
     def __call__(self):
-        # late import to work around circular dependency
-        from nova_cc_utils import determine_ports
-        self.external_ports = determine_ports()
+        if self.external_ports is None:
+            if callable(self._external_ports_maybe_callable):
+                self.external_ports = self._external_ports_maybe_callable()
+            else:
+                self.external_ports = self._external_ports_maybe_callable
         return super(ApacheSSLContext, self).__call__()
 
 
-class NovaCellV2Context(context.OSContextGenerator):
+class NovaCellV2Context(ch_context.OSContextGenerator):
 
     interfaces = ['nova-cell-api']
 
     def __call__(self):
         ctxt = {}
         required_keys = ['cell-name', 'amqp-service', 'db-service']
-        for rid in relation_ids('nova-cell-api'):
-            for unit in related_units(rid):
-                data = relation_get(rid=rid, unit=unit)
+        for rid in hookenv.relation_ids('nova-cell-api'):
+            for unit in hookenv.related_units(rid):
+                data = hookenv.relation_get(rid=rid, unit=unit)
                 if set(required_keys).issubset(data.keys()):
                     ctxt[data['cell-name']] = {
                         'amqp_service': data['amqp-service'],
@@ -93,46 +77,46 @@ class NovaCellV2Context(context.OSContextGenerator):
         return ctxt
 
 
-class NovaCellV2SharedDBContext(context.OSContextGenerator):
+class NovaCellV2SharedDBContext(ch_context.OSContextGenerator):
     interfaces = ['shared-db']
 
     def __call__(self):
-        log('Generating template context for cell v2 share-db')
+        hookenv.log('Generating template context for cell v2 share-db')
         ctxt = {}
-        for rid in relation_ids('shared-db'):
-            for unit in related_units(rid):
-                rdata = relation_get(rid=rid, unit=unit)
+        for rid in hookenv.relation_ids('shared-db'):
+            for unit in hookenv.related_units(rid):
+                rdata = hookenv.relation_get(rid=rid, unit=unit)
                 ctxt = {
                     'novaapi_password': rdata.get('novaapi_password'),
                     'novacell0_password': rdata.get('novacell0_password'),
                     'nova_password': rdata.get('nova_password'),
                 }
-                if context.context_complete(ctxt):
+                if ch_context.context_complete(ctxt):
                     return ctxt
         return {}
 
 
-class CloudComputeContext(context.OSContextGenerator):
+class CloudComputeContext(ch_context.OSContextGenerator):
     "Dummy context used by service status to check relation exists"
     interfaces = ['nova-compute']
 
     def __call__(self):
         ctxt = {}
-        rids = [rid for rid in relation_ids('cloud-compute')]
+        rids = [rid for rid in hookenv.relation_ids('cloud-compute')]
         if rids:
             ctxt['rids'] = rids
         return ctxt
 
 
-class NeutronAPIContext(context.OSContextGenerator):
+class NeutronAPIContext(ch_context.OSContextGenerator):
     interfaces = ['neutron-api']
 
     def __call__(self):
-        log('Generating template context from neutron api relation')
+        hookenv.log('Generating template context from neutron api relation')
         ctxt = {}
-        for rid in relation_ids('neutron-api'):
-            for unit in related_units(rid):
-                rdata = relation_get(rid=rid, unit=unit)
+        for rid in hookenv.relation_ids('neutron-api'):
+            for unit in hookenv.related_units(rid):
+                rdata = hookenv.relation_get(rid=rid, unit=unit)
                 ctxt = {
                     'neutron_url': rdata.get('neutron-url'),
                     'neutron_plugin': rdata.get('neutron-plugin'),
@@ -147,20 +131,20 @@ class NeutronAPIContext(context.OSContextGenerator):
         return {}
 
 
-class VolumeServiceContext(context.OSContextGenerator):
+class VolumeServiceContext(ch_context.OSContextGenerator):
     interfaces = ['cinder-volume-service']
 
     def __call__(self):
         ctxt = {}
-        if relation_ids('cinder-volume-service'):
+        if hookenv.relation_ids('cinder-volume-service'):
             ctxt['volume_service'] = 'cinder'
             # kick all compute nodes to know they should use cinder now.
-            [relation_set(relation_id=rid, volume_service='cinder')
-             for rid in relation_ids('cloud-compute')]
+            for rid in hookenv.relation_ids('cloud-compute'):
+                hookenv.relation_set(relation_id=rid, volume_service='cinder')
         return ctxt
 
 
-class HAProxyContext(context.HAProxyContext):
+class HAProxyContext(ch_context.HAProxyContext):
     interfaces = ['ceph']
 
     def __call__(self):
@@ -169,32 +153,31 @@ class HAProxyContext(context.HAProxyContext):
         specific to this charm.
         Also used to extend nova.conf context with correct api_listening_ports
         '''
-        from nova_cc_utils import api_port
         ctxt = super(HAProxyContext, self).__call__()
 
         # determine which port api processes should bind to, depending
         # on existence of haproxy + apache frontends
-        compute_api = determine_api_port(api_port('nova-api-os-compute'),
-                                         singlenode_mode=True)
-        ec2_api = determine_api_port(api_port('nova-api-ec2'),
-                                     singlenode_mode=True)
-        s3_api = determine_api_port(api_port('nova-objectstore'),
-                                    singlenode_mode=True)
-        placement_api = determine_api_port(api_port('nova-placement-api'),
-                                           singlenode_mode=True)
-        metadata_api = determine_api_port(api_port('nova-api-metadata'),
-                                          singlenode_mode=True)
+        compute_api = ch_cluster.determine_api_port(
+            common.api_port('nova-api-os-compute'), singlenode_mode=True)
+        ec2_api = ch_cluster.determine_api_port(
+            common.api_port('nova-api-ec2'), singlenode_mode=True)
+        s3_api = ch_cluster.determine_api_port(
+            common.api_port('nova-objectstore'), singlenode_mode=True)
+        placement_api = ch_cluster.determine_api_port(
+            common.api_port('nova-placement-api'), singlenode_mode=True)
+        metadata_api = ch_cluster.determine_api_port(
+            common.api_port('nova-api-metadata'), singlenode_mode=True)
         # Apache ports
-        a_compute_api = determine_apache_port(api_port('nova-api-os-compute'),
-                                              singlenode_mode=True)
-        a_ec2_api = determine_apache_port(api_port('nova-api-ec2'),
-                                          singlenode_mode=True)
-        a_s3_api = determine_apache_port(api_port('nova-objectstore'),
-                                         singlenode_mode=True)
-        a_placement_api = determine_apache_port(api_port('nova-placement-api'),
-                                                singlenode_mode=True)
-        a_metadata_api = determine_apache_port(api_port('nova-api-metadata'),
-                                               singlenode_mode=True)
+        a_compute_api = ch_cluster.determine_apache_port(
+            common.api_port('nova-api-os-compute'), singlenode_mode=True)
+        a_ec2_api = ch_cluster.determine_apache_port(
+            common.api_port('nova-api-ec2'), singlenode_mode=True)
+        a_s3_api = ch_cluster.determine_apache_port(
+            common.api_port('nova-objectstore'), singlenode_mode=True)
+        a_placement_api = ch_cluster.determine_apache_port(
+            common.api_port('nova-placement-api'), singlenode_mode=True)
+        a_metadata_api = ch_cluster.determine_apache_port(
+            common.api_port('nova-api-metadata'), singlenode_mode=True)
         # to be set in nova.conf accordingly.
         listen_ports = {
             'osapi_compute_listen_port': compute_api,
@@ -206,15 +189,15 @@ class HAProxyContext(context.HAProxyContext):
 
         port_mapping = {
             'nova-api-os-compute': [
-                api_port('nova-api-os-compute'), a_compute_api],
+                common.api_port('nova-api-os-compute'), a_compute_api],
             'nova-api-ec2': [
-                api_port('nova-api-ec2'), a_ec2_api],
+                common.api_port('nova-api-ec2'), a_ec2_api],
             'nova-objectstore': [
-                api_port('nova-objectstore'), a_s3_api],
+                common.api_port('nova-objectstore'), a_s3_api],
             'nova-placement-api': [
-                api_port('nova-placement-api'), a_placement_api],
+                common.api_port('nova-placement-api'), a_placement_api],
             'nova-api-metadata': [
-                api_port('nova-api-metadata'), a_metadata_api],
+                common.api_port('nova-api-metadata'), a_metadata_api],
         }
 
         # for haproxy.conf
@@ -239,19 +222,19 @@ def canonical_url():
     configuration and hacluster.
     """
     scheme = 'http'
-    if https():
+    if ch_cluster.https():
         scheme = 'https'
 
-    addr = resolve_address(INTERNAL)
-    return '%s://%s' % (scheme, format_ipv6_addr(addr) or addr)
+    addr = ch_ip.resolve_address(ch_ip.INTERNAL)
+    return '%s://%s' % (scheme, ch_network_ip.format_ipv6_addr(addr) or addr)
 
 
-class NeutronCCContext(context.NeutronContext):
+class NeutronCCContext(ch_context.NeutronContext):
     interfaces = ['quantum-network-service', 'neutron-network-service']
 
     @property
     def network_manager(self):
-        return neutron.network_manager()
+        return ch_neutron.network_manager()
 
     def _ensure_packages(self):
         # Only compute nodes need to ensure packages here, to install
@@ -260,12 +243,12 @@ class NeutronCCContext(context.NeutronContext):
 
     def __call__(self):
         ctxt = super(NeutronCCContext, self).__call__()
-        ctxt['external_network'] = config('neutron-external-network')
+        ctxt['external_network'] = hookenv.config('neutron-external-network')
         ctxt['nova_url'] = "{}:8774/v2".format(canonical_url())
         return ctxt
 
 
-class IdentityServiceContext(context.IdentityServiceContext):
+class IdentityServiceContext(ch_context.IdentityServiceContext):
 
     def __call__(self):
         ctxt = super(IdentityServiceContext, self).__call__()
@@ -280,60 +263,63 @@ class IdentityServiceContext(context.IdentityServiceContext):
             ctxt['service_port']
         )
         ctxt['keystone_ec2_url'] = ec2_tokens
-        ctxt['region'] = config('region')
+        ctxt['region'] = hookenv.config('region')
 
         return ctxt
 
 
-class NovaConfigContext(context.WorkerConfigContext):
+class NovaConfigContext(ch_context.WorkerConfigContext):
     def __call__(self):
         ctxt = super(NovaConfigContext, self).__call__()
-        ctxt['scheduler_default_filters'] = config('scheduler-default-filters')
-        if config('pci-alias'):
-            aliases = json.loads(config('pci-alias'))
+        ctxt['scheduler_default_filters'] = (
+            hookenv.config('scheduler-default-filters'))
+        if hookenv.config('pci-alias'):
+            aliases = json.loads(hookenv.config('pci-alias'))
             if isinstance(aliases, list):
                 ctxt['pci_aliases'] = [json.dumps(x, sort_keys=True)
                                        for x in aliases]
             else:
                 ctxt['pci_alias'] = json.dumps(aliases, sort_keys=True)
 
-        ctxt['disk_allocation_ratio'] = config('disk-allocation-ratio')
-        ctxt['cpu_allocation_ratio'] = config('cpu-allocation-ratio')
-        ctxt['ram_allocation_ratio'] = config('ram-allocation-ratio')
-        addr = resolve_address(INTERNAL)
-        ctxt['host_ip'] = format_ipv6_addr(addr) or addr
+        ctxt['disk_allocation_ratio'] = hookenv.config('disk-allocation-ratio')
+        ctxt['cpu_allocation_ratio'] = hookenv.config('cpu-allocation-ratio')
+        ctxt['ram_allocation_ratio'] = hookenv.config('ram-allocation-ratio')
+        addr = ch_ip.resolve_address(ch_ip.INTERNAL)
+        ctxt['host_ip'] = ch_network_ip.format_ipv6_addr(addr) or addr
         return ctxt
 
 
-class NovaIPv6Context(context.BindHostContext):
+class NovaIPv6Context(ch_context.BindHostContext):
     def __call__(self):
         ctxt = super(NovaIPv6Context, self).__call__()
-        ctxt['use_ipv6'] = config('prefer-ipv6')
+        ctxt['use_ipv6'] = hookenv.config('prefer-ipv6')
         return ctxt
 
 
-class InstanceConsoleContext(context.OSContextGenerator):
+class InstanceConsoleContext(ch_context.OSContextGenerator):
     interfaces = []
 
     def __call__(self):
         ctxt = {}
         servers = []
         try:
-            for rid in relation_ids('memcache'):
-                for rel in relations_for_id(rid):
+            for rid in hookenv.relation_ids('memcache'):
+                for rel in hookenv.relations_for_id(rid):
                     priv_addr = rel['private-address']
                     # Format it as IPv6 address if needed
-                    priv_addr = format_ipv6_addr(priv_addr) or priv_addr
+                    priv_addr = (ch_network_ip.format_ipv6_addr(priv_addr) or
+                                 priv_addr)
                     servers.append("%s:%s" % (priv_addr, rel['port']))
         except Exception as ex:
-            log("Could not get memcache servers: %s" % (ex), level='WARNING')
+            hookenv.log("Could not get memcache servers: %s" % (ex),
+                        level='WARNING')
             servers = []
 
         ctxt['memcached_servers'] = ','.join(servers)
 
         # Configure nova-novncproxy https if nova-api is using https.
-        if https():
-            cn = resolve_address(endpoint_type=INTERNAL)
+        if ch_cluster.https():
+            cn = ch_ip.resolve_address(endpoint_type=ch_ip.INTERNAL)
             if cn:
                 cert_filename = 'cert_{}'.format(cn)
                 key_filename = 'key_{}'.format(cn)
@@ -351,26 +337,27 @@ class InstanceConsoleContext(context.OSContextGenerator):
         return ctxt
 
 
-class ConsoleSSLContext(context.OSContextGenerator):
+class ConsoleSSLContext(ch_context.OSContextGenerator):
     interfaces = []
 
     def __call__(self):
         ctxt = {}
-        from nova_cc_utils import console_attributes
 
-        if (config('console-ssl-cert') and
-            config('console-ssl-key') and
-                config('console-access-protocol')):
+        if (hookenv.config('console-ssl-cert') and
+                hookenv.config('console-ssl-key') and
+                hookenv.config('console-access-protocol')):
             ssl_dir = '/etc/nova/ssl/'
             if not os.path.exists(ssl_dir):
-                log('Creating %s.' % ssl_dir, level=DEBUG)
+                hookenv.log('Creating %s.' % ssl_dir, level=hookenv.DEBUG)
                 os.mkdir(ssl_dir)
 
             cert_path = os.path.join(ssl_dir, 'nova_cert.pem')
-            decode_ssl_cert = b64decode(config('console-ssl-cert'))
+            decode_ssl_cert = base64.b64decode(
+                hookenv.config('console-ssl-cert'))
 
             key_path = os.path.join(ssl_dir, 'nova_key.pem')
-            decode_ssl_key = b64decode(config('console-ssl-key'))
+            decode_ssl_key = base64.b64decode(
+                hookenv.config('console-ssl-key'))
 
             with open(cert_path, 'w') as fh:
                 fh.write(decode_ssl_cert)
@@ -381,18 +368,18 @@ class ConsoleSSLContext(context.OSContextGenerator):
             ctxt['ssl_cert'] = cert_path
             ctxt['ssl_key'] = key_path
 
-            if is_clustered():
-                ip_addr = resolve_address(endpoint_type=PUBLIC)
+            if ch_cluster.is_clustered():
+                ip_addr = ch_ip.resolve_address(endpoint_type=ch_ip.PUBLIC)
             else:
-                ip_addr = unit_get('private-address')
+                ip_addr = hookenv.unit_get('private-address')
 
-            ip_addr = format_ipv6_addr(ip_addr) or ip_addr
+            ip_addr = ch_network_ip.format_ipv6_addr(ip_addr) or ip_addr
 
-            _proto = config('console-access-protocol')
+            _proto = hookenv.config('console-access-protocol')
             url = "https://%s:%s%s" % (
                 ip_addr,
-                console_attributes('proxy-port', proto=_proto),
-                console_attributes('proxy-page', proto=_proto))
+                common.console_attributes('proxy-port', proto=_proto),
+                common.console_attributes('proxy-page', proto=_proto))
 
             if _proto == 'novnc':
                 ctxt['novncproxy_base_url'] = url
@@ -402,31 +389,31 @@ class ConsoleSSLContext(context.OSContextGenerator):
         return ctxt
 
 
-class SerialConsoleContext(context.OSContextGenerator):
+class SerialConsoleContext(ch_context.OSContextGenerator):
     interfaces = []
 
     def __call__(self):
-        ip_addr = resolve_address(endpoint_type=PUBLIC)
-        ip_addr = format_ipv6_addr(ip_addr) or ip_addr
+        ip_addr = ch_ip.resolve_address(endpoint_type=ch_ip.PUBLIC)
+        ip_addr = ch_network_ip.format_ipv6_addr(ip_addr) or ip_addr
 
         ctxt = {
             'enable_serial_console':
-                str(config('enable-serial-console')).lower(),
+                str(hookenv.config('enable-serial-console')).lower(),
             'serial_console_base_url': 'ws://{}:6083/'.format(ip_addr)
         }
         return ctxt
 
 
-class APIRateLimitingContext(context.OSContextGenerator):
+class APIRateLimitingContext(ch_context.OSContextGenerator):
     def __call__(self):
         ctxt = {}
-        rate_rules = config('api-rate-limit-rules')
+        rate_rules = hookenv.config('api-rate-limit-rules')
         if rate_rules:
             ctxt['api_rate_limit_rules'] = rate_rules
         return ctxt
 
 
-class NovaAPISharedDBContext(context.SharedDBContext):
+class NovaAPISharedDBContext(ch_context.SharedDBContext):
     '''
     Wrapper context to support multiple database connections being
     represented to a single config file
@@ -441,17 +428,18 @@ class NovaAPISharedDBContext(context.SharedDBContext):
         return ctxt
 
 
-class NovaMetadataContext(context.OSContextGenerator):
+class NovaMetadataContext(ch_context.OSContextGenerator):
     '''
     Context used for configuring the nova metadata service.
     '''
     def __call__(self):
-        cmp_os_release = CompareOpenStackReleases(os_release('nova-common'))
+        cmp_os_release = ch_utils.CompareOpenStackReleases(
+            ch_utils.os_release('nova-common'))
         ctxt = {}
         if cmp_os_release >= 'rocky':
             ctxt['vendordata_providers'] = []
-            vdata = config('vendor-data')
-            vdata_url = config('vendor-data-url')
+            vdata = hookenv.config('vendor-data')
+            vdata_url = hookenv.config('vendor-data-url')
 
             if vdata:
                 ctxt['vendor_data'] = True
@@ -460,7 +448,7 @@ class NovaMetadataContext(context.OSContextGenerator):
             if vdata_url:
                 ctxt['vendor_data_url'] = vdata_url
                 ctxt['vendordata_providers'].append('DynamicJSON')
-            ctxt['metadata_proxy_shared_secret'] = leader_get(
+            ctxt['metadata_proxy_shared_secret'] = hookenv.leader_get(
                 'shared-metadata-secret')
             ctxt['enable_metadata'] = True
         else:

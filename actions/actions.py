@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 #
 # Copyright 2016 Canonical Ltd
 #
@@ -17,40 +17,39 @@
 import os
 import sys
 
-sys.path.append('hooks/')
+_path = os.path.dirname(os.path.realpath(__file__))
+_root = os.path.abspath(os.path.join(_path, '..'))
 
-from charmhelpers.core.hookenv import (
-    action_fail,
-    action_get,
-    action_set,
-)
-from nova_cc_utils import (
-    pause_unit_helper,
-    resume_unit_helper,
-    register_configs,
-    archive_deleted_rows,
-)
+
+def _add_path(path):
+    if path not in sys.path:
+        sys.path.insert(1, path)
+
+_add_path(_root)
+
+import charmhelpers.core.hookenv as hookenv
+import hooks.nova_cc_utils as utils
 
 
 def pause(args):
     """Pause the Ceilometer services.
     @raises Exception should the service fail to stop.
     """
-    pause_unit_helper(register_configs())
+    utils.pause_unit_helper(utils.register_configs())
 
 
 def resume(args):
     """Resume the Ceilometer services.
     @raises Exception should the service fail to start."""
-    resume_unit_helper(register_configs())
+    utils.resume_unit_helper(utils.register_configs())
 
 
 def archive_data(args):
     """Run data archival process
     @raises Exception should the archival fail"""
-    action_set({
-        'archive-deleted-rows': archive_deleted_rows(
-            max_rows=action_get('batch-size'))})
+    hookenv.action_set({
+        'archive-deleted-rows': utils.archive_deleted_rows(
+            max_rows=hookenv.action_get('batch-size'))})
 
 
 # A dictionary of all the defined actions to callables (which take
@@ -71,7 +70,7 @@ def main(args):
         try:
             action(args)
         except Exception as e:
-            action_fail(str(e))
+            hookenv.action_fail(str(e))
 
 
 if __name__ == "__main__":
