@@ -136,7 +136,6 @@ BASE_PACKAGES = [
     'python-mysqldb',
     'python-psycopg2',
     'python-psutil',
-    'python-six',
     'python-memcache',
     'uuid',
 ]
