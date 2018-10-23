@@ -12,30 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import print_function
-
 import json
 import mock
 
-import nova_cc_context as context
-with mock.patch('charmhelpers.core.hookenv.config'):
-    with mock.patch('charmhelpers.contrib.openstack.utils.get_os_codename_package'):  # noqa
-        import nova_cc_utils as _utils  # noqa
+import hooks.nova_cc_context as context
 
 from charmhelpers.contrib.openstack import neutron
 from charmhelpers.contrib.openstack import utils
-from test_utils import CharmTestCase
+from unit_tests.test_utils import CharmTestCase
 
 TO_PATCH = [
-    'config',
-    'https',
-    'leader_get',
-    'log',
-    'os_release',
-    'related_units',
-    'relation_get',
-    'relation_ids',
-    'relations_for_id',
+    'charmhelpers.contrib.hahelpers.cluster.https',
+    'charmhelpers.contrib.openstack.utils.os_release',
+    'charmhelpers.core.hookenv.config',
+    'charmhelpers.core.hookenv.leader_get',
+    'charmhelpers.core.hookenv.log',
+    'charmhelpers.core.hookenv.related_units',
+    'charmhelpers.core.hookenv.relation_get',
+    'charmhelpers.core.hookenv.relation_ids',
+    'charmhelpers.core.hookenv.relations_for_id',
 ]
 
 
@@ -51,8 +46,8 @@ class NovaComputeContextTests(CharmTestCase):
         self.config.side_effect = self.test_config.get
         self.log.side_effect = fake_log
 
-    @mock.patch.object(context, 'resolve_address',
-                       lambda *args, **kwargs: None)
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address',
+                lambda *args, **kwargs: None)
     @mock.patch.object(utils, 'os_release')
     @mock.patch('charmhelpers.contrib.network.ip.log')
     def test_instance_console_context_without_memcache(self, os_release, log_):
@@ -63,8 +58,8 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual({'memcached_servers': ''},
                          instance_console())
 
-    @mock.patch.object(context, 'resolve_address',
-                       lambda *args, **kwargs: None)
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address',
+                lambda *args, **kwargs: None)
     @mock.patch.object(utils, 'os_release')
     @mock.patch('charmhelpers.contrib.network.ip.log')
     def test_instance_console_context_with_memcache(self, os_release, log_):
@@ -72,8 +67,8 @@ class NovaComputeContextTests(CharmTestCase):
                                                           '127.0.1.1',
                                                           '127.0.1.1')
 
-    @mock.patch.object(context, 'resolve_address',
-                       lambda *args, **kwargs: None)
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address',
+                lambda *args, **kwargs: None)
     @mock.patch.object(utils, 'os_release')
     @mock.patch('charmhelpers.contrib.network.ip.log')
     def test_instance_console_context_with_memcache_ipv6(self, os_release,
@@ -94,40 +89,49 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual({'memcached_servers': "%s:11211" % (formated_ip, )},
                          instance_console())
 
-    @mock.patch('charmhelpers.contrib.openstack.neutron.os_release')
     @mock.patch('charmhelpers.contrib.openstack.ip.config')
+    @mock.patch('charmhelpers.contrib.openstack.neutron.config')
+    @mock.patch('charmhelpers.contrib.openstack.context.config')
+    @mock.patch('charmhelpers.contrib.openstack.neutron.os_release')
     @mock.patch('charmhelpers.contrib.openstack.ip.is_clustered')
-    def test_neutron_context_single_vip(self, mock_is_clustered, mock_config,
-                                        _os_release):
+    def test_neutron_context_single_vip(
+            self, mock_is_clustered, _os_release, mock_config,
+            mock_config_neutron, mock_config_ip):
         self.https.return_value = False
         mock_is_clustered.return_value = True
-        config = {'vip': '10.0.0.1',
-                  'os-internal-network': '10.0.0.1/24',
-                  'os-admin-network': '10.0.1.0/24',
-                  'os-public-network': '10.0.2.0/24'}
-        mock_config.side_effect = lambda key: config.get(key)
+        _config = {'vip': '10.0.0.1',
+                   'os-internal-network': '10.0.0.1/24',
+                   'os-admin-network': '10.0.1.0/24',
+                   'os-public-network': '10.0.2.0/24',
+                   'network-manager': 'FlatDHCPManager'}
+        mock_config.side_effect = lambda key: _config.get(key)
+        mock_config_neutron.side_effect = lambda key: _config.get(key)
+        mock_config_ip.side_effect = lambda key: _config.get(key)
 
         ctxt = context.NeutronCCContext()()
         self.assertEqual(ctxt['nova_url'], 'http://10.0.0.1:8774/v2')
         self.assertFalse('neutron_url' in ctxt)
 
-    @mock.patch('charmhelpers.contrib.openstack.neutron.os_release')
     @mock.patch('charmhelpers.contrib.openstack.ip.config')
+    @mock.patch('charmhelpers.contrib.openstack.neutron.config')
+    @mock.patch('charmhelpers.contrib.openstack.neutron.os_release')
     @mock.patch('charmhelpers.contrib.openstack.ip.is_clustered')
-    def test_neutron_context_multi_vip(self, mock_is_clustered, mock_config,
-                                       _os_release):
+    def test_neutron_context_multi_vip(
+            self, mock_is_clustered, _os_release, mock_config, mock_config_ip):
         self.https.return_value = False
         mock_is_clustered.return_value = True
-        config = {'vip': '10.0.0.1 10.0.1.1 10.0.2.1',
-                  'os-internal-network': '10.0.1.0/24',
-                  'os-admin-network': '10.0.0.0/24',
-                  'os-public-network': '10.0.2.0/24'}
-        mock_config.side_effect = lambda key: config.get(key)
-
+        _config = {'vip': '10.0.0.1 10.0.1.1 10.0.2.1',
+                   'os-internal-network': '10.0.1.0/24',
+                   'os-admin-network': '10.0.0.0/24',
+                   'os-public-network': '10.0.2.0/24',
+                   'network-manager': 'FlatDHCPManager'}
+        mock_config.side_effect = lambda key: _config.get(key)
+        mock_config_ip.side_effect = lambda key: _config.get(key)
         ctxt = context.NeutronCCContext()()
         self.assertEqual(ctxt['nova_url'], 'http://10.0.1.1:8774/v2')
         self.assertFalse('neutron_url' in ctxt)
 
+    @mock.patch('charmhelpers.contrib.openstack.context.config')
     @mock.patch('charmhelpers.contrib.openstack.context.get_relation_ip')
     @mock.patch('charmhelpers.contrib.openstack.context.mkdir')
     @mock.patch.object(neutron, 'network_manager')
@@ -145,7 +149,8 @@ class NovaComputeContextTests(CharmTestCase):
                              mock_local_unit, mock_get_netmask_for_address,
                              mock_get_address_in_network, mock_kv, mock_https,
                              mock_unit_get, mock_network_manager, mock_mkdir,
-                             mock_get_relation_ip):
+                             mock_get_relation_ip, mock_config):
+        mock_config.side_effect = self.test_config.get
         mock_https.return_value = False
         mock_unit_get.return_value = '127.0.0.1'
         mock_network_manager.return_value = 'neutron'
@@ -153,7 +158,7 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual(ctxt['service_ports']['nova-api-os-compute'],
                          [8774, 8764])
 
-    @mock.patch.object(context, 'config')
+    @mock.patch('charmhelpers.contrib.openstack.context.config')
     def test_console_ssl_disabled(self, mock_config):
         config = {'console-ssl-cert': 'LS0tLS1CRUdJTiBDRV',
                   'console-ssl-key': 'LS0tLS1CRUdJTiBQUk'}
@@ -177,21 +182,20 @@ class NovaComputeContextTests(CharmTestCase):
         ctxt = context.ConsoleSSLContext()()
         self.assertEqual(ctxt, {})
 
-    @mock.patch('__builtin__.open')
+    @mock.patch('builtins.open')
     @mock.patch('os.path.exists')
-    @mock.patch.object(context, 'config')
-    @mock.patch.object(context, 'unit_get')
-    @mock.patch.object(context, 'is_clustered')
-    @mock.patch.object(context, 'resolve_address')
-    @mock.patch.object(context, 'b64decode')
+    @mock.patch('charmhelpers.core.hookenv.unit_get')
+    @mock.patch('charmhelpers.contrib.hahelpers.cluster.is_clustered')
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
+    @mock.patch('base64.b64decode')
     def test_noVNC_ssl_enabled(self, mock_b64decode,
                                mock_resolve_address,
                                mock_is_clustered, mock_unit_get,
-                               mock_config, mock_exists, mock_open):
+                               mock_exists, mock_open):
         config = {'console-ssl-cert': 'LS0tLS1CRUdJTiBDRV',
                   'console-ssl-key': 'LS0tLS1CRUdJTiBQUk',
                   'console-access-protocol': 'novnc'}
-        mock_config.side_effect = lambda key: config.get(key)
+        self.test_config.update(config)
         mock_exists.return_value = True
         mock_unit_get.return_value = '127.0.0.1'
         mock_is_clustered.return_value = True
@@ -208,21 +212,20 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual(ctxt['novncproxy_base_url'],
                          'https://10.5.100.1:6080/vnc_auto.html')
 
-    @mock.patch('__builtin__.open')
+    @mock.patch('builtins.open')
     @mock.patch('os.path.exists')
-    @mock.patch.object(context, 'config')
-    @mock.patch.object(context, 'unit_get')
-    @mock.patch.object(context, 'is_clustered')
-    @mock.patch.object(context, 'resolve_address')
-    @mock.patch.object(context, 'b64decode')
+    @mock.patch('charmhelpers.core.hookenv.unit_get')
+    @mock.patch('charmhelpers.contrib.hahelpers.cluster.is_clustered')
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
+    @mock.patch('base64.b64decode')
     def test_noVNC_ssl_enabled_no_cluster(self, mock_b64decode,
                                           mock_resolve_address,
                                           mock_is_clustered, mock_unit_get,
-                                          mock_config, mock_exists, mock_open):
+                                          mock_exists, mock_open):
         config = {'console-ssl-cert': 'LS0tLS1CRUdJTiBDRV',
                   'console-ssl-key': 'LS0tLS1CRUdJTiBQUk',
                   'console-access-protocol': 'novnc'}
-        mock_config.side_effect = lambda key: config.get(key)
+        self.test_config.update(config)
         mock_exists.return_value = True
         mock_unit_get.return_value = '10.5.0.1'
         mock_is_clustered.return_value = False
@@ -238,21 +241,20 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual(ctxt['novncproxy_base_url'],
                          'https://10.5.0.1:6080/vnc_auto.html')
 
-    @mock.patch('__builtin__.open')
+    @mock.patch('builtins.open')
     @mock.patch('os.path.exists')
-    @mock.patch.object(context, 'config')
-    @mock.patch.object(context, 'unit_get')
-    @mock.patch.object(context, 'is_clustered')
-    @mock.patch.object(context, 'resolve_address')
-    @mock.patch.object(context, 'b64decode')
+    @mock.patch('charmhelpers.core.hookenv.unit_get')
+    @mock.patch('charmhelpers.contrib.hahelpers.cluster.is_clustered')
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
+    @mock.patch('base64.b64decode')
     def test_spice_html5_ssl_enabled(self, mock_b64decode,
                                      mock_resolve_address,
                                      mock_is_clustered, mock_unit_get,
-                                     mock_config, mock_exists, mock_open):
+                                     mock_exists, mock_open):
         config = {'console-ssl-cert': 'LS0tLS1CRUdJTiBDRV',
                   'console-ssl-key': 'LS0tLS1CRUdJTiBQUk',
                   'console-access-protocol': 'spice'}
-        mock_config.side_effect = lambda key: config.get(key)
+        self.test_config.update(config)
         mock_exists.return_value = True
         mock_unit_get.return_value = '127.0.0.1'
         mock_is_clustered.return_value = True
@@ -269,23 +271,22 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual(ctxt['html5proxy_base_url'],
                          'https://10.5.100.1:6082/spice_auto.html')
 
-    @mock.patch('__builtin__.open')
+    @mock.patch('builtins.open')
     @mock.patch('os.path.exists')
-    @mock.patch.object(context, 'config')
-    @mock.patch.object(context, 'unit_get')
-    @mock.patch.object(context, 'is_clustered')
-    @mock.patch.object(context, 'resolve_address')
-    @mock.patch.object(context, 'b64decode')
+    @mock.patch('charmhelpers.core.hookenv.unit_get')
+    @mock.patch('charmhelpers.contrib.hahelpers.cluster.is_clustered')
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
+    @mock.patch('base64.b64decode')
     def test_spice_html5_ssl_enabled_no_cluster(self, mock_b64decode,
                                                 mock_resolve_address,
                                                 mock_is_clustered,
                                                 mock_unit_get,
-                                                mock_config, mock_exists,
+                                                mock_exists,
                                                 mock_open):
         config = {'console-ssl-cert': 'LS0tLS1CRUdJTiBDRV',
                   'console-ssl-key': 'LS0tLS1CRUdJTiBQUk',
                   'console-access-protocol': 'spice'}
-        mock_config.side_effect = lambda key: config.get(key)
+        self.test_config.update(config)
         mock_exists.return_value = True
         mock_unit_get.return_value = '10.5.0.1'
         mock_is_clustered.return_value = False
@@ -301,14 +302,17 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual(ctxt['html5proxy_base_url'],
                          'https://10.5.0.1:6082/spice_auto.html')
 
+    @mock.patch('charmhelpers.contrib.openstack.ip.config')
     @mock.patch('charmhelpers.contrib.openstack.ip.unit_get')
     @mock.patch('charmhelpers.contrib.hahelpers.cluster.relation_ids')
     @mock.patch('charmhelpers.core.hookenv.local_unit')
     @mock.patch('charmhelpers.contrib.openstack.context.config')
     def test_nova_config_context(self, mock_config, local_unit,
-                                 mock_relation_ids, mock_unit_get):
+                                 mock_relation_ids, mock_unit_get,
+                                 mock_config_ip):
         local_unit.return_value = 'nova-cloud-controller/0'
         mock_config.side_effect = self.test_config.get
+        mock_config_ip.side_effect = self.test_config.get
         mock_unit_get.return_value = '127.0.0.1'
         ctxt = context.NovaConfigContext()()
         self.assertEqual(ctxt['scheduler_default_filters'],
@@ -336,6 +340,7 @@ class NovaComputeContextTests(CharmTestCase):
 
     _pci_alias_list = [_pci_alias1, _pci_alias2]
 
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
     @mock.patch('charmhelpers.contrib.openstack.ip.unit_get')
     @mock.patch('charmhelpers.contrib.hahelpers.cluster.relation_ids')
     @mock.patch('charmhelpers.core.hookenv.local_unit')
@@ -343,7 +348,8 @@ class NovaComputeContextTests(CharmTestCase):
     def test_nova_config_context_multi_pci_alias(self, mock_config,
                                                  local_unit,
                                                  mock_relation_ids,
-                                                 mock_unit_get):
+                                                 mock_unit_get,
+                                                 mock_resolve_address):
         local_unit.return_value = 'nova-cloud-controller/0'
         mock_config.side_effect = self.test_config.get
         mock_unit_get.return_value = '127.0.0.1'
@@ -356,14 +362,17 @@ class NovaComputeContextTests(CharmTestCase):
              '"name": "IntelNIC", "product_id": "1111", '
              '"vendor_id": "8086"}'))
 
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
     @mock.patch('charmhelpers.contrib.openstack.ip.unit_get')
     @mock.patch('charmhelpers.contrib.hahelpers.cluster.relation_ids')
     @mock.patch('charmhelpers.core.hookenv.local_unit')
     @mock.patch('charmhelpers.contrib.openstack.context.config')
-    def test_nova_config_context_multi_pci_aliases(self, mock_config,
+    def test_nova_config_context_multi_pci_aliases(self,
+                                                   mock_config,
                                                    local_unit,
                                                    mock_relation_ids,
-                                                   mock_unit_get):
+                                                   mock_unit_get,
+                                                   mock_resolve_address):
         local_unit.return_value = 'nova-cloud-controller/0'
         mock_config.side_effect = self.test_config.get
         mock_unit_get.return_value = '127.0.0.1'
@@ -381,13 +390,11 @@ class NovaComputeContextTests(CharmTestCase):
              '"name": " Cirrus Logic ", "product_id": "0ff2", '
              '"vendor_id": "10de"}'))
 
-    @mock.patch.object(context, 'format_ipv6_addr')
-    @mock.patch.object(context, 'resolve_address')
-    @mock.patch.object(context, 'config')
-    def test_serial_console_context(self, mock_config,
+    @mock.patch('charmhelpers.contrib.network.ip.format_ipv6_addr')
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
+    def test_serial_console_context(self,
                                     mock_resolve_address,
                                     mock_format_ipv6_address):
-        mock_config.side_effect = self.test_config.get
         mock_format_ipv6_address.return_value = None
         mock_resolve_address.return_value = '10.10.10.1'
         ctxt = context.SerialConsoleContext()()
@@ -396,15 +403,14 @@ class NovaComputeContextTests(CharmTestCase):
             {'serial_console_base_url': 'ws://10.10.10.1:6083/',
              'enable_serial_console': 'false'}
         )
-        mock_resolve_address.assert_called_with(endpoint_type=context.PUBLIC)
+        mock_resolve_address.assert_called_with(
+            endpoint_type=context.ch_ip.PUBLIC)
 
-    @mock.patch.object(context, 'format_ipv6_addr')
-    @mock.patch.object(context, 'resolve_address')
-    @mock.patch.object(context, 'config')
-    def test_serial_console_context_enabled(self, mock_config,
+    @mock.patch('charmhelpers.contrib.network.ip.format_ipv6_addr')
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
+    def test_serial_console_context_enabled(self,
                                             mock_resolve_address,
                                             mock_format_ipv6_address):
-        mock_config.side_effect = self.test_config.get
         self.test_config.set('enable-serial-console', True)
         mock_format_ipv6_address.return_value = None
         mock_resolve_address.return_value = '10.10.10.1'
@@ -414,7 +420,8 @@ class NovaComputeContextTests(CharmTestCase):
             {'serial_console_base_url': 'ws://10.10.10.1:6083/',
              'enable_serial_console': 'true'}
         )
-        mock_resolve_address.assert_called_with(endpoint_type=context.PUBLIC)
+        mock_resolve_address.assert_called_with(
+            endpoint_type=context.ch_ip.PUBLIC)
 
     def test_nova_cellv2_shared_db_context(self):
         self.relation_ids.return_value = ['shared-db:0']

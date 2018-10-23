@@ -14,7 +14,7 @@
 
 import mock
 
-from test_utils import (
+from unit_tests.test_utils import (
     CharmTestCase,
     get_default_config,
 )
@@ -24,29 +24,9 @@ __default_config = get_default_config()
 # depending on where it's being executed
 __default_config['openstack-origin'] = ''
 
-with mock.patch('charmhelpers.core.hookenv.config') as config:
-    with mock.patch('charmhelpers.contrib.openstack.utils.get_os_codename_package'):  # noqa
-        # this makes the config behave more similar to the real config()
-        config.side_effect = lambda k: __default_config.get(k)
+import hooks.nova_cc_utils as utils  # noqa
+import actions.actions as actions
 
-        import nova_cc_utils as utils  # noqa
-
-# Need to do some early patching to get the module loaded.
-_reg = utils.register_configs
-_map = utils.restart_map
-
-utils.register_configs = mock.MagicMock()
-utils.restart_map = mock.MagicMock()
-
-with mock.patch('nova_cc_utils.guard_map') as gmap:
-    with mock.patch('charmhelpers.core.hookenv.config') as config:
-        config.return_value = False
-        gmap.return_value = {}
-        import actions
-
-# Unpatch it now that its loaded.
-utils.register_configs = _reg
-utils.restart_map = _map
 
 TO_PATCH = [
 ]
@@ -56,7 +36,11 @@ class PauseTestCase(CharmTestCase):
 
     def setUp(self):
         super(PauseTestCase, self).setUp(
-            actions, ["register_configs", "pause_unit_helper"])
+            actions,
+            [
+                "hooks.nova_cc_utils.register_configs",
+                "hooks.nova_cc_utils.pause_unit_helper"
+            ])
         self.register_configs.return_value = 'test-config'
 
     def test_pauses_services(self):
@@ -68,7 +52,10 @@ class ResumeTestCase(CharmTestCase):
 
     def setUp(self):
         super(ResumeTestCase, self).setUp(
-            actions, ["register_configs", "resume_unit_helper"])
+            actions, [
+                "hooks.nova_cc_utils.register_configs",
+                "hooks.nova_cc_utils.resume_unit_helper"
+            ])
         self.register_configs.return_value = 'test-config'
 
     def test_resumes_services(self):
@@ -79,8 +66,12 @@ class ResumeTestCase(CharmTestCase):
 class MainTestCase(CharmTestCase):
 
     def setUp(self):
-        super(MainTestCase, self).setUp(actions, ["register_configs",
-                                                  "action_fail"])
+        super(MainTestCase, self).setUp(
+            actions,
+            [
+                "charmhelpers.core.hookenv.action_fail",
+                "hooks.nova_cc_utils.register_configs",
+            ])
         self.register_configs.return_value = 'test-config'
 
     def test_invokes_action(self):

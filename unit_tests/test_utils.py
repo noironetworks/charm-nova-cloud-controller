@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import io
+import importlib
 import os
 import logging
 import unittest
@@ -51,7 +53,7 @@ def get_default_config():
     '''
     default_config = {}
     config = load_config()
-    for k, v in config.iteritems():
+    for k, v in config.items():
         if 'default' in v:
             default_config[k] = v['default']
         else:
@@ -71,15 +73,26 @@ class CharmTestCase(unittest.TestCase):
         self.patch_all()
 
     def patch(self, method):
-        self.originals[method] = getattr(self.obj, method)
-        _m = patch.object(self.obj, method)
+        if "." in method:
+            _mod = importlib.import_module('.'.join(method.split('.')[0:-1]))
+            _m = patch(method)
+            name = method.split('.')[-1]
+            self.originals[method] = getattr(_mod, name)
+        else:
+            self.originals[method] = getattr(self.obj, method)
+            _m = patch.object(self.obj, method)
+            name = method
         mock = _m.start()
         self.addCleanup(_m.stop)
         return mock
 
     def patch_all(self):
         for method in self.patches:
-            setattr(self, method, self.patch(method))
+            mock = self.patch(method)
+            if "." in method:
+                setattr(self, method.split('.')[-1], mock)
+            else:
+                setattr(self, method, mock)
 
 
 class TestConfig(object):
@@ -102,6 +115,10 @@ class TestConfig(object):
         if attr not in self.config:
             raise KeyError
         self.config[attr] = value
+
+    def update(self, d):
+        for k, v in d.items():
+            self.set(k, v)
 
 
 class TestRelation(object):
@@ -127,12 +144,12 @@ def patch_open():
 
     Yields the mock for "open" and "file", respectively.'''
     mock_open = MagicMock(spec=open)
-    mock_file = MagicMock(spec=file)
+    mock_file = MagicMock(spec=io.FileIO)
 
     @contextmanager
     def stub_open(*args, **kwargs):
         mock_open(*args, **kwargs)
         yield mock_file
 
-    with patch('__builtin__.open', stub_open):
+    with patch('builtins.open', stub_open):
         yield mock_open, mock_file
