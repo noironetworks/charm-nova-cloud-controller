@@ -903,8 +903,8 @@ def keystone_ca_cert_b64():
     '''Returns the local Keystone-provided CA cert if it exists, or None.'''
     if not os.path.isfile(CA_CERT_PATH):
         return None
-    with open(CA_CERT_PATH) as _in:
-        return base64.b64encode(_in.read())
+    with open(CA_CERT_PATH, 'rb') as _in:
+        return base64.b64encode(_in.read()).decode('utf-8')
 
 
 def ssh_directory_for_unit(unit=None, user=None):

@@ -624,6 +624,17 @@ class NovaCCUtilsTests(CharmTestCase):
             self.assertFalse(rm.called)
             _file.write.assert_called_with('|1|= fookey\n')
 
+    @patch('os.path.isfile')
+    def test_keystone_ca_cert_b64(self, isfile):
+        isfile.return_value = True
+        with patch_open() as (_open, _file):
+            _file.readlines = MagicMock()
+            _file.write = MagicMock()
+            _file.read.return_value = b'mycert'
+            self.assertEqual(
+                utils.keystone_ca_cert_b64(),
+                'bXljZXJ0')
+
     @patch('builtins.open')
     @patch('os.mkdir')
     @patch('os.path.isdir')
