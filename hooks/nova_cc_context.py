@@ -359,9 +359,9 @@ class ConsoleSSLContext(ch_context.OSContextGenerator):
             decode_ssl_key = base64.b64decode(
                 hookenv.config('console-ssl-key'))
 
-            with open(cert_path, 'w') as fh:
+            with open(cert_path, 'wb') as fh:
                 fh.write(decode_ssl_cert)
-            with open(key_path, 'w') as fh:
+            with open(key_path, 'wb') as fh:
                 fh.write(decode_ssl_key)
 
             ctxt['ssl_only'] = True
