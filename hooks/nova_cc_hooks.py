@@ -339,6 +339,19 @@ def config_changed():
     if filtered:
         apt_install(filtered, fatal=True)
 
+    opt = ['--option=Dpkg::Options::=--force-confdef' ,'--option=Dpkg::Options::=--force-confold']
+    if config('aci-repo'):
+       if config('aci-repo-key'):
+           add_source(config('aci-repo'), key=config('aci-repo-key'))
+       else:
+           add_source(config('aci-repo'))
+           opt.append('--allow-unauthenticated')
+       apt_update()
+
+    if config('enable-sriov-nic-selection'):
+        apt_install(['python-nova-sriov-nics'], options=opt, fatal=True)
+
+
     for rid in relation_ids('quantum-network-service'):
         quantum_joined(rid=rid)
     for r_id in relation_ids('identity-service'):
@@ -975,6 +988,18 @@ def nova_vmware_relation_changed():
 def upgrade_charm():
     apt_install(filter_installed_packages(determine_packages()),
                 fatal=True)
+    opt = ['--option=Dpkg::Options::=--force-confdef' ,'--option=Dpkg::Options::=--force-confold']
+    if config('aci-repo'):
+       if config('aci-repo-key'):
+           add_source(config('aci-repo'), key=config('aci-repo-key'))
+       else:
+           add_source(config('aci-repo'))
+           opt.append('--allow-unauthenticated')
+       apt_update()
+
+    if config('enable-sriov-nic-selection'):
+        apt_install(['python-nova-sriov-nics'], options=opt, fatal=True)
+
     for r_id in relation_ids('amqp'):
         amqp_joined(relation_id=r_id)
     for r_id in relation_ids('identity-service'):
