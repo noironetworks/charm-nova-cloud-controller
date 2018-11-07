@@ -49,6 +49,9 @@ def harden(overrides=None):
                       provided with 'harden' config.
     :returns: Returns value returned by decorated function once executed.
     """
+    if overrides is None:
+        overrides = []
+
     def _harden_inner1(f):
         # As this has to be py2.7 compat, we can't use nonlocal.  Use a trick
         # to capture the dictionary that can then be updated.
@@ -67,7 +70,7 @@ def harden(overrides=None):
                                        ('mysql', run_mysql_checks),
                                        ('apache', run_apache_checks)])
 
-            enabled = overrides or (config("harden") or "").split()
+            enabled = overrides[:] or (config("harden") or "").split()
             if enabled:
                 modules_to_run = []
                 # modules will always be performed in the following order

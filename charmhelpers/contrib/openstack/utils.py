@@ -375,7 +375,7 @@ def get_swift_codename(version):
         return codenames[0]
 
     # NOTE: fallback - attempt to match with just major.minor version
-    match = re.match('^(\d+)\.(\d+)', version)
+    match = re.match(r'^(\d+)\.(\d+)', version)
     if match:
         major_minor_version = match.group(0)
         for codename, versions in six.iteritems(SWIFT_CODENAMES):
@@ -395,7 +395,7 @@ def get_os_codename_package(package, fatal=True):
             out = subprocess.check_output(cmd)
             if six.PY3:
                 out = out.decode('UTF-8')
-        except subprocess.CalledProcessError as e:
+        except subprocess.CalledProcessError:
             return None
         lines = out.split('\n')
         for line in lines:
@@ -427,11 +427,11 @@ def get_os_codename_package(package, fatal=True):
     vers = apt.upstream_version(pkg.current_ver.ver_str)
     if 'swift' in pkg.name:
         # Fully x.y.z match for swift versions
-        match = re.match('^(\d+)\.(\d+)\.(\d+)', vers)
+        match = re.match(r'^(\d+)\.(\d+)\.(\d+)', vers)
     else:
         # x.y match only for 20XX.X
         # and ignore patch level for other packages
-        match = re.match('^(\d+)\.(\d+)', vers)
+        match = re.match(r'^(\d+)\.(\d+)', vers)
 
     if match:
         vers = match.group(0)
@@ -1465,6 +1465,7 @@ def pausable_restart_on_change(restart_map, stopstart=False,
         # py27 compatible nonlocal variable.  When py3 only, replace with
         # nonlocal keyword
         __restart_map_cache = {'cache': None}
+
         @functools.wraps(f)
         def wrapped_f(*args, **kwargs):
             if is_unit_paused_set():
@@ -1475,7 +1476,7 @@ def pausable_restart_on_change(restart_map, stopstart=False,
             # otherwise, normal restart_on_change functionality
             return restart_on_change_helper(
                 (lambda: f(*args, **kwargs)), __restart_map_cache['cache'],
-                 stopstart, restart_functions)
+                stopstart, restart_functions)
         return wrapped_f
     return wrap
 
