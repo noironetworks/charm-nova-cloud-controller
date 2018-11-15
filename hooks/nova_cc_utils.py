@@ -395,6 +395,19 @@ def determine_purge_packages():
     return []
 
 
+def remove_old_packages():
+    '''Purge any packages that need ot be removed.
+
+    :returns: bool Whether packages were removed.
+    '''
+    installed_packages = ch_fetch.filter_missing_packages(
+        determine_purge_packages())
+    if installed_packages:
+        ch_fetch.apt_purge(installed_packages, fatal=True)
+        ch_fetch.apt_autoremove(purge=True, fatal=True)
+    return bool(installed_packages)
+
+
 def save_script_rc():
     env_vars = {
         'OPENSTACK_PORT_MCASTPORT': hookenv.config('ha-mcastport'),
@@ -547,11 +560,7 @@ def _do_openstack_upgrade(new_src):
     ch_utils.reset_os_release()
     ch_fetch.apt_install(determine_packages(), fatal=True)
 
-    installed_pkgs = ch_fetch.filter_missing_packages(
-        determine_purge_packages())
-    if installed_pkgs:
-        ch_fetch.apt_purge(installed_pkgs, fatal=True)
-        ch_fetch.apt_autoremove(purge=True, fatal=True)
+    remove_old_packages()
 
     disable_policy_rcd()
 

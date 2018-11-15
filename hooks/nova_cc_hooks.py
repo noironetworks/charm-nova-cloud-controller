@@ -951,6 +951,12 @@ def upgrade_charm():
     ch_fetch.apt_install(
         ch_fetch.filter_installed_packages(
             ncc_utils.determine_packages()), fatal=True)
+    packages_removed = ncc_utils.remove_old_packages()
+    if packages_removed:
+        hookenv.log("Package purge detected, restarting services", "INFO")
+        for s in ncc_utils.services():
+            ch_host.service_restart(s)
+
     for r_id in hookenv.relation_ids('amqp'):
         amqp_joined(relation_id=r_id)
     for r_id in hookenv.relation_ids('identity-service'):
