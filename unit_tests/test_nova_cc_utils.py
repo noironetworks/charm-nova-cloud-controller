@@ -407,6 +407,17 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertEqual(sorted(_pkgs), sorted(vnc_pkgs))
         self.assertEqual(_proxy_page, None)
 
+    def test_console_attributes_console_access_port(self):
+        self.test_config.set('console-access-port', '6080')
+        _proxy_port = utils.common.console_attributes('proxy-port', 'novnc')
+        self.assertEqual(_proxy_port, '6080')
+        self.test_config.set('console-access-port', '6081')
+        _proxy_port = utils.common.console_attributes('proxy-port', 'xvpvnc')
+        self.assertEqual(_proxy_port, '6081')
+        self.test_config.set('console-access-port', '6082')
+        _proxy_port = utils.common.console_attributes('proxy-port', 'spice')
+        self.assertEqual(_proxy_port, '6082')
+
     def test_database_setup(self):
         self.relation_ids.return_value = ['shared-db:12']
         self.related_units.return_value = ['mysql/0']
