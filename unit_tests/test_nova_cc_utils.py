@@ -1062,6 +1062,69 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertFalse(self.service_stop.called)
         self.assertTrue(_mc.called)
 
+    def test_service_guard_active_with_guardmap_function_object(self):
+        class MockContext(object):
+            called = False
+
+            def complete_contexts(self):
+                self.called = True
+                return ['interfacea', 'interfaceb']
+
+        _mc = MockContext()
+
+        def guard_map():
+            return {'test': ['interfacea', 'interfaceb']}
+
+        @utils.service_guard(guard_map, _mc, True)
+        def dummy_func():
+            pass
+
+        dummy_func()
+        self.assertFalse(self.service_running.called)
+        self.assertFalse(self.service_stop.called)
+        self.assertTrue(_mc.called)
+
+    def test_service_guard_active_with_contexts_function_object(self):
+        class MockContext(object):
+            called = False
+
+            def complete_contexts(self):
+                self.called = True
+                return ['interfacea', 'interfaceb']
+
+        _mc = MockContext()
+
+        def lmc():
+            return _mc
+
+        @utils.service_guard({'test': ['interfacea', 'interfaceb']}, lmc, True)
+        def dummy_func():
+            pass
+
+        dummy_func()
+        self.assertFalse(self.service_running.called)
+        self.assertFalse(self.service_stop.called)
+        self.assertTrue(_mc.called)
+
+    def test_service_guard_active_with_active_function_object(self):
+        class MockContext(object):
+            called = False
+
+            def complete_contexts(self):
+                self.called = True
+                return ['interfacea', 'interfaceb']
+
+        _mc = MockContext()
+
+        @utils.service_guard({'test': ['interfacea', 'interfaceb']},
+                             _mc, lambda: False)
+        def dummy_func():
+            pass
+
+        dummy_func()
+        self.assertFalse(self.service_running.called)
+        self.assertFalse(_mc.called)
+
     def helper_test_is_api_ready(self, tgt):
         fake_config = MagicMock()
         with patch('charmhelpers.contrib.openstack.utils.'
