@@ -1256,7 +1256,7 @@ def service_guard(guard_map, contexts, active=False):
                         _contexts = contexts
                 incomplete_services = []
                 for svc in _guard_map:
-                    for interface in guard_map[svc]:
+                    for interface in _guard_map[svc]:
                         if interface not in _contexts.complete_contexts():
                             incomplete_services.append(svc)
                 ret = f(*args, **kwargs)
