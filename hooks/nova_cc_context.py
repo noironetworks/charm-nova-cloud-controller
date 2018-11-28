@@ -126,6 +126,9 @@ class NeutronAPIContext(ch_context.OSContextGenerator):
                 }
                 if rdata.get('enable-sriov', '').lower() == 'true':
                     ctxt['additional_neutron_filters'] = 'PciPassthroughFilter'
+                # LP Bug#1805645
+                if rdata.get('dns-domain', ''):
+                    ctxt['dns_domain'] = rdata.get('dns-domain')
                 if context_complete(ctxt):
                     return ctxt
         return {}

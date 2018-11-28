@@ -303,7 +303,8 @@ def resource_map(actual_services=True):
                     user='nova',
                     group='nova',
                     script='/usr/bin/nova-metadata-wsgi'),
-                nova_cc_context.MetaDataHAProxyContext()],
+                nova_cc_context.MetaDataHAProxyContext(),
+                nova_cc_context.NeutronAPIContext()],
             'services': svcs}
     return _resource_map
 
