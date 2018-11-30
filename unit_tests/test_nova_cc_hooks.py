@@ -30,6 +30,7 @@ TO_PATCH = [
     'charmhelpers.contrib.network.ip.get_iface_for_address',
     'charmhelpers.contrib.network.ip.get_netmask_for_address',
     'charmhelpers.contrib.network.ip.get_relation_ip',
+    'charmhelpers.contrib.openstack.ha.utils.generate_ha_relation_data',
     'charmhelpers.contrib.openstack.ha.utils.update_dns_ha_resource_params',
     'charmhelpers.contrib.openstack.neutron.network_manager',
     'charmhelpers.contrib.openstack.utils.configure_installation_source',
@@ -950,139 +951,52 @@ class NovaCCHooksTests(CharmTestCase):
         }
         self.assertEqual(_con_sets, console_settings)
 
-    def test_ha_relation_joined_no_bound_ip(self):
-        self.get_hacluster_config.return_value = {
-            'ha-bindiface': 'em0',
-            'ha-mcastport': '8080',
-            'vip': '10.10.10.10',
-        }
-        self.test_config.set('vip_iface', 'eth120')
-        self.test_config.set('vip_cidr', '21')
-        self.get_iface_for_address.return_value = None
-        self.get_netmask_for_address.return_value = None
-        hooks.ha_joined()
-        args = {
-            'relation_id': None,
-            'corosync_bindiface': 'em0',
-            'corosync_mcastport': '8080',
-            'init_services': {'res_nova_haproxy': 'haproxy'},
-            'resources': {'res_nova_eth120_vip': 'ocf:heartbeat:IPaddr2',
-                          'res_nova_haproxy': 'lsb:haproxy'},
-            'resource_params': {
-                'res_nova_eth120_vip': 'params ip="10.10.10.10"'
-                ' cidr_netmask="21" nic="eth120"',
-                'res_nova_haproxy': 'op monitor interval="5s"'},
-            'colocations': {},
-            'clones': {'cl_nova_haproxy': 'res_nova_haproxy'}
-        }
-        self.relation_set.assert_has_calls([
-            call(groups={'grp_nova_vips': 'res_nova_eth120_vip'}),
-            call(**args),
-        ])
-
-    def test_ha_joined_dns_ha(self):
-        def _fake_update(resources, resource_params, relation_id=None):
-            resources.update({'res_nova_public_hostname': 'ocf:maas:dns'})
-            resource_params.update({'res_nova_public_hostname':
-                                    'params fqdn="nova.maas" '
-                                    'ip_address="10.0.0.1"'})
-
-        self.test_config.set('dns-ha', True)
-        self.get_hacluster_config.return_value = {
-            'vip': None,
-            'ha-bindiface': 'em0',
-            'ha-mcastport': '8080',
-            'os-admin-hostname': None,
-            'os-internal-hostname': None,
-            'os-public-hostname': 'nova.maas',
-        }
-        args = {
-            'relation_id': None,
-            'corosync_bindiface': 'em0',
-            'corosync_mcastport': '8080',
-            'init_services': {'res_nova_haproxy': 'haproxy'},
-            'resources': {'res_nova_public_hostname': 'ocf:maas:dns',
-                          'res_nova_haproxy': 'lsb:haproxy'},
-            'resource_params': {
-                'res_nova_public_hostname': 'params fqdn="nova.maas" '
-                                            'ip_address="10.0.0.1"',
-                'res_nova_haproxy': 'op monitor interval="5s"'},
-            'clones': {'cl_nova_haproxy': 'res_nova_haproxy'},
-            'colocations': {},
-        }
-        self.update_dns_ha_resource_params.side_effect = _fake_update
-
-        hooks.ha_joined()
-        self.assertTrue(self.update_dns_ha_resource_params.called)
-        self.relation_set.assert_called_with(**args)
-
-    def test_ha_relation_multi_consoleauth(self):
-        self.get_hacluster_config.return_value = {
-            'ha-bindiface': 'em0',
-            'ha-mcastport': '8080',
-            'vip': '10.10.10.10',
-        }
-        self.test_config.set('vip_iface', 'eth120')
-        self.test_config.set('vip_cidr', '21')
+    def test_ha_relation_joined(self):
         self.test_config.set('single-nova-consoleauth', False)
-        self.get_iface_for_address.return_value = None
-        self.get_netmask_for_address.return_value = None
+        self.test_config.set('dns-ha', False)
+        self.generate_ha_relation_data.return_value = {'ha': 'settings'}
         hooks.ha_joined()
-        args = {
-            'relation_id': None,
-            'corosync_bindiface': 'em0',
-            'corosync_mcastport': '8080',
-            'init_services': {'res_nova_haproxy': 'haproxy'},
-            'resources': {'res_nova_eth120_vip': 'ocf:heartbeat:IPaddr2',
-                          'res_nova_haproxy': 'lsb:haproxy'},
-            'resource_params': {
-                'res_nova_eth120_vip': 'params ip="10.10.10.10"'
-                ' cidr_netmask="21" nic="eth120"',
-                'res_nova_haproxy': 'op monitor interval="5s"'},
-            'colocations': {},
-            'clones': {'cl_nova_haproxy': 'res_nova_haproxy'}
-        }
-        self.relation_set.assert_has_calls([
-            call(groups={'grp_nova_vips': 'res_nova_eth120_vip'}),
-            call(**args),
-        ])
+        self.generate_ha_relation_data.assert_called_once_with(
+            'nova',
+            extra_settings={})
+        self.relation_set.assert_called_once_with(
+            ha='settings',
+            relation_id=None)
 
-    def test_ha_relation_single_consoleauth(self):
-        self.get_hacluster_config.return_value = {
-            'ha-bindiface': 'em0',
-            'ha-mcastport': '8080',
-            'vip': '10.10.10.10',
-        }
-        self.test_config.set('vip_iface', 'eth120')
-        self.test_config.set('vip_cidr', '21')
+    def test_ha_relation_joined_consoleauth(self):
+        self.test_config.set('single-nova-consoleauth', True)
         self.test_config.set('console-access-protocol', 'novnc')
-        self.get_iface_for_address.return_value = None
-        self.get_netmask_for_address.return_value = None
+        self.test_config.set('dns-ha', False)
+        self.generate_ha_relation_data.return_value = {'ha': 'settings'}
         hooks.ha_joined()
-        args = {
-            'relation_id': None,
-            'corosync_bindiface': 'em0',
-            'corosync_mcastport': '8080',
-            'init_services': {'res_nova_haproxy': 'haproxy',
-                              'res_nova_consoleauth': 'nova-consoleauth'},
-            'resources': {'res_nova_eth120_vip': 'ocf:heartbeat:IPaddr2',
-                          'res_nova_haproxy': 'lsb:haproxy',
-                          'res_nova_consoleauth':
-                          'ocf:openstack:nova-consoleauth'},
-            'resource_params': {
-                'res_nova_eth120_vip': 'params ip="10.10.10.10"'
-                ' cidr_netmask="21" nic="eth120"',
-                'res_nova_haproxy': 'op monitor interval="5s"',
-                'res_nova_consoleauth': 'op monitor interval="5s"'},
-            'colocations': {
-                'vip_consoleauth': 'inf: res_nova_consoleauth grp_nova_vips'
-            },
-            'clones': {'cl_nova_haproxy': 'res_nova_haproxy'}
-        }
-        self.relation_set.assert_has_calls([
-            call(groups={'grp_nova_vips': 'res_nova_eth120_vip'}),
-            call(**args),
-        ])
+        self.generate_ha_relation_data.assert_called_once_with(
+            'nova',
+            extra_settings={
+                'colocations': {
+                    'vip_consoleauth': ('inf: res_nova_consoleauth '
+                                        'grp_nova_vips')},
+                'init_services': {
+                    'res_nova_consoleauth': 'nova-consoleauth'},
+                'resources': {
+                    'res_nova_consoleauth': 'ocf:openstack:nova-consoleauth'},
+                'resource_params': {
+                    'res_nova_consoleauth': 'op monitor interval="5s"'}})
+        self.relation_set.assert_called_once_with(
+            ha='settings',
+            relation_id=None)
+
+    def test_ha_relation_joined_dnsha(self):
+        self.test_config.set('single-nova-consoleauth', True)
+        self.test_config.set('console-access-protocol', 'novnc')
+        self.test_config.set('dns-ha', True)
+        self.generate_ha_relation_data.return_value = {'ha': 'settings'}
+        hooks.ha_joined()
+        self.generate_ha_relation_data.assert_called_once_with(
+            'nova',
+            extra_settings={})
+        self.relation_set.assert_called_once_with(
+            ha='settings',
+            relation_id=None)
 
     @patch.object(utils, 'set_shared_metadatasecret')
     @patch.object(utils, 'get_shared_metadatasecret')

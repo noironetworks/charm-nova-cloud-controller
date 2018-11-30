@@ -291,6 +291,8 @@ def config_changed():
         ncc_utils.write_vendordata(hookenv.config('vendor-data'))
     if hookenv.is_leader() and not ncc_utils.get_shared_metadatasecret():
         ncc_utils.set_shared_metadatasecret()
+    for rid in hookenv.relation_ids('ha'):
+        ha_joined(rid)
 
 
 @hooks.hook('amqp-relation-joined')
@@ -778,82 +780,21 @@ def cluster_changed():
 
 @hooks.hook('ha-relation-joined')
 def ha_joined(relation_id=None):
-    cluster_config = ch_cluster.get_hacluster_config()
-    resources = {
-        'res_nova_haproxy': 'lsb:haproxy',
-    }
-    resource_params = {
-        'res_nova_haproxy': 'op monitor interval="5s"',
-    }
-    init_services = {
-        'res_nova_haproxy': 'haproxy'
-    }
-    clones = {
-        'cl_nova_haproxy': 'res_nova_haproxy'
-    }
-    colocations = {}
-
-    if hookenv.config('dns-ha'):
-        ch_ha_utils.update_dns_ha_resource_params(
-            relation_id=relation_id,
-            resources=resources,
-            resource_params=resource_params)
-    else:
-        vip_group = []
-        for vip in cluster_config['vip'].split():
-            if ch_network_ip.is_ipv6(vip):
-                res_nova_vip = 'ocf:heartbeat:IPv6addr'
-                vip_params = 'ipv6addr'
-            else:
-                res_nova_vip = 'ocf:heartbeat:IPaddr2'
-                vip_params = 'ip'
-
-            iface = (ch_network_ip.get_iface_for_address(vip) or
-                     hookenv.config('vip_iface'))
-            netmask = (ch_network_ip.get_netmask_for_address(vip) or
-                       hookenv.config('vip_cidr'))
-
-            if iface is not None:
-                vip_key = 'res_nova_{}_vip'.format(iface)
-                if vip_key in vip_group:
-                    if vip not in resource_params[vip_key]:
-                        vip_key = '{}_{}'.format(vip_key, vip_params)
-                    else:
-                        hookenv.log(
-                            "Resource '%s' (vip='%s') already exists in "
-                            "vip group - skipping" % (vip_key, vip),
-                            hookenv.WARNING)
-                        continue
-
-                resources[vip_key] = res_nova_vip
-                resource_params[vip_key] = (
-                    'params {ip}="{vip}" cidr_netmask="{netmask}"'
-                    ' nic="{iface}"'.format(ip=vip_params,
-                                            vip=vip,
-                                            iface=iface,
-                                            netmask=netmask)
-                )
-                vip_group.append(vip_key)
-
-            if len(vip_group) >= 1:
-                hookenv.relation_set(
-                    groups={'grp_nova_vips': ' '.join(vip_group)})
-
+    ha_console_settings = {}
+    if not hookenv.config('dns-ha'):
         if (hookenv.config('single-nova-consoleauth') and
                 common.console_attributes('protocol')):
-            colocations['vip_consoleauth'] = COLO_CONSOLEAUTH
-            init_services['res_nova_consoleauth'] = 'nova-consoleauth'
-            resources['res_nova_consoleauth'] = AGENT_CONSOLEAUTH
-            resource_params['res_nova_consoleauth'] = AGENT_CA_PARAMS
+            ha_console_settings = {
+                'colocations': {'vip_consoleauth': COLO_CONSOLEAUTH},
+                'init_services': {'res_nova_consoleauth': 'nova-consoleauth'},
+                'resources': {'res_nova_consoleauth': AGENT_CONSOLEAUTH},
+                'resource_params': {'res_nova_consoleauth': AGENT_CA_PARAMS}}
 
-    hookenv.relation_set(relation_id=relation_id,
-                         init_services=init_services,
-                         corosync_bindiface=cluster_config['ha-bindiface'],
-                         corosync_mcastport=cluster_config['ha-mcastport'],
-                         resources=resources,
-                         resource_params=resource_params,
-                         clones=clones,
-                         colocations=colocations)
+    settings = ch_ha_utils.generate_ha_relation_data(
+        'nova',
+        extra_settings=ha_console_settings)
+
+    hookenv.relation_set(relation_id=relation_id, **settings)
 
 
 @hooks.hook('ha-relation-changed')
