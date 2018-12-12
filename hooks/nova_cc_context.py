@@ -289,6 +289,19 @@ class NovaConfigContext(ch_context.WorkerConfigContext):
         ctxt['ram_allocation_ratio'] = hookenv.config('ram-allocation-ratio')
         addr = ch_ip.resolve_address(ch_ip.INTERNAL)
         ctxt['host_ip'] = ch_network_ip.format_ipv6_addr(addr) or addr
+        ctxt['quota_instances'] = hookenv.config('quota-instances')
+        ctxt['quota_cores'] = hookenv.config('quota-cores')
+        ctxt['quota_ram'] = hookenv.config('quota-ram')
+        ctxt['quota_metadata_items'] = hookenv.config('quota-metadata-items')
+        ctxt['quota_injected_files'] = hookenv.config('quota-injected-files')
+        ctxt['quota_injected_file_content_bytes'] = hookenv.config(
+            'quota-injected-file-size')
+        ctxt['quota_injected_file_path_length'] = hookenv.config(
+            'quota-injected-path-size')
+        ctxt['quota_key_pairs'] = hookenv.config('quota-key-pairs')
+        ctxt['quota_server_groups'] = hookenv.config('quota-server-groups')
+        ctxt['quota_server_group_members'] = hookenv.config(
+            'quota-server-group-members')
         return ctxt
 
 

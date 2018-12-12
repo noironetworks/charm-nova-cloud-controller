@@ -323,6 +323,36 @@ class NovaComputeContextTests(CharmTestCase):
                          self.config('ram-allocation-ratio'))
         self.assertEqual(ctxt['disk_allocation_ratio'],
                          self.config('disk-allocation-ratio'))
+        self.assertEqual(ctxt['quota_instances'],
+                         self.config('quota-instances'))
+        self.assertEqual(ctxt['quota_instances'], None)
+        self.assertEqual(ctxt['quota_cores'],
+                         self.config('quota-cores'))
+        self.assertEqual(ctxt['quota_cores'], None)
+        self.assertEqual(ctxt['quota_ram'],
+                         self.config('quota-ram'))
+        self.assertEqual(ctxt['quota_ram'], None)
+        self.assertEqual(ctxt['quota_metadata_items'],
+                         self.config('quota-metadata-items'))
+        self.assertEqual(ctxt['quota_metadata_items'], None)
+        self.assertEqual(ctxt['quota_injected_files'],
+                         self.config('quota-injected-files'))
+        self.assertEqual(ctxt['quota_injected_files'], None)
+        self.assertEqual(ctxt['quota_injected_file_content_bytes'],
+                         self.config('quota-injected-file-size'))
+        self.assertEqual(ctxt['quota_injected_file_content_bytes'], None)
+        self.assertEqual(ctxt['quota_injected_file_path_length'],
+                         self.config('quota-injected-path-size'))
+        self.assertEqual(ctxt['quota_injected_file_path_length'], None)
+        self.assertEqual(ctxt['quota_key_pairs'],
+                         self.config('quota-key-pairs'))
+        self.assertEqual(ctxt['quota_key_pairs'], None)
+        self.assertEqual(ctxt['quota_server_groups'],
+                         self.config('quota-server-groups'))
+        self.assertEqual(ctxt['quota_server_groups'], None)
+        self.assertEqual(ctxt['quota_server_group_members'],
+                         self.config('quota-server-group-members'))
+        self.assertEqual(ctxt['quota_server_group_members'], None)
 
     _pci_alias1 = {
         "name": "IntelNIC",
