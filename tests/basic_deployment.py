@@ -15,6 +15,7 @@
 import amulet
 import json
 import tempfile
+import os
 
 from charmhelpers.contrib.openstack.amulet.deployment import (
     OpenStackAmuletDeployment
@@ -823,8 +824,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             services['apache2'] = conf_file
 
         # Expected default and alternate values
-        flags_default = 'quota_cores=20,quota_instances=40,quota_ram=102400'
-        flags_alt = 'quota_cores=10,quota_instances=20,quota_ram=51200'
+        flags_default = 'cpu-allocation-ratio=16.0,ram-allocation-ratio=1.5'
+        flags_alt = 'cpu-allocation-ratio=32.0,ram-allocation-ratio=3.0'
         set_default = {'config-flags': flags_default}
         set_alternate = {'config-flags': flags_alt}
 
@@ -857,3 +858,64 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         action_id = u.run_action(self.nova_cc_sentry, "resume")
         assert u.wait_on_action(action_id), "Resume action failed"
         self._assert_services(should_run=True)
+
+    def test_902_default_quota_settings(self):
+        """Test default quota settings."""
+        config_file = '/etc/nova/nova.conf'
+        quotas = {
+            'quota-instances': 20,
+            'quota-cores': 40,
+            'quota-ram': 102400,
+            'quota-metadata-items': 256,
+            'quota-injected-files': 10,
+            'quota-injected-file-size': 20480,
+            'quota-injected-path-size': 512,
+            'quota-key-pairs': 200,
+            'quota-server-groups': 20,
+            'quota-server-group-members': 20,
+        }
+        cmp_os_release = CompareOpenStackReleases(
+            self._get_openstack_release_string()
+        )
+        if cmp_os_release > 'newton':
+            section = 'quota'
+        else:
+            section = 'DEFAULT'
+        u.log.debug('Changing quotas in charm config')
+        self.d.configure('nova-cloud-controller', quotas)
+        self._auto_wait_for_status(exclude_services=self.exclude_services)
+        self.d.sentry.wait()
+
+        if not u.validate_config_data(self.nova_cc_sentry, config_file,
+                                      section, quotas):
+            amulet.raise_status(amulet.FAIL, msg='update failed')
+
+        u.log.debug('New default quotas found in correct section in nova.conf')
+        u.log.debug('test_902_default_quota_settings PASSED - (OK)')
+
+        # Amulet test framework currently does not support setting charm-config
+        # values to None when an integer is expected by the configuration.
+        # By default, the quota settings are not written to nova.conf unless
+        # explicitly set. In order to keep tests idempotent, the following juju
+        # CLI commands are run to reset the quota values to None.
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-instances")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-cores")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-ram")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-metadata-items")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-injected-files")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-injected-file-size")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-injected-path-size")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-key-pairs")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-server-groups")
+        os.system("juju config nova-cloud-controller --reset"
+                  " quota-server-group-members")
+        self._auto_wait_for_status(exclude_services=self.exclude_services)

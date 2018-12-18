@@ -449,3 +449,89 @@ options:
       .
       Only supported in OpenStack Newton and higher. For deployments prior to
       Queens this value should be set in the neutron-gateway charm.
+  quota-instances:
+    type: int
+    default:
+    description: |
+      The number of instances allowed per project.
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-cores:
+    type: int
+    default:
+    description: |
+      The number of instance cores or vCPUs allowed per project.
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-ram:
+    type: int
+    default:
+    description: |
+      The number of megabytes of instance RAM allowed per project.
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-metadata-items:
+    type: int
+    default:
+    description: |
+      The number of metadata items allowed per instance.
+      .
+      Users can associate metadata with an instance during instance creation.
+      This metadata takes the form of key-value pairs.
+      .
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-injected-files:
+    type: int
+    default:
+    description: |
+      The number of injected files allowed.
+      .
+      File injection allows users to customize the personality of an instance
+      by injecting data into it upon boot.
+      Only text file injection is permitted: binary or ZIP files are not accepted.
+      During file injection, any existing files that match specified files are
+      renamed to include .bak extension appended with a timestamp.
+      .
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-injected-file-size:
+    type: int
+    default:
+    description: |
+      The number of bytes allowed per injected file.
+      .
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-injected-path-size:
+    type: int
+    default:
+    description: |
+      The maximum allowed injected file path length.
+      .
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-key-pairs:
+    type: int
+    default:
+    description: |
+      The maximum number of key pairs allowed per user.
+      .
+      Users can create at least one key pair for each project and use the key
+      pair for multiple instances that belong to that project.
+      .
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-server-groups:
+    type: int
+    default:
+    description: |
+      The maxiumum number of server groups per project. Not supported in Icehouse
+      and before
+      .
+      Server groups are used to control the affinity and anti-affinity
+      scheduling policy for a group of servers or instances. Reducing the
+      quota will not affect any existing group, but new servers will not be
+      allowed into groups that have become over quota.
+      .
+      Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-server-group-members:
+    type: int
+    default:
+    description: |
+      The maximum number of servers per server group. Not supported in Icehouse
+      and before
+      .
+      Possible Values are positive integers or 0 and -1 to disable the quota.
