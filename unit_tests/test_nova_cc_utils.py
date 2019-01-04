@@ -1328,7 +1328,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertEqual(mock_popen.mock_calls, expectd_calls)
 
     @patch('subprocess.Popen')
-    def test_archive_deleted_rows_excpetion(self, mock_popen):
+    def test_archive_deleted_rows_exception(self, mock_popen):
         process_mock = MagicMock()
         attrs = {
             'communicate.return_value': ('output', 'error'),
