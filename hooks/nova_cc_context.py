@@ -207,7 +207,15 @@ class HAProxyContext(ch_context.HAProxyContext):
         ctxt['service_ports'] = port_mapping
         # for nova.conf
         ctxt['listen_ports'] = listen_ports
-        ctxt['port'] = placement_api
+        return ctxt
+
+
+class PlacementAPIHAProxyContext(HAProxyContext):
+    """Context for the nova placement api service."""
+
+    def __call__(self):
+        ctxt = super(PlacementAPIHAProxyContext, self).__call__()
+        ctxt['port'] = ctxt['listen_ports']['placement_listen_port']
         return ctxt
 
 
