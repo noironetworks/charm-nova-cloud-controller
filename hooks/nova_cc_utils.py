@@ -284,8 +284,11 @@ def resource_map(actual_services=True):
         _resource_map[WSGI_NOVA_PLACEMENT_API_CONF] = {
             'contexts': [
                 ch_context.WSGIWorkerConfigContext(
-                    name="nova", script=wsgi_script),
-                nova_cc_context.HAProxyContext()],
+                    name="nova_placement",
+                    user="nova",
+                    group="nova",
+                    script=wsgi_script),
+                nova_cc_context.PlacementAPIHAProxyContext()],
             'services': ['apache2']
         }
     elif not placement_api_enabled():
