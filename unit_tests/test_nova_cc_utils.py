@@ -153,6 +153,17 @@ RESTART_MAP_OCATA_BASE = OrderedDict([
     ('/etc/haproxy/haproxy.cfg', ['haproxy']),
     ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2'])
 ])
+RESTART_MAP_ROCKY_ACTUAL = OrderedDict([
+    ('/etc/nova/nova.conf', [
+        'nova-scheduler', 'nova-conductor', 'apache2',
+    ]),
+    ('/etc/nova/api-paste.ini', ['apache2']),
+    ('/etc/haproxy/haproxy.cfg', ['haproxy']),
+    ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
+    ('/etc/apache2/sites-enabled/wsgi-api-os-compute.conf', ['apache2']),
+    ('/etc/apache2/sites-enabled/wsgi-openstack-api.conf', ['apache2']),
+    ('/etc/apache2/sites-enabled/wsgi-openstack-metadata.conf', ['apache2']),
+])
 
 
 DPKG_OPTS = [
@@ -351,6 +362,19 @@ class NovaCCUtilsTests(CharmTestCase):
         _map = utils.restart_map()
         self.assertIsInstance(_map, OrderedDict)
         self.assertEqual(_map, RESTART_MAP_OCATA_ACTUAL)
+
+    @patch('charmhelpers.contrib.openstack.neutron.os_release')
+    @patch('os.path.exists')
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_restart_map_api_actual_rocky(
+            self, subcontext, _exists, _os_release):
+        _os_release.return_value = 'rocky'
+        self.os_release.return_value = 'rocky'
+        _exists.return_value = False
+        self.enable_memcache.return_value = False
+        _map = utils.restart_map()
+        self.assertIsInstance(_map, OrderedDict)
+        self.assertEqual(_map, RESTART_MAP_ROCKY_ACTUAL)
 
     @patch('charmhelpers.contrib.openstack.neutron.os_release')
     @patch('os.path.exists')

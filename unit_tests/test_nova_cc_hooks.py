@@ -110,6 +110,7 @@ class NovaCCHooksTests(CharmTestCase):
         super(NovaCCHooksTests, self).tearDown()
 
     def test_install_hook(self):
+        self.os_release.return_value = 'rocky'
         self.determine_packages.return_value = [
             'nova-scheduler', 'nova-api-ec2']
         self.determine_ports.return_value = [80, 81, 82]

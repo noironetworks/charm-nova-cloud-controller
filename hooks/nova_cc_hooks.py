@@ -192,8 +192,8 @@ def install():
     ch_fetch.apt_update()
     ch_fetch.apt_install(ncc_utils.determine_packages(), fatal=True)
 
-    if ncc_utils.placement_api_enabled():
-        ncc_utils.disable_package_apache_site()
+    ncc_utils.disable_package_apache_site()
+    ncc_utils.stop_deprecated_services()
 
     _files = os.path.join(hookenv.charm_dir(), 'files')
     if os.path.isdir(_files):
@@ -956,6 +956,9 @@ def upgrade_charm():
         hookenv.log("Package purge detected, restarting services", "INFO")
         for s in ncc_utils.services():
             ch_host.service_restart(s)
+
+    ncc_utils.stop_deprecated_services()
+    ncc_utils.disable_package_apache_site(service_reload=True)
 
     for r_id in hookenv.relation_ids('amqp'):
         amqp_joined(relation_id=r_id)

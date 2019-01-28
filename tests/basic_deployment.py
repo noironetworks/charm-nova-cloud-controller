@@ -80,6 +80,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         )
         if cmp_os_release >= 'newton':
             services.remove('nova-cert')
+        if cmp_os_release >= 'rocky':
+            services.remove('nova-api-os-compute')
         u.get_unit_process_ids(
             {self.nova_cc_sentry: services},
             expect_success=should_run)
@@ -323,6 +325,10 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         if self._get_openstack_release() >= self.xenial_ocata:
             services[self.nova_compute_sentry].remove('nova-network')
             services[self.nova_compute_sentry].remove('nova-api')
+
+        if self._get_openstack_release() >= self.bionic_rocky:
+            services[self.nova_cc_sentry].remove('nova-api-os-compute')
+            services[self.nova_cc_sentry].append('apache2')
 
         ret = u.validate_services_by_name(services)
         if ret:
@@ -817,6 +823,10 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
 
         if cmp_os_release >= 'newton':
             del services['nova-cert']
+
+        if cmp_os_release >= 'rocky':
+            del services['nova-api-os-compute']
+            services['apache2'] = conf_file
 
         if self._get_openstack_release() >= self.xenial_ocata:
             # nova-placement-api is run under apache2 with mod_wsgi

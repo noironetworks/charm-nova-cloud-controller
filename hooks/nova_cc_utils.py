@@ -111,6 +111,10 @@ PACKAGE_NOVA_PLACEMENT_API_CONF = \
     '/etc/apache2/sites-enabled/nova-placement-api.conf'
 WSGI_NOVA_METADATA_API_CONF = \
     '/etc/apache2/sites-enabled/wsgi-openstack-metadata.conf'
+PACKAGE_NOVA_API_OS_COMPUTE_CONF = \
+    '/etc/apache2/sites-available/nova-api-os-compute.conf'
+WSGI_NOVA_API_OS_COMPUTE_CONF = \
+    '/etc/apache2/sites-enabled/wsgi-api-os-compute.conf'
 VENDORDATA_FILE = '/etc/nova/vendor_data.json'
 
 
@@ -214,6 +218,26 @@ SERIAL_CONSOLE = {
 }
 
 
+def _replace_service_with_apache2(service, wsgi_script, wsgi_config,
+                                  resource_map, context):
+    for cfile in resource_map:
+        svcs = resource_map[cfile]['services']
+        if service in svcs:
+            svcs.remove(service)
+            if 'apache2' not in svcs:
+                svcs.append('apache2')
+    resource_map[wsgi_config] = {
+        'contexts': [
+            ch_context.WSGIWorkerConfigContext(
+                name=service,
+                script=wsgi_script,
+                user='nova',
+                group='nova'
+            ),
+            context],
+        'services': ['apache2']}
+
+
 def resource_map(actual_services=True):
     '''
     Dynamically generate a map of resources that will be managed for a single
@@ -271,24 +295,24 @@ def resource_map(actual_services=True):
             'contexts': [ch_context.MemcacheContext()],
             'services': ['memcached']}
 
+    if (actual_services and
+            ch_utils.CompareOpenStackReleases(release) >= 'rocky'):
+        # For Rocky we decided to switch from systemd to use apache2
+        # wsgi mod for the service nova-api-os-compute.
+        _replace_service_with_apache2(
+            'nova-api-os-compute',
+            '/usr/bin/nova-api-wsgi',
+            WSGI_NOVA_API_OS_COMPUTE_CONF,
+            _resource_map,
+            nova_cc_context.ComputeAPIHAProxyContext())
+
     if actual_services and placement_api_enabled():
-        for cfile in _resource_map:
-            svcs = _resource_map[cfile]['services']
-            if 'nova-placement-api' in svcs:
-                svcs.remove('nova-placement-api')
-                if 'apache2' not in svcs:
-                    svcs.append('apache2')
-        wsgi_script = "/usr/bin/nova-placement-api"
-        _resource_map[WSGI_NOVA_PLACEMENT_API_CONF] = {
-            'contexts': [
-                ch_context.WSGIWorkerConfigContext(
-                    name="nova_placement",
-                    user="nova",
-                    group="nova",
-                    script=wsgi_script),
-                nova_cc_context.PlacementAPIHAProxyContext()],
-            'services': ['apache2']
-        }
+        _replace_service_with_apache2(
+            'nova-placement-api',
+            '/usr/bin/nova-placement-api',
+            WSGI_NOVA_PLACEMENT_API_CONF,
+            _resource_map,
+            nova_cc_context.PlacementAPIHAProxyContext())
     elif not placement_api_enabled():
         for cfile in _resource_map:
             svcs = _resource_map[cfile]['services']
@@ -567,6 +591,7 @@ def _do_openstack_upgrade(new_src):
     remove_old_packages()
 
     disable_policy_rcd()
+    stop_deprecated_services()
 
     # NOTE(jamespage) upgrade with existing config files as the
     # havana->icehouse migration enables new service_plugins which
@@ -1456,12 +1481,34 @@ def enable_metadata_api(release=None):
     return ch_utils.CompareOpenStackReleases(release) >= 'rocky'
 
 
-def disable_package_apache_site():
+def disable_package_apache_site(service_reload=False):
     """Ensure that the package-provided apache configuration is disabled to
     prevent it from conflicting with the charm-provided version.
     """
-    if os.path.exists(PACKAGE_NOVA_PLACEMENT_API_CONF):
-        subprocess.check_call(['a2dissite', 'nova-placement-api'])
+    site_changed = False
+    if placement_api_enabled():
+        if os.path.exists(PACKAGE_NOVA_PLACEMENT_API_CONF):
+            subprocess.check_call(['a2dissite', 'nova-placement-api'])
+            site_changed = True
+    if os.path.exists(PACKAGE_NOVA_API_OS_COMPUTE_CONF):
+        # Even if using systemd or apache for the service we want
+        # remove the conf created by the package installed if exists
+        subprocess.check_call(['a2dissite', 'nova-api-os-compute'])
+        site_changed = True
+
+    if site_changed and service_reload:
+        ch_host.service_reload('apache2', restart_on_failure=True)
+
+
+def stop_deprecated_services():
+    """Stop services that are not used anymore.
+
+    Note: It may be important to also disable the service, see:
+    resource_map.
+    """
+    release = ch_utils.os_release('nova-common')
+    if ch_utils.CompareOpenStackReleases(release) >= 'rocky':
+        ch_host.service_pause('nova-api-os-compute')
 
 
 def get_shared_metadatasecret():
