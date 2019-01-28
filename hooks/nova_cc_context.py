@@ -219,6 +219,15 @@ class PlacementAPIHAProxyContext(HAProxyContext):
         return ctxt
 
 
+class ComputeAPIHAProxyContext(HAProxyContext):
+    """Context for the nova os compute api service."""
+
+    def __call__(self):
+        ctxt = super(ComputeAPIHAProxyContext, self).__call__()
+        ctxt['port'] = ctxt['listen_ports']['osapi_compute_listen_port']
+        return ctxt
+
+
 class MetaDataHAProxyContext(HAProxyContext):
     """Context for the nova metadata service."""
 
