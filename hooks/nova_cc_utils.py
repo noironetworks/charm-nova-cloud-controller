@@ -106,9 +106,11 @@ APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
 MEMCACHED_CONF = '/etc/memcached.conf'
 WSGI_NOVA_PLACEMENT_API_CONF = \
-    '/etc/apache2/sites-enabled/wsgi-openstack-api.conf'
+    '/etc/apache2/sites-enabled/wsgi-placement-api.conf'
 PACKAGE_NOVA_PLACEMENT_API_CONF = \
     '/etc/apache2/sites-enabled/nova-placement-api.conf'
+OLD_WSGI_NOVA_PLACEMENT_API_CONF = \
+    '/etc/apache2/sites-enabled/wsgi-openstack-api.conf'
 WSGI_NOVA_METADATA_API_CONF = \
     '/etc/apache2/sites-enabled/wsgi-openstack-metadata.conf'
 VENDORDATA_FILE = '/etc/nova/vendor_data.json'
@@ -562,6 +564,7 @@ def _do_openstack_upgrade(new_src):
     ch_fetch.apt_install(determine_packages(), fatal=True)
 
     remove_old_packages()
+    disable_package_apache_site()
 
     disable_policy_rcd()
 
@@ -1453,12 +1456,30 @@ def enable_metadata_api(release=None):
     return ch_utils.CompareOpenStackReleases(release) >= 'rocky'
 
 
-def disable_package_apache_site():
-    """Ensure that the package-provided apache configuration is disabled to
-    prevent it from conflicting with the charm-provided version.
+def disable_package_apache_site(service_reload=False):
+    """Ensure the package-provided apache2 configuration is disabled.
+
+    This ensures the package-provided apache2 configuration doesn't
+    conflict with the charm-provided version.
+
+    :param service_reload: Boolean that indicates the service should
+    be reloaded if a change occurred in sites-enabled.
+
     """
-    if os.path.exists(PACKAGE_NOVA_PLACEMENT_API_CONF):
-        subprocess.check_call(['a2dissite', 'nova-placement-api'])
+    site_changed = False
+    if placement_api_enabled():
+        if os.path.exists(PACKAGE_NOVA_PLACEMENT_API_CONF):
+            subprocess.check_call(['a2dissite', 'nova-placement-api'])
+            site_changed = True
+        if os.path.exists(OLD_WSGI_NOVA_PLACEMENT_API_CONF):
+            # wsgi-openstack-api.conf is generated is copied as a plain
+            # text to sites-enables. a2dissite does not accept to remove
+            # "file" that is not symlink from sites-available.
+            os.remove(OLD_WSGI_NOVA_PLACEMENT_API_CONF)
+            site_changed = True
+
+    if site_changed and service_reload:
+        ch_host.service_reload('apache2', restart_on_failure=True)
 
 
 def get_shared_metadatasecret():

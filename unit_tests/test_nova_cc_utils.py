@@ -140,7 +140,7 @@ RESTART_MAP_OCATA_ACTUAL = OrderedDict([
     ('/etc/nova/api-paste.ini', ['nova-api-os-compute', 'apache2']),
     ('/etc/haproxy/haproxy.cfg', ['haproxy']),
     ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
-    ('/etc/apache2/sites-enabled/wsgi-openstack-api.conf', ['apache2']),
+    ('/etc/apache2/sites-enabled/wsgi-placement-api.conf', ['apache2']),
 ])
 RESTART_MAP_OCATA_BASE = OrderedDict([
     ('/etc/nova/nova.conf', [
@@ -968,6 +968,37 @@ class NovaCCUtilsTests(CharmTestCase):
         self.register_configs.assert_called_with(release='mitaka')
         self.assertFalse(migrate_nova_databases.called)
         database_setup.assert_called_with(prefix='novaapi')
+
+    @patch.object(utils, 'online_data_migrations_if_needed')
+    @patch.object(utils, 'disable_package_apache_site')
+    @patch.object(utils, 'database_setup')
+    @patch.object(utils, 'get_step_upgrade_source')
+    @patch.object(utils, 'migrate_nova_databases')
+    @patch.object(utils, 'determine_packages')
+    def test_upgrade_queens_rocky(self, determine_packages,
+                                  migrate_nova_databases,
+                                  get_step_upgrade_source,
+                                  database_setup,
+                                  disable_package_apache_site,
+                                  online_data_migrations_if_needed):
+        "Simulate a call to do_openstack_upgrade() for queens->rocky"
+        self.test_config.set('openstack-origin', 'cloud:bionic-queens')
+        get_step_upgrade_source.return_value = None
+        self.os_release.return_value = 'queens'
+        self.get_os_codename_install_source.return_value = 'rocky'
+        self.is_leader.return_value = True
+        self.relation_ids.return_value = []
+        database_setup.return_value = False
+        utils.do_openstack_upgrade(self.register_configs())
+        self.apt_update.assert_called_with(fatal=True)
+        self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
+                                            dist=True)
+        self.apt_install.assert_called_with(determine_packages(), fatal=True)
+        self.register_configs.assert_called_with(release='rocky')
+        self.assertFalse(migrate_nova_databases.called)
+        database_setup.assert_called_with(prefix='novaapi')
+        online_data_migrations_if_needed.assert_called_once()
+        disable_package_apache_site.assert_called_once()
 
     def test_guard_map_nova(self):
         self.relation_ids.return_value = []

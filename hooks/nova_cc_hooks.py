@@ -898,6 +898,12 @@ def upgrade_charm():
         for s in ncc_utils.services():
             ch_host.service_restart(s)
 
+    # For users already using bionic-rocky which are upgrading their
+    # charm only we need ensure to not end-up with the old
+    # 'wsgi-openstack-api' and the new 'wsgi-placement-api' apache
+    # configurations installed at the same time.
+    ncc_utils.disable_package_apache_site(service_reload=True)
+
     for r_id in hookenv.relation_ids('amqp'):
         amqp_joined(relation_id=r_id)
     for r_id in hookenv.relation_ids('identity-service'):
