@@ -304,6 +304,7 @@ class NovaConfigContext(ch_context.WorkerConfigContext):
         ctxt['disk_allocation_ratio'] = hookenv.config('disk-allocation-ratio')
         ctxt['cpu_allocation_ratio'] = hookenv.config('cpu-allocation-ratio')
         ctxt['ram_allocation_ratio'] = hookenv.config('ram-allocation-ratio')
+        ctxt['enable_new_services'] = hookenv.config('enable-new-services')
         addr = ch_ip.resolve_address(ch_ip.INTERNAL)
         ctxt['host_ip'] = ch_network_ip.format_ipv6_addr(addr) or addr
         ctxt['quota_instances'] = hookenv.config('quota-instances')

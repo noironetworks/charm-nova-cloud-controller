@@ -353,6 +353,8 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual(ctxt['quota_server_group_members'],
                          self.config('quota-server-group-members'))
         self.assertEqual(ctxt['quota_server_group_members'], None)
+        self.assertEqual(ctxt['enable_new_services'],
+                         self.config('enable-new-services'))
 
     _pci_alias1 = {
         "name": "IntelNIC",
