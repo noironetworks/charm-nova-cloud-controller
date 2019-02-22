@@ -471,17 +471,18 @@ class NovaMetadataContext(ch_context.OSContextGenerator):
             ch_utils.os_release('nova-common'))
         ctxt = {}
         if cmp_os_release >= 'rocky':
-            ctxt['vendordata_providers'] = []
+            vdata_providers = []
             vdata = hookenv.config('vendor-data')
             vdata_url = hookenv.config('vendor-data-url')
 
             if vdata:
                 ctxt['vendor_data'] = True
-                ctxt['vendordata_providers'].append('StaticJSON')
+                vdata_providers.append('StaticJSON')
 
             if vdata_url:
                 ctxt['vendor_data_url'] = vdata_url
-                ctxt['vendordata_providers'].append('DynamicJSON')
+                vdata_providers.append('DynamicJSON')
+            ctxt['vendordata_providers'] = ','.join(vdata_providers)
             ctxt['metadata_proxy_shared_secret'] = hookenv.leader_get(
                 'shared-metadata-secret')
             ctxt['enable_metadata'] = True

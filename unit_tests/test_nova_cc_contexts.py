@@ -504,7 +504,7 @@ class NovaComputeContextTests(CharmTestCase):
         ctxt = context.NovaMetadataContext()()
 
         self.assertTrue(ctxt['vendor_data'])
-        self.assertEqual(ctxt['vendordata_providers'], ['StaticJSON'])
+        self.assertEqual(ctxt['vendordata_providers'], 'StaticJSON')
 
     def test_vendordata_dynamic(self):
         _vdata_url = 'http://example.org/vdata'
@@ -514,7 +514,7 @@ class NovaComputeContextTests(CharmTestCase):
         ctxt = context.NovaMetadataContext()()
 
         self.assertEqual(ctxt['vendor_data_url'], _vdata_url)
-        self.assertEqual(ctxt['vendordata_providers'], ['DynamicJSON'])
+        self.assertEqual(ctxt['vendordata_providers'], 'DynamicJSON')
 
     def test_vendordata_static_and_dynamic(self):
         self.os_release.return_value = 'rocky'
@@ -527,8 +527,8 @@ class NovaComputeContextTests(CharmTestCase):
 
         self.assertTrue(ctxt['vendor_data'])
         self.assertEqual(ctxt['vendor_data_url'], _vdata_url)
-        self.assertEqual(ctxt['vendordata_providers'], ['StaticJSON',
-                                                        'DynamicJSON'])
+        self.assertEqual(ctxt['vendordata_providers'],
+                         'StaticJSON,DynamicJSON')
 
     def test_vendordata_mitaka(self):
         self.os_release.return_value = 'mitaka'
