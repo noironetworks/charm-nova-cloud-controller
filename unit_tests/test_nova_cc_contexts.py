@@ -150,6 +150,7 @@ class NovaComputeContextTests(CharmTestCase):
                              mock_get_address_in_network, mock_kv, mock_https,
                              mock_unit_get, mock_network_manager, mock_mkdir,
                              mock_get_relation_ip, mock_config):
+        self.os_release.return_value = 'ocata'
         mock_config.side_effect = self.test_config.get
         mock_https.return_value = False
         mock_unit_get.return_value = '127.0.0.1'
@@ -157,6 +158,21 @@ class NovaComputeContextTests(CharmTestCase):
         ctxt = context.HAProxyContext()()
         self.assertEqual(ctxt['service_ports']['nova-api-os-compute'],
                          [8774, 8764])
+        self.assertTrue('nova-placement-api' in ctxt['service_ports'])
+        self.assertTrue('nova-api-ec2' not in ctxt['service_ports'])
+        self.assertTrue('nova-objectstore' not in ctxt['service_ports'])
+
+        self.os_release.return_value = 'icehouse'
+        ctxt = context.HAProxyContext()()
+        self.assertTrue('nova-placement-api' not in ctxt['service_ports'])
+        self.assertTrue('nova-api-ec2' in ctxt['service_ports'])
+        self.assertTrue('nova-objectstore' in ctxt['service_ports'])
+
+        self.os_release.return_value = 'kilo'
+        ctxt = context.HAProxyContext()()
+        self.assertTrue('nova-placement-api' not in ctxt['service_ports'])
+        self.assertTrue('nova-api-ec2' not in ctxt['service_ports'])
+        self.assertTrue('nova-objectstore' not in ctxt['service_ports'])
 
     @mock.patch('charmhelpers.contrib.openstack.context.config')
     def test_console_ssl_disabled(self, mock_config):

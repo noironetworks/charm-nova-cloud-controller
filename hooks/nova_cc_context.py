@@ -158,6 +158,8 @@ class HAProxyContext(ch_context.HAProxyContext):
         '''
         ctxt = super(HAProxyContext, self).__call__()
 
+        os_rel = ch_utils.os_release('nova-common')
+        cmp_os_rel = ch_utils.CompareOpenStackReleases(os_rel)
         # determine which port api processes should bind to, depending
         # on existence of haproxy + apache frontends
         compute_api = ch_cluster.determine_api_port(
@@ -202,6 +204,16 @@ class HAProxyContext(ch_context.HAProxyContext):
             'nova-api-metadata': [
                 common.api_port('nova-api-metadata'), a_metadata_api],
         }
+
+        if cmp_os_rel >= 'kilo':
+            del listen_ports['ec2_listen_port']
+            del listen_ports['s3_listen_port']
+            del port_mapping['nova-api-ec2']
+            del port_mapping['nova-objectstore']
+
+        if cmp_os_rel < 'ocata':
+            del listen_ports['placement_listen_port']
+            del port_mapping['nova-placement-api']
 
         # for haproxy.conf
         ctxt['service_ports'] = port_mapping
