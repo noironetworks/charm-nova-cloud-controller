@@ -11,3 +11,5 @@ archive-data:
       type: integer
       default: 10000
       description: Archive old data to shadow tables
+security-checklist:
+  description: Validate the running configuration against the OpenStack security guides checklist
