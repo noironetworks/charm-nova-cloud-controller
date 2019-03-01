@@ -834,7 +834,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             services['apache2'] = conf_file
 
         # Expected default and alternate values
-        flags_default = 'cpu-allocation-ratio=16.0,ram-allocation-ratio=1.5'
+        flags_default = 'cpu-allocation-ratio=16.0,ram-allocation-ratio=0.98'
         flags_alt = 'cpu-allocation-ratio=32.0,ram-allocation-ratio=3.0'
         set_default = {'config-flags': flags_default}
         set_alternate = {'config-flags': flags_alt}
