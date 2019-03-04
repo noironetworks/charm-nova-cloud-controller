@@ -258,10 +258,10 @@ options:
       all units on config change.
   scheduler-default-filters:
     type: string
-    default: "RetryFilter,AvailabilityZoneFilter,CoreFilter,RamFilter,ComputeFilter,ComputeCapabilitiesFilter,ImagePropertiesFilter,ServerGroupAntiAffinityFilter,ServerGroupAffinityFilter,DifferentHostFilter,SameHostFilter"
+    default:
     description: |
       List of filter class names to use for filtering hosts when not specified in
-      the request.
+      the request.  The default filters varies based on OpenStack release.
   pci-alias:
     type: string
     default:

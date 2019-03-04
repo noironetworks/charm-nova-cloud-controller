@@ -45,6 +45,7 @@ class NovaComputeContextTests(CharmTestCase):
         self.relation_get.side_effect = self.test_relation.get
         self.config.side_effect = self.test_config.get
         self.log.side_effect = fake_log
+        self.os_release.return_value = 'icehouse'
 
     @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address',
                 lambda *args, **kwargs: None)
@@ -330,6 +331,7 @@ class NovaComputeContextTests(CharmTestCase):
         mock_config.side_effect = self.test_config.get
         mock_config_ip.side_effect = self.test_config.get
         mock_unit_get.return_value = '127.0.0.1'
+        self.test_config.set('scheduler-default-filters', 'TestFilter')
         ctxt = context.NovaConfigContext()()
         self.assertEqual(ctxt['scheduler_default_filters'],
                          self.config('scheduler-default-filters'))
@@ -592,3 +594,18 @@ class NovaComputeContextTests(CharmTestCase):
         self.related_units.return_value = ['nova-cell-conductor/0']
         ctxt = context.NovaCellV2Context()()
         self.assertEqual(ctxt, {})
+
+    def test_default_enabled_filters_icehouse(self):
+        self.os_release.return_value = 'icehouse'
+        self.assertEqual(context.default_enabled_filters(),
+                         context._base_enabled_filters)
+
+    def test_default_enabled_filters_pike(self):
+        self.os_release.return_value = 'pike'
+        self.assertEqual(context.default_enabled_filters(),
+                         context._pike_enabled_filters)
+
+    def test_default_enabled_filters_rocky(self):
+        self.os_release.return_value = 'rocky'
+        self.assertEqual(context.default_enabled_filters(),
+                         context._pike_enabled_filters)

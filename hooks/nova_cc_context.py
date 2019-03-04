@@ -300,11 +300,56 @@ class IdentityServiceContext(ch_context.IdentityServiceContext):
         return ctxt
 
 
+_base_enabled_filters = [
+    "RetryFilter",
+    "AvailabilityZoneFilter",
+    "CoreFilter",
+    "RamFilter",
+    "DiskFilter",
+    "ComputeFilter",
+    "ComputeCapabilitiesFilter",
+    "ImagePropertiesFilter",
+    "ServerGroupAntiAffinityFilter",
+    "ServerGroupAffinityFilter",
+    "DifferentHostFilter",
+    "SameHostFilter",
+]
+
+# NOTE: Core,Ram,Disk filters obsolete due
+#       placement API functionality
+_pike_enabled_filters = [
+    "RetryFilter",
+    "AvailabilityZoneFilter",
+    "ComputeFilter",
+    "ComputeCapabilitiesFilter",
+    "ImagePropertiesFilter",
+    "ServerGroupAntiAffinityFilter",
+    "ServerGroupAffinityFilter",
+    "DifferentHostFilter",
+    "SameHostFilter",
+]
+
+
+def default_enabled_filters():
+    """
+    Determine the list of default filters for scheduler use
+
+    :returns: list of filters to use
+    :rtype: list of str
+    """
+    os_rel = ch_utils.os_release('nova-common')
+    cmp_os_rel = ch_utils.CompareOpenStackReleases(os_rel)
+    if cmp_os_rel >= 'pike':
+        return _pike_enabled_filters
+    return _base_enabled_filters
+
+
 class NovaConfigContext(ch_context.WorkerConfigContext):
     def __call__(self):
         ctxt = super(NovaConfigContext, self).__call__()
         ctxt['scheduler_default_filters'] = (
-            hookenv.config('scheduler-default-filters'))
+            hookenv.config('scheduler-default-filters') or
+            ','.join(default_enabled_filters()))
         if hookenv.config('pci-alias'):
             aliases = json.loads(hookenv.config('pci-alias'))
             if isinstance(aliases, list):
