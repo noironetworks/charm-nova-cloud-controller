@@ -51,44 +51,43 @@ class NovaComputeContextTests(CharmTestCase):
                 lambda *args, **kwargs: None)
     @mock.patch.object(utils, 'os_release')
     @mock.patch('charmhelpers.contrib.network.ip.log')
-    def test_instance_console_context_without_memcache(self, os_release, log_):
+    def test_remote_memcache_context_without_memcache(self, os_release, log_):
         self.relation_ids.return_value = 'cache:0'
         self.related_units.return_value = 'memcached/0'
-        instance_console = context.InstanceConsoleContext()
+        remote_memcache = context.RemoteMemcacheContext()
         os_release.return_value = 'icehouse'
-        self.assertEqual({'memcached_servers': ''},
-                         instance_console())
+        self.assertEqual({}, remote_memcache())
 
     @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address',
                 lambda *args, **kwargs: None)
     @mock.patch.object(utils, 'os_release')
     @mock.patch('charmhelpers.contrib.network.ip.log')
-    def test_instance_console_context_with_memcache(self, os_release, log_):
-        self.check_instance_console_context_with_memcache(os_release,
-                                                          '127.0.1.1',
-                                                          '127.0.1.1')
+    def test_remote_memcache_context_with_memcache(self, os_release, log_):
+        self.check_remote_memcache_context_with_memcache(os_release,
+                                                         '127.0.1.1',
+                                                         '127.0.1.1')
 
     @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address',
                 lambda *args, **kwargs: None)
     @mock.patch.object(utils, 'os_release')
     @mock.patch('charmhelpers.contrib.network.ip.log')
-    def test_instance_console_context_with_memcache_ipv6(self, os_release,
-                                                         log_):
-        self.check_instance_console_context_with_memcache(os_release, '::1',
-                                                          '[::1]')
+    def test_remote_memcache_context_with_memcache_ipv6(self, os_release,
+                                                        log_):
+        self.check_remote_memcache_context_with_memcache(os_release, '::1',
+                                                         '[::1]')
 
-    def check_instance_console_context_with_memcache(self, os_release, ip,
-                                                     formated_ip):
+    def check_remote_memcache_context_with_memcache(self, os_release, ip,
+                                                    formated_ip):
         memcached_servers = [{'private-address': formated_ip,
                               'port': '11211'}]
         self.relation_ids.return_value = ['cache:0']
         self.relations_for_id.return_value = memcached_servers
         self.related_units.return_value = 'memcached/0'
-        instance_console = context.InstanceConsoleContext()
+        remote_memcache = context.RemoteMemcacheContext()
         os_release.return_value = 'icehouse'
         self.maxDiff = None
         self.assertEqual({'memcached_servers': "%s:11211" % (formated_ip, )},
-                         instance_console())
+                         remote_memcache())
 
     @mock.patch('charmhelpers.contrib.openstack.ip.config')
     @mock.patch('charmhelpers.contrib.openstack.neutron.config')

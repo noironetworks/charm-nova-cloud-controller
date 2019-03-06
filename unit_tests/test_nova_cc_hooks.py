@@ -128,13 +128,11 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'update_nrpe_config')
     @patch.object(utils, 'resource_map')
     @patch('hooks.nova_cc_utils.update_aws_compat_services')
-    @patch.object(hooks, 'update_nova_consoleauth_config')
     @patch('hooks.nova_cc_utils.is_db_initialised')
     @patch('charmhelpers.fetch.filter_installed_packages')
     @patch.object(hooks, 'configure_https')
     def test_config_changed_no_upgrade(self, conf_https, mock_filter_packages,
                                        mock_is_db_initialised,
-                                       mock_update_nova_consoleauth_config,
                                        mock_update_aws_compat_services,
                                        mock_resource_map,
                                        mock_update_nrpe_config,
@@ -152,7 +150,6 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.config_changed()
         self.assertTrue(self.save_script_rc.called)
         mock_filter_packages.assert_called_with([])
-        self.assertTrue(mock_update_nova_consoleauth_config.called)
         self.assertTrue(mock_update_aws_compat_services.called)
 
     @patch.object(utils, 'set_shared_metadatasecret')
@@ -160,7 +157,6 @@ class NovaCCHooksTests(CharmTestCase):
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     @patch.object(hooks, 'update_nrpe_config')
     @patch('hooks.nova_cc_utils.update_aws_compat_services')
-    @patch.object(hooks, 'update_nova_consoleauth_config')
     @patch('hooks.nova_cc_utils.is_db_initialised')
     @patch('charmhelpers.fetch.filter_installed_packages')
     @patch.object(hooks, 'configure_https')
@@ -168,7 +164,6 @@ class NovaCCHooksTests(CharmTestCase):
                                   conf_https,
                                   mock_filter_packages,
                                   mock_is_db_initialised,
-                                  mock_update_nova_consoleauth_config,
                                   mock_update_aws_compat_services,
                                   mock_update_nrpe_config,
                                   mock_sub_ctxt,
@@ -188,7 +183,6 @@ class NovaCCHooksTests(CharmTestCase):
             self.assertTrue(wa.called)
         self.assertTrue(self.save_script_rc.called)
         mock_filter_packages.assert_called_with([])
-        self.assertTrue(mock_update_nova_consoleauth_config.called)
         self.assertTrue(mock_update_aws_compat_services.called)
         mock_set_shared_metadatasecret.assert_called_once_with()
 
@@ -197,14 +191,12 @@ class NovaCCHooksTests(CharmTestCase):
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     @patch.object(hooks, 'update_nrpe_config')
     @patch('hooks.nova_cc_utils.update_aws_compat_services')
-    @patch.object(hooks, 'update_nova_consoleauth_config')
     @patch('hooks.nova_cc_utils.is_db_initialised')
     @patch('charmhelpers.fetch.filter_installed_packages')
     @patch.object(hooks, 'configure_https')
     def test_config_changed_no_upgrade_juno(self, conf_https,
                                             mock_filter_packages,
                                             mock_is_db_initialised,
-                                            mock_update_nova_consoleauth_cfg,
                                             mock_update_aws_compat_services,
                                             mock_update_nrpe_config,
                                             mock_sub_ctxt,
@@ -221,7 +213,6 @@ class NovaCCHooksTests(CharmTestCase):
             self.assertTrue(wa.called)
         self.assertTrue(self.save_script_rc.called)
         mock_filter_packages.assert_called_with([])
-        self.assertTrue(mock_update_nova_consoleauth_cfg.called)
         self.assertTrue(mock_update_aws_compat_services.called)
         self.service_pause.assert_called_with('neutron-server')
 
@@ -231,7 +222,6 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(utils, 'resource_map')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     @patch('hooks.nova_cc_utils.update_aws_compat_services')
-    @patch.object(hooks, 'update_nova_consoleauth_config')
     @patch('hooks.nova_cc_utils.is_db_initialised')
     @patch('charmhelpers.fetch.filter_installed_packages')
     @patch.object(hooks, 'configure_https')
@@ -240,7 +230,6 @@ class NovaCCHooksTests(CharmTestCase):
             conf_https,
             mock_filter_packages,
             mock_is_db_initialised,
-            mock_update_nova_consoleauth_cfg,
             mock_update_aws_compat_services,
             mock_sub_ctxt,
             mock_resource_map,
@@ -259,7 +248,6 @@ class NovaCCHooksTests(CharmTestCase):
             hooks.config_changed()
         self.assertTrue(self.save_script_rc.called)
         mock_filter_packages.assert_called_with([])
-        self.assertTrue(mock_update_nova_consoleauth_cfg.called)
         self.assertTrue(mock_update_aws_compat_services.called)
         self.service_pause.assert_called_with('neutron-server')
 
@@ -268,7 +256,6 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'update_nrpe_config')
     @patch.object(utils, 'resource_map')
     @patch('hooks.nova_cc_utils.update_aws_compat_services')
-    @patch.object(hooks, 'update_nova_consoleauth_config')
     @patch('hooks.nova_cc_utils.is_db_initialised')
     @patch.object(hooks, 'quantum_joined')
     @patch('charmhelpers.contrib.openstack.ip.unit_get')
@@ -293,7 +280,6 @@ class NovaCCHooksTests(CharmTestCase):
                                          mock_unit_get,
                                          mock_quantum_joined,
                                          mock_is_db_initialised,
-                                         mock_update_nova_consoleauth_config,
                                          mock_update_aws_compat_services,
                                          mock_resource_map,
                                          mock_update_nrpe_config,
@@ -318,7 +304,6 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(self.save_script_rc.called)
         mock_filter_packages.assert_called_with([])
         self.assertTrue(mock_quantum_joined.called)
-        self.assertTrue(mock_update_nova_consoleauth_config.called)
         self.assertTrue(mock_update_aws_compat_services.called)
 
     @patch.object(utils, 'set_shared_metadatasecret')
@@ -327,7 +312,6 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(utils, 'resource_map')
     @patch('charmhelpers.contrib.hahelpers.cluster.relation_ids')
     @patch('hooks.nova_cc_utils.update_aws_compat_services')
-    @patch.object(hooks, 'update_nova_consoleauth_config')
     @patch('hooks.nova_cc_utils.is_db_initialised')
     @patch('charmhelpers.fetch.filter_installed_packages')
     @patch.object(hooks, 'configure_https')
@@ -338,7 +322,6 @@ class NovaCCHooksTests(CharmTestCase):
                                           mock_config_https,
                                           mock_filter_packages,
                                           mock_is_db_initialised,
-                                          mock_update_nova_consoleauth_config,
                                           mock_update_aws_compat_services,
                                           mock_relation_ids,
                                           mock_resource_map,
@@ -358,7 +341,6 @@ class NovaCCHooksTests(CharmTestCase):
         mock_compute_changed.assert_has_calls([call('generic_rid', 'unit/0')])
         mock_compute_joined.assert_has_calls(
             [call(rid='generic_rid', remote_restart=False)])
-        self.assertTrue(mock_update_nova_consoleauth_config.called)
         self.assertTrue(mock_update_aws_compat_services.called)
 
     @patch('hooks.nova_cc_utils.is_cellv2_init_ready')
@@ -953,154 +935,29 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertEqual(_con_sets, console_settings)
 
     def test_ha_relation_joined(self):
-        self.test_config.set('single-nova-consoleauth', False)
         self.test_config.set('dns-ha', False)
         self.generate_ha_relation_data.return_value = {'ha': 'settings'}
         hooks.ha_joined()
         self.generate_ha_relation_data.assert_called_once_with(
             'nova',
-            extra_settings={})
-        self.relation_set.assert_called_once_with(
-            ha='settings',
-            relation_id=None)
-
-    def test_ha_relation_joined_consoleauth(self):
-        self.test_config.set('single-nova-consoleauth', True)
-        self.test_config.set('console-access-protocol', 'novnc')
-        self.test_config.set('dns-ha', False)
-        self.generate_ha_relation_data.return_value = {'ha': 'settings'}
-        hooks.ha_joined()
-        self.generate_ha_relation_data.assert_called_once_with(
-            'nova',
-            extra_settings={
-                'colocations': {
-                    'vip_consoleauth': ('inf: res_nova_consoleauth '
-                                        'grp_nova_vips')},
-                'init_services': {
-                    'res_nova_consoleauth': 'nova-consoleauth'},
-                'resources': {
-                    'res_nova_consoleauth': 'ocf:openstack:nova-consoleauth'},
-                'resource_params': {
-                    'res_nova_consoleauth': 'op monitor interval="5s"'}})
+            extra_settings={'delete_resources': ['vip_consoleauth',
+                                                 'res_nova_consoleauth']})
         self.relation_set.assert_called_once_with(
             ha='settings',
             relation_id=None)
 
     def test_ha_relation_joined_dnsha(self):
-        self.test_config.set('single-nova-consoleauth', True)
         self.test_config.set('console-access-protocol', 'novnc')
         self.test_config.set('dns-ha', True)
         self.generate_ha_relation_data.return_value = {'ha': 'settings'}
         hooks.ha_joined()
         self.generate_ha_relation_data.assert_called_once_with(
             'nova',
-            extra_settings={})
+            extra_settings={'delete_resources': ['vip_consoleauth',
+                                                 'res_nova_consoleauth']})
         self.relation_set.assert_called_once_with(
             ha='settings',
             relation_id=None)
-
-    @patch.object(utils, 'set_shared_metadatasecret')
-    @patch.object(utils, 'get_shared_metadatasecret')
-    @patch.object(hooks, 'update_nrpe_config')
-    @patch.object(utils, 'resource_map')
-    @patch('hooks.nova_cc_utils.update_aws_compat_services')
-    @patch('hooks.nova_cc_utils.is_db_initialised')
-    @patch('charmhelpers.fetch.filter_installed_packages')
-    @patch.object(hooks, 'configure_https')
-    def test_config_changed_single_consoleauth(self,
-                                               mock_configure_https,
-                                               mock_filter_packages,
-                                               mock_is_db_initialised,
-                                               mock_update_aws_compat_svcs,
-                                               mock_resource_map,
-                                               mock_update_nrpe_config,
-                                               mock_get_shared_metadatasecret,
-                                               mock_set_shared_metadatasecret):
-        mock_resource_map.return_value = {}
-        self.determine_packages.return_value = []
-        mock_is_db_initialised.return_value = False
-        self.is_unit_paused_set.return_value = False
-        self.config_value_changed.return_value = False
-        self.os_release.return_value = 'diablo'
-
-        self.test_config.set('single-nova-consoleauth', True)
-        self.test_config.set('console-access-protocol', 'novnc')
-
-        rids = {'ha': ['ha:1']}
-        self.relation_ids.side_effect = lambda r: rids.get(r, [])
-
-        hooks.resolve_CONFIGS()
-        hooks.config_changed()
-        args = {
-            'delete_resources': [],
-            'init_services': {'res_nova_consoleauth': 'nova-consoleauth'},
-            'resources': {'res_nova_consoleauth':
-                          'ocf:openstack:nova-consoleauth'},
-            'resource_params': {
-                'res_nova_consoleauth': 'op monitor interval="5s"'},
-            'colocations': {
-                'vip_consoleauth': 'inf: res_nova_consoleauth grp_nova_vips'
-            }
-        }
-        self.relation_set.assert_has_calls([
-            call(v, **args) for v in rids['ha']
-        ])
-
-        self.service_pause.assert_has_calls([
-            call('nova-consoleauth')]
-        )
-        mock_filter_packages.assert_called_with([])
-
-        self.assertTrue(mock_update_aws_compat_svcs.called)
-
-    @patch.object(utils, 'get_shared_metadatasecret')
-    @patch.object(hooks, 'update_nrpe_config')
-    @patch.object(utils, 'resource_map')
-    @patch('hooks.nova_cc_utils.update_aws_compat_services')
-    @patch('hooks.nova_cc_utils.is_db_initialised')
-    @patch('charmhelpers.fetch.filter_installed_packages')
-    @patch('hooks.nova_cc_hooks.configure_https')
-    def test_config_changed_single_ca_paused(self,
-                                             mock_configure_https,
-                                             mock_filter_packages,
-                                             mock_is_db_initialised,
-                                             mock_update_aws_compat_svcs,
-                                             mock_resource_map,
-                                             mock_update_nrpe_config,
-                                             mock_get_shared_metadata_secret):
-        mock_resource_map.return_value = {}
-        self.determine_packages.return_value = []
-        mock_is_db_initialised.return_value = False
-        self.is_unit_paused_set.return_value = False
-        self.config_value_changed.return_value = False
-        self.os_release.return_value = 'diablo'
-        self.service_pause.side_effect = Exception
-
-        self.test_config.set('single-nova-consoleauth', False)
-        self.test_config.set('console-access-protocol', 'novnc')
-        rids = {'ha': ['ha:1']}
-
-        def f(r):
-            return rids.get(r, [])
-
-        self.relation_ids.side_effect = f
-        hooks.resolve_CONFIGS()
-        hooks.config_changed()
-        args = {
-            'delete_resources': ['vip_consoleauth', 'res_nova_consoleauth'],
-            'init_services': {},
-            'resources': {},
-            'resource_params': {},
-            'colocations': {}
-        }
-        print("in-test: self.relation_set:", self.relation_set)
-        self.relation_set.assert_has_calls([
-            call(v, **args) for v in rids['ha']
-        ])
-
-        self.assertEqual(self.service_pause.call_count, 0)
-        mock_filter_packages.assert_called_with([])
-        self.assertTrue(mock_update_aws_compat_svcs.called)
 
     @patch('hooks.nova_cc_utils.is_api_ready')
     def helper_test_nova_api_relation_joined(self, tgt, is_api_ready):

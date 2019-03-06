@@ -387,14 +387,13 @@ class NovaIPv6Context(ch_context.BindHostContext):
         return ctxt
 
 
-class InstanceConsoleContext(ch_context.OSContextGenerator):
-    interfaces = []
+class RemoteMemcacheContext(ch_context.OSContextGenerator):
+    interfaces = ['memcache']
 
     def __call__(self):
-        ctxt = {}
         servers = []
         try:
-            for rid in hookenv.relation_ids('memcache'):
+            for rid in hookenv.relation_ids(self.interfaces[0]):
                 for rel in hookenv.relations_for_id(rid):
                     priv_addr = rel['private-address']
                     # Format it as IPv6 address if needed
@@ -406,8 +405,18 @@ class InstanceConsoleContext(ch_context.OSContextGenerator):
                         level='WARNING')
             servers = []
 
-        ctxt['memcached_servers'] = ','.join(servers)
+        if servers:
+            return {
+                'memcached_servers': ','.join(servers)
+            }
+        return {}
 
+
+class InstanceConsoleContext(ch_context.OSContextGenerator):
+    interfaces = []
+
+    def __call__(self):
+        ctxt = {}
         # Configure nova-novncproxy https if nova-api is using https.
         if ch_cluster.https():
             cn = ch_ip.resolve_address(endpoint_type=ch_ip.INTERNAL)

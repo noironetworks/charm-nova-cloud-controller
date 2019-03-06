@@ -174,6 +174,7 @@ def get_base_resource_map():
                     nova_cc_context.NovaIPv6Context(),
                     nova_cc_context.NeutronCCContext(),
                     nova_cc_context.NovaConfigContext(),
+                    nova_cc_context.RemoteMemcacheContext(),
                     nova_cc_context.InstanceConsoleContext(),
                     nova_cc_context.ConsoleSSLContext(),
                     nova_cc_context.CloudComputeContext(),
@@ -271,14 +272,6 @@ def resource_map(actual_services=True):
     if common.console_attributes('services'):
         _resource_map[NOVA_CONF]['services'] += (
             common.console_attributes('services'))
-        # nova-consoleauth will be managed by pacemaker, if
-        # single-nova-consoleauth is used, then don't monitor for the
-        # nova-consoleauth service to be started (LP: #1660244).
-        if (hookenv.config('single-nova-consoleauth') and
-                hookenv.relation_ids('ha')):
-            services = _resource_map[NOVA_CONF]['services']
-            if 'nova-consoleauth' in services:
-                services.remove('nova-consoleauth')
 
     if (hookenv.config('enable-serial-console') and cmp_os_release >= 'juno'):
         _resource_map[NOVA_CONF]['services'] += SERIAL_CONSOLE['services']
@@ -1335,6 +1328,8 @@ def get_optional_interfaces():
         optional_interfaces['cinder'] = ['cinder-volume-service']
     if hookenv.relation_ids('neutron-api'):
         optional_interfaces['neutron-api'] = ['neutron-api']
+    if hookenv.relation_ids('ha'):
+        optional_interfaces['memcache'] = ['memcache']
 
     return optional_interfaces
 

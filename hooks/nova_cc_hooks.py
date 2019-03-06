@@ -63,9 +63,6 @@ hooks = hookenv.Hooks()
 # Note that CONFIGS is now set up via resolve_CONFIGS so that it is not a
 # module load time constraint.
 CONFIGS = None
-COLO_CONSOLEAUTH = 'inf: res_nova_consoleauth grp_nova_vips'
-AGENT_CONSOLEAUTH = 'ocf:openstack:nova-consoleauth'
-AGENT_CA_PARAMS = 'op monitor interval="5s"'
 
 
 def deferred_config(k):
@@ -284,7 +281,6 @@ def config_changed():
             for unit in hookenv.related_units(rid):
                 compute_changed(rid, unit)
 
-    update_nova_consoleauth_config()
     ncc_utils.update_aws_compat_services()
 
     if hookenv.config('vendor-data'):
@@ -293,6 +289,8 @@ def config_changed():
         ncc_utils.set_shared_metadatasecret()
     for rid in hookenv.relation_ids('ha'):
         ha_joined(rid)
+    if not ch_utils.is_unit_paused_set():
+        ch_host.service_resume('nova-consoleauth')
 
 
 @hooks.hook('amqp-relation-joined')
@@ -781,15 +779,10 @@ def cluster_changed():
 @hooks.hook('ha-relation-joined')
 def ha_joined(relation_id=None):
     ha_console_settings = {}
-    if not hookenv.config('dns-ha'):
-        if (hookenv.config('single-nova-consoleauth') and
-                common.console_attributes('protocol')):
-            ha_console_settings = {
-                'colocations': {'vip_consoleauth': COLO_CONSOLEAUTH},
-                'init_services': {'res_nova_consoleauth': 'nova-consoleauth'},
-                'resources': {'res_nova_consoleauth': AGENT_CONSOLEAUTH},
-                'resource_params': {'res_nova_consoleauth': AGENT_CA_PARAMS}}
-
+    ha_console_settings['delete_resources'] = [
+        'vip_consoleauth',
+        'res_nova_consoleauth'
+    ]
     settings = ch_ha_utils.generate_ha_relation_data(
         'nova',
         extra_settings=ha_console_settings)
@@ -810,8 +803,6 @@ def ha_changed():
                 'keystone endpoint configuration')
     for rid in hookenv.relation_ids('identity-service'):
         identity_joined(rid=rid)
-
-    update_nova_consoleauth_config()
 
 
 @hooks.hook('shared-db-relation-broken')
@@ -918,7 +909,6 @@ def upgrade_charm():
     leader_init_db_if_ready_allowed_units()
 
     update_nrpe_config()
-    update_nova_consoleauth_config()
 
 
 @hooks.hook('neutron-api-relation-joined')
@@ -997,67 +987,6 @@ def memcached_common():
 @ch_utils.pausable_restart_on_change(ncc_utils.restart_map, stopstart=True)
 def zeromq_configuration_relation_changed():
     CONFIGS.write(ncc_utils.NOVA_CONF)
-
-
-def update_nova_consoleauth_config():
-    """
-    Configure nova-consoleauth pacemaker resources
-    """
-    relids = hookenv.relation_ids('ha')
-    if len(relids) == 0:
-        hookenv.log('Related to {} ha services'.format(len(relids)),
-                    level=hookenv.DEBUG)
-        ha_relid = None
-        data = {}
-    else:
-        ha_relid = relids[0]
-        data = hookenv.relation_get(rid=ha_relid) or {}
-
-    # initialize keys in case this is a new dict
-    data.setdefault('delete_resources', [])
-    for k in ['colocations', 'init_services', 'resources', 'resource_params']:
-        data.setdefault(k, {})
-
-    if (hookenv.config('single-nova-consoleauth') and
-            common.console_attributes('protocol')):
-        for item in ['vip_consoleauth', 'res_nova_consoleauth']:
-            try:
-                data['delete_resources'].remove(item)
-            except ValueError:
-                pass  # nothing to remove, we are good
-
-        # the new pcmkr resources have to be added to the existing ones
-        data['colocations']['vip_consoleauth'] = COLO_CONSOLEAUTH
-        data['init_services']['res_nova_consoleauth'] = 'nova-consoleauth'
-        data['resources']['res_nova_consoleauth'] = AGENT_CONSOLEAUTH
-        data['resource_params']['res_nova_consoleauth'] = AGENT_CA_PARAMS
-
-        for rid in hookenv.relation_ids('ha'):
-            hookenv.relation_set(rid, **data)
-
-        # nova-consoleauth will be managed by pacemaker, so stop it
-        # and prevent it to be started again at boot. (LP: #1693629).
-        if hookenv.relation_ids('ha'):
-            ch_host.service_pause('nova-consoleauth')
-
-    elif (not hookenv.config('single-nova-consoleauth') and
-          common.console_attributes('protocol')):
-        for item in ['vip_consoleauth', 'res_nova_consoleauth']:
-            if item not in data['delete_resources']:
-                data['delete_resources'].append(item)
-
-        # remove them from the rel, so they aren't recreated when the hook
-        # is recreated
-        data['colocations'].pop('vip_consoleauth', None)
-        data['init_services'].pop('res_nova_consoleauth', None)
-        data['resources'].pop('res_nova_consoleauth', None)
-        data['resource_params'].pop('res_nova_consoleauth', None)
-
-        for rid in hookenv.relation_ids('ha'):
-            hookenv.relation_set(rid, **data)
-
-        if not ch_utils.is_unit_paused_set():
-            ch_host.service_resume('nova-consoleauth')
 
 
 def nova_api_relation_joined(rid=None):
