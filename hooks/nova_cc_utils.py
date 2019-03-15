@@ -273,7 +273,7 @@ def resource_map(actual_services=True):
         _resource_map[NOVA_CONF]['services'] += (
             common.console_attributes('services'))
 
-    if (hookenv.config('enable-serial-console') and cmp_os_release >= 'juno'):
+    if is_serial_console_enabled(cmp_os_release):
         _resource_map[NOVA_CONF]['services'] += SERIAL_CONSOLE['services']
 
     # also manage any configs that are being updated by subordinates.
@@ -390,7 +390,7 @@ def determine_packages():
         pass
     if common.console_attributes('packages'):
         packages.extend(common.console_attributes('packages'))
-    if (hookenv.config('enable-serial-console') and release >= 'juno'):
+    if is_serial_console_enabled(release):
         packages.extend(SERIAL_CONSOLE['packages'])
     packages.extend(
         ch_utils.token_cache_pkgs(source=hookenv.config('openstack-origin')))
@@ -521,6 +521,31 @@ def enable_policy_rcd():
 
 def disable_policy_rcd():
     os.unlink('/usr/sbin/policy-rc.d')
+
+
+def is_serial_console_enabled(cmp_os_release=None):
+    """Determine whether serial console is enabled in this deploy
+
+    :param cmp_os_release: Release comparison object.
+    :type cmp_os_release: charmhelpers.contrib.openstack.utils.
+                          CompareOpenStackReleases
+    :returns: Whether serial console is enabled in this deploy
+    :rtype: bool
+    """
+    if not cmp_os_release:
+        release = ch_utils.os_release('nova-common')
+        cmp_os_release = ch_utils.CompareOpenStackReleases(release)
+    return hookenv.config('enable-serial-console') and cmp_os_release >= 'juno'
+
+
+def is_console_auth_enabled():
+    """Determine whether console auth is enabled in this deploy
+
+    :returns: Whether console auth is enabled in this deploy
+    :rtype: bool
+    """
+    return bool(is_serial_console_enabled() or
+                hookenv.config('console-access-protocol'))
 
 
 def is_db_initialised():

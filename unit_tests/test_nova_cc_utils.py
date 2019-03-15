@@ -1383,6 +1383,48 @@ class NovaCCUtilsTests(CharmTestCase):
         with self.assertRaises(Exception):
             utils.archive_deleted_rows()
 
+    def test_is_serial_console_enabled_on_juno(self):
+        self.os_release.return_value = 'juno'
+        self.test_config.set('enable-serial-console', True)
+        self.assertTrue(
+            utils.is_serial_console_enabled())
+
+    def test_is_serial_console_enabled_off_juno(self):
+        self.os_release.return_value = 'juno'
+        self.test_config.set('enable-serial-console', False)
+        self.assertFalse(
+            utils.is_serial_console_enabled())
+
+    def test_is_serial_console_enabled_on_icehouse(self):
+        self.os_release.return_value = 'icehouse'
+        self.test_config.set('enable-serial-console', True)
+        self.assertFalse(
+            utils.is_serial_console_enabled())
+
+    @patch.object(utils, 'is_serial_console_enabled')
+    def test_is_console_auth_enabled(self, is_serial_console_enabled):
+        is_serial_console_enabled.return_value = True
+        self.test_config.set('console-access-protocol', 'vnc')
+        self.assertTrue(
+            utils.is_console_auth_enabled())
+
+    @patch.object(utils, 'is_serial_console_enabled')
+    def test_is_console_auth_enabled_no_serial(self,
+                                               is_serial_console_enabled):
+        is_serial_console_enabled.return_value = False
+        self.test_config.set('console-access-protocol', 'vnc')
+        self.assertTrue(
+            utils.is_console_auth_enabled())
+
+    @patch.object(utils, 'is_serial_console_enabled')
+    def test_is_console_auth_enabled_no_serial_no_console(
+            self,
+            is_serial_console_enabled):
+        is_serial_console_enabled.return_value = False
+        self.test_config.set('console-access-protocol', None)
+        self.assertFalse(
+            utils.is_console_auth_enabled())
+
     @patch.object(utils, 'get_cell_uuid')
     @patch('subprocess.check_output')
     def test_add_hosts_to_cell(self, mock_check_output, mock_get_cell_uuid):

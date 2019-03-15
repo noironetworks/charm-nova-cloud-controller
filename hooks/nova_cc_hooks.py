@@ -289,7 +289,8 @@ def config_changed():
         ncc_utils.set_shared_metadatasecret()
     for rid in hookenv.relation_ids('ha'):
         ha_joined(rid)
-    if not ch_utils.is_unit_paused_set():
+    if (not ch_utils.is_unit_paused_set() and
+            ncc_utils.is_console_auth_enabled()):
         ch_host.service_resume('nova-consoleauth')
 
 
