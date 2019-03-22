@@ -1007,7 +1007,7 @@ def certs_joined(relation_id=None):
 @hooks.hook('certificates-relation-changed')
 @ch_utils.pausable_restart_on_change(ncc_utils.restart_map, stopstart=True)
 def certs_changed(relation_id=None, unit=None):
-    cert_utils.process_certificates('nova', relation_id, unit)
+    cert_utils.process_certificates('nova', relation_id, unit, group='nova')
     configure_https()
 
 

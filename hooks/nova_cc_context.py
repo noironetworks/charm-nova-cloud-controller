@@ -46,6 +46,13 @@ class ApacheSSLContext(ch_context.ApacheSSLContext):
     external_ports = []
     service_namespace = 'nova'
 
+    # NOTE(fnordahl): The novncproxy service runs as user ``nova`` throughout
+    # its lifespan, and it has no load certificates before dropping privileges
+    # mechanism.
+    #
+    # Set file permissions on certificate files to support this. LP: #1819140
+    group = 'nova'
+
     def __init__(self, _external_ports_maybe_callable):
         self._external_ports_maybe_callable = _external_ports_maybe_callable
         self.external_ports = None
