@@ -170,6 +170,10 @@ options:
     type: string
     default:
     description: |
+      DEPRECATED: Please use ssl_cert configuration option or the vault
+      certificates relation.  This configuration option will be removed
+      in the 19.07 charm release.
+      .
       Used for encrypted console connections. This differs from the SSL
       certificate used for API endpoints and is used for console sessions only.
       Setting this value along with console-ssl-key will enable encrypted
@@ -179,7 +183,12 @@ options:
   console-ssl-key:
     type: string
     default:
-    description: SSL key to use with certificate specified as console-ssl-cert.
+    description: |
+      DEPRECATED: Please use ssl_key configuration option or the vault
+      certificates relation.  This configuration option will be removed
+      in the 19.07 charm release.
+      .
+      SSL key to use with certificate specified as console-ssl-cert.
   enable-serial-console:
     type: boolean
     default: false
