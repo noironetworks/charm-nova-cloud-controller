@@ -177,10 +177,10 @@ ubuntu-cloud-archive/liberty-staging/ubuntu trusty main
 openstack_origin_git = \
     """repositories:
          - {name: requirements,
-            repository: 'git://git.openstack.org/openstack/requirements',
+            repository: 'https://git.openstack.org/openstack/requirements',
             branch: stable/juno}
          - {name: nova,
-            repository: 'git://git.openstack.org/openstack/nova',
+            repository: 'https://git.openstack.org/openstack/nova',
             branch: stable/juno}"""
 
 

@@ -148,10 +148,10 @@ class NovaCCHooksTests(CharmTestCase):
         openstack_origin_git = {
             'repositories': [
                 {'name': 'requirements',
-                 'repository': 'git://git.openstack.org/openstack/requirements',  # noqa
+                 'repository': 'https://git.openstack.org/openstack/requirements',  # noqa
                  'branch': 'stable/juno'},
                 {'name': 'nova',
-                 'repository': 'git://git.openstack.org/openstack/nova',
+                 'repository': 'https://git.openstack.org/openstack/nova',
                  'branch': 'stable/juno'}
             ],
             'directory': '/mnt/openstack-git',
@@ -208,10 +208,10 @@ class NovaCCHooksTests(CharmTestCase):
             'repositories': [
                 {'name': 'requirements',
                  'repository':
-                 'git://git.openstack.org/openstack/requirements',
+                 'https://git.openstack.org/openstack/requirements',
                  'branch': 'stable/juno'},
                 {'name': 'nova',
-                 'repository': 'git://git.openstack.org/openstack/nova',
+                 'repository': 'https://git.openstack.org/openstack/nova',
                  'branch': 'stable/juno'}
             ],
             'directory': '/mnt/openstack-git',
