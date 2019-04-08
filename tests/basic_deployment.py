@@ -308,7 +308,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                                        'nova-network',
                                        'nova-api'],
             self.keystone_sentry: ['keystone'],
-            self.glance_sentry: ['glance-registry', 'glance-api']
+            self.glance_sentry: ['glance-api']
         }
         cmp_os_release = CompareOpenStackReleases(
             self._get_openstack_release_string()
