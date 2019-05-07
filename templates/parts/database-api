@@ -2,7 +2,7 @@
 {% if nova_api_database_host -%}
 connection = {{ nova_api_database_type }}://{{ nova_api_database_user }}:{{ nova_api_database_password }}@{{ nova_api_database_host }}/{{ nova_api_database }}{% if nova_api_database_ssl_ca %}?ssl_ca={{ nova_api_database_ssl_ca }}{% if nova_api_database_ssl_cert %}&ssl_cert={{ nova_api_database_ssl_cert }}&ssl_key={{ nova_api_database_ssl_key }}{% endif %}{% endif %}
 {% endif -%}
-{% if not nova_alchemy_flags or 'max_pool_size' not in nova_alchemy_flags.iterkeys() -%}
+{% if not nova_alchemy_flags or 'max_pool_size' not in nova_alchemy_flags.keys() -%}
 max_pool_size = {{ workers }}
 {% endif -%}
 {% if nova_alchemy_flags -%}
