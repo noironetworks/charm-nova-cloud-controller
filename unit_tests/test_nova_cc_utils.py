@@ -382,13 +382,26 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     @patch('os.path.exists')
     def test_restart_map_apache24(self, _exists, subcontext):
-        _exists.return_Value = True
+        _exists.return_value = True
         self.os_release.return_value = 'diablo'
         _map = utils.restart_map()
         self.assertTrue('/etc/apache2/sites-available/'
                         'openstack_https_frontend.conf' in _map)
         self.assertTrue('/etc/apache2/sites-available/'
                         'openstack_https_frontend' not in _map)
+
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    @patch('os.path.exists')
+    @patch('os.path.isdir')
+    def test_restart_map_ssl(self, _isdir, _exists, subcontext):
+        _exists.return_value = True
+        _isdir.return_value = True
+        self.os_release.return_value = 'diablo'
+        _map = utils.restart_map()
+        self.assertTrue('/etc/apache2/ssl/nova/*' in _map)
+        _isdir.return_value = False
+        _map = utils.restart_map()
+        self.assertTrue('/etc/apache2/ssl/nova/*' not in _map)
 
     def test_console_attributes_spice(self):
         _proto = utils.common.console_attributes('protocol', proto='spice')

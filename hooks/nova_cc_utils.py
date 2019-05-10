@@ -104,6 +104,7 @@ NOVA_API_PASTE = '%s/api-paste.ini' % NOVA_CONF_DIR
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
+APACHE_SSL_DIR = '/etc/apache2/ssl/nova'
 MEMCACHED_CONF = '/etc/memcached.conf'
 WSGI_NOVA_PLACEMENT_API_CONF = \
     '/etc/apache2/sites-enabled/wsgi-placement-api.conf'
@@ -348,10 +349,15 @@ def restart_map(actual_services=True):
         unit (ie. apache2) or the services defined in BASE_SERVICES
         (ie.nova-placement-api).
     '''
-    return collections.OrderedDict(
+    services = resource_map(actual_services)
+    restart_map = collections.OrderedDict(
         [(cfg, v['services'])
-         for cfg, v in resource_map(actual_services).items()
+         for cfg, v in services.items()
          if v['services']])
+    if os.path.isdir(APACHE_SSL_DIR):
+        _restart_svcs = services[NOVA_CONF]['services'] + ['apache2']
+        restart_map['{}/*'.format(APACHE_SSL_DIR)] = _restart_svcs
+    return restart_map
 
 
 def services():

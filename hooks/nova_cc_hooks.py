@@ -1009,6 +1009,8 @@ def certs_joined(relation_id=None):
 def certs_changed(relation_id=None, unit=None):
     cert_utils.process_certificates('nova', relation_id, unit, group='nova')
     configure_https()
+    for rid in hookenv.relation_ids('cloud-compute'):
+        compute_joined(rid=rid, remote_restart=False)
 
 
 @hooks.hook('amqp-cell-relation-joined')

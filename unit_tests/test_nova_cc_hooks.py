@@ -982,3 +982,19 @@ class NovaCCHooksTests(CharmTestCase):
             relation_id=None,
             relation_settings={'private-address': 'foo'})
         hooks.memcached_joined()
+
+    @patch.object(utils, 'resource_map')
+    @patch.object(hooks, 'compute_joined')
+    @patch.object(hooks, 'configure_https')
+    @patch.object(hooks.cert_utils, 'process_certificates')
+    def test_certs_changed(self, process_certificates, configure_https,
+                           compute_joined, resource_map):
+        resource_map.return_value = {}
+        self.os_release.return_value = 'rocky'
+        self.relation_ids.return_value = ['relid']
+        hooks.certs_changed()
+        process_certificates.assert_called_once_with('nova', None, None,
+                                                     group='nova')
+        configure_https.assert_called_once_with()
+        compute_joined.assert_called_once_with(remote_restart=False,
+                                               rid='relid')
