@@ -16,7 +16,6 @@ import base64
 import collections
 import configparser
 import copy
-import json
 import os
 import subprocess
 from urllib.parse import urlparse
@@ -101,6 +100,7 @@ NEUTRON_CONF_DIR = "/etc/neutron"
 
 NOVA_CONF = '%s/nova.conf' % NOVA_CONF_DIR
 NOVA_API_PASTE = '%s/api-paste.ini' % NOVA_CONF_DIR
+VENDORDATA_FILE = '%s/vendor_data.json' % NOVA_CONF_DIR
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
@@ -118,7 +118,6 @@ PACKAGE_NOVA_API_OS_COMPUTE_CONF = \
     '/etc/apache2/sites-available/nova-api-os-compute.conf'
 WSGI_NOVA_API_OS_COMPUTE_CONF = \
     '/etc/apache2/sites-enabled/wsgi-api-os-compute.conf'
-VENDORDATA_FILE = '/etc/nova/vendor_data.json'
 
 
 def resolve_services():
@@ -184,12 +183,17 @@ def get_base_resource_map():
                     nova_cc_context.NeutronAPIContext(),
                     nova_cc_context.SerialConsoleContext(),
                     ch_context.MemcacheContext(),
-                    nova_cc_context.NovaMetadataContext()],
+                    nova_cc_context.NovaMetadataContext('nova-common')],
             }),
             (NOVA_API_PASTE, {
                 'services': [s for s in resolve_services() if 'api' in s],
                 'contexts': [nova_cc_context.IdentityServiceContext(),
                              nova_cc_context.APIRateLimitingContext()],
+            }),
+            (VENDORDATA_FILE, {
+                'services': [],
+                'contexts': [nova_cc_context.NovaMetadataJSONContext(
+                    'nova-common')],
             }),
             (HAPROXY_CONF, {
                 'contexts': [
@@ -1575,18 +1579,6 @@ def get_metadata_settings(configs):
     else:
         settings = {}
     return settings
-
-
-def write_vendordata(vdata):
-    """Write supplied vendor data out to a file."""
-    try:
-        json_vdata = json.loads(vdata)
-    except (TypeError, json.decoder.JSONDecodeError) as e:
-        hookenv.log('Error decoding vendor-data. {}'.format(e),
-                    level=hookenv.ERROR)
-        return False
-    with open(VENDORDATA_FILE, 'w') as vdata_file:
-        vdata_file.write(json.dumps(json_vdata, sort_keys=True, indent=2))
 
 
 def get_cell_db_context(db_service):

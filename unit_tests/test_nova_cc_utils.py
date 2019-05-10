@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import OrderedDict
-from mock import patch, MagicMock, call, mock_open
+from mock import patch, MagicMock, call
 
 from unit_tests.test_utils import (
     CharmTestCase,
@@ -1519,16 +1519,6 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertEqual(
             utils.get_metadata_settings('configs'),
             {})
-
-    def test_write_vendordata(self):
-        m = mock_open()
-        with patch.object(utils, 'open', m, create=True):
-            utils.write_vendordata('{"a": "b"}')
-        expected_calls = [
-            call('/etc/nova/vendor_data.json', 'w'),
-            call().write('{\n  "a": "b"\n}')]
-        for c in expected_calls:
-            self.assertTrue(c in m.mock_calls)
 
     @patch.object(utils.ch_context, 'SharedDBContext')
     @patch('charmhelpers.core.hookenv.relation_id')

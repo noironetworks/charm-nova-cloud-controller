@@ -283,8 +283,6 @@ def config_changed():
 
     ncc_utils.update_aws_compat_services()
 
-    if hookenv.config('vendor-data'):
-        ncc_utils.write_vendordata(hookenv.config('vendor-data'))
     if hookenv.is_leader() and not ncc_utils.get_shared_metadatasecret():
         ncc_utils.set_shared_metadatasecret()
     for rid in hookenv.relation_ids('ha'):

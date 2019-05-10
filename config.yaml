@@ -460,7 +460,8 @@ options:
     description: |
       A JSON-formatted string that will serve as vendor metadata
       (via "StaticJSON" provider) to all VM's within an OpenStack deployment,
-      regardless of project or domain. For deployments prior to Queens this
+      regardless of project or domain. For deployments prior to Rocky and if
+      metadata is configured to be provided by neutron-gateway, this
       value should be set in the neutron-gateway charm.
   vendor-data-url:
     type: string
@@ -471,7 +472,8 @@ options:
       regardless of project or domain.
       .
       Only supported in OpenStack Newton and higher. For deployments prior to
-      Queens this value should be set in the neutron-gateway charm.
+      Rocky and if metadata is configured to be provided by neutron-gateway,
+      this value should be set in the neutron-gateway charm.
   quota-instances:
     type: int
     default:

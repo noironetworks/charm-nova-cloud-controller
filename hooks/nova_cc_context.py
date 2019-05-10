@@ -538,31 +538,59 @@ class NovaAPISharedDBContext(ch_context.SharedDBContext):
         return ctxt
 
 
-class NovaMetadataContext(ch_context.OSContextGenerator):
-    '''
-    Context used for configuring the nova metadata service.
-    '''
+class NovaMetadataContext(ch_context.NovaVendorMetadataContext):
+    """Context used for configuring the nova metadata service."""
+
     def __call__(self):
-        cmp_os_release = ch_utils.CompareOpenStackReleases(
-            ch_utils.os_release('nova-common'))
+        vdata_values = super(NovaMetadataContext, self).__call__()
+
+        release = ch_utils.os_release('nova-common')
+        cmp_os_release = ch_utils.CompareOpenStackReleases(release)
+
         ctxt = {}
+
         if cmp_os_release >= 'rocky':
-            vdata_providers = []
-            vdata = hookenv.config('vendor-data')
-            vdata_url = hookenv.config('vendor-data-url')
+            ctxt.update(vdata_values)
 
-            if vdata:
-                ctxt['vendor_data'] = True
-                vdata_providers.append('StaticJSON')
-
-            if vdata_url:
-                ctxt['vendor_data_url'] = vdata_url
-                vdata_providers.append('DynamicJSON')
-            ctxt['vendordata_providers'] = ','.join(vdata_providers)
             ctxt['metadata_proxy_shared_secret'] = hookenv.leader_get(
                 'shared-metadata-secret')
             ctxt['enable_metadata'] = True
         else:
+            hookenv.log("Vendor metadata has been configured but is not "
+                        "effective in nova-cloud-controller because release "
+                        "{} is prior to Rocky.".format(release),
+                        level=hookenv.DEBUG)
             ctxt['enable_metadata'] = False
 
+        # NOTE(ganso): always propagate config value for nova-compute since
+        # we need to apply it there for all releases, and we cannot determine
+        # whether nova-compute is really the one serving the vendor metadata
+        for rid in hookenv.relation_ids('cloud-compute'):
+            hookenv.relation_set(relation_id=rid,
+                                 vendor_data=json.dumps(vdata_values))
+
         return ctxt
+
+
+class NovaMetadataJSONContext(ch_context.NovaVendorMetadataJSONContext):
+
+    def __call__(self):
+        vdata_values = super(NovaMetadataJSONContext, self).__call__()
+
+        # NOTE(ganso): always propagate config value for nova-compute since
+        # we need to apply it there for releases prior to rocky
+        for rid in hookenv.relation_ids('cloud-compute'):
+            hookenv.relation_set(relation_id=rid,
+                                 vendor_json=vdata_values['vendor_data_json'])
+
+        release = ch_utils.os_release('nova-common')
+        cmp_os_release = ch_utils.CompareOpenStackReleases(release)
+
+        if cmp_os_release >= 'rocky':
+            return vdata_values
+        else:
+            hookenv.log("Vendor metadata has been configured but is not "
+                        "effective in nova-cloud-controller because release "
+                        "{} is prior to Rocky.".format(release),
+                        level=hookenv.DEBUG)
+            return {'vendor_data_json': '{}'}

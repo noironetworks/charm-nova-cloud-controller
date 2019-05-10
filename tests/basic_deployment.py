@@ -646,6 +646,69 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             message = u.relation_error('glance image-service', ret)
             amulet.raise_status(amulet.FAIL, msg=message)
 
+    def test_220_nova_metadata_propagate(self):
+        """Verify that the setting vendor_data is propagated to nova-compute"""
+
+        os_release = self._get_openstack_release()
+
+        expected = {
+            "vendordata_providers": "StaticJSON,DynamicJSON",
+            "vendordata_dynamic_targets": "http://example.org/vdata",
+            "vendordata_jsonfile_path": "/etc/nova/vendor_data.json",
+        }
+
+        u.log.debug('Validating the config does not exist prior to test')
+        if self._get_openstack_release() < self.bionic_rocky:
+            sentries = [self.nova_compute_sentry]
+        else:
+            sentries = [self.nova_compute_sentry, self.nova_cc_sentry]
+
+        for sentry in sentries:
+            # Validate nova-cc and nova-compute don't have vendor_data set
+            if u.validate_config_data(
+                    sentry, "/etc/nova/nova.conf", "api", expected) is None:
+                amulet.raise_status(
+                    amulet.FAIL, msg="Matching config options were found in "
+                                     "nova.conf prior to the test.")
+                content = u.file_contents_safe(
+                    sentry, "/etc/nova/vendor_data.json", max_wait=4,
+                    fatal=False)
+                if content:
+                    amulet.raise_status(
+                        amulet.FAIL, msg="vendor_data.json exists with content"
+                                         "prior to test: {}.".format(content))
+
+        config = {
+            'vendor-data': '{"good": "json"}',
+            'vendor-data-url': 'http://example.org/vdata',
+        }
+        u.log.debug('Setting nova-cloud-controller config {}'.format(config))
+        self.d.configure('nova-cloud-controller', config)
+
+        u.log.debug('Waiting for all units to get ready')
+        self.d.sentry.wait()
+
+        u.log.debug('Validating the config has been applied and propagated')
+        for sentry in sentries:
+            # Validate config got propagated to nova-compute
+            output = u.validate_config_data(sentry, "/etc/nova/nova.conf",
+                                            "api", expected)
+
+            if output is not None and os_release >= self.xenial_queens:
+                amulet.raise_status(
+                    amulet.FAIL, msg="Matching config options "
+                                     "were not found in nova.conf. "
+                                     "Output: {}".format(output))
+            content = u.file_contents_safe(
+                sentry, "/etc/nova/vendor_data.json", max_wait=4, fatal=True)
+            if os_release >= self.xenial_queens:
+                if not content or content != '{"good": "json"}':
+                    amulet.raise_status(
+                        amulet.FAIL, msg="vendor_data.json content did not "
+                                         "match: {}.".format(content))
+
+        u.log.debug('Test 220 finished successfully')
+
     def test_302_api_rate_limiting_is_enabled(self):
         """
         Check that API rate limiting is enabled.
