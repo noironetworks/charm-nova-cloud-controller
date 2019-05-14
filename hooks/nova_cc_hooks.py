@@ -1011,6 +1011,8 @@ def certs_changed(relation_id=None, unit=None):
     configure_https()
     for rid in hookenv.relation_ids('cloud-compute'):
         compute_joined(rid=rid, remote_restart=False)
+    for rid in hookenv.relation_ids('quantum-network-service'):
+        quantum_joined(rid=rid, remote_restart=False)
 
 
 @hooks.hook('amqp-cell-relation-joined')
