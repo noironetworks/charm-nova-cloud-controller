@@ -334,6 +334,7 @@ class NovaComputeContextTests(CharmTestCase):
         mock_config_ip.side_effect = self.test_config.get
         mock_unit_get.return_value = '127.0.0.1'
         self.test_config.set('scheduler-default-filters', 'TestFilter')
+        self.test_config.set('unique-server-names', 'project')
         ctxt = context.NovaConfigContext()()
         self.assertEqual(ctxt['scheduler_default_filters'],
                          self.config('scheduler-default-filters'))
@@ -379,6 +380,8 @@ class NovaComputeContextTests(CharmTestCase):
                          self.config('console-access-protocol'))
         self.assertEqual(ctxt['console_access_port'],
                          self.config('console-access-port'))
+        self.assertEqual(ctxt['unique_server_names'],
+                         self.config('unique-server-names'))
 
     _pci_alias1 = {
         "name": "IntelNIC",

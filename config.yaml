@@ -617,3 +617,13 @@ options:
       .
       For Windows guests is recommended to set this to configuration option to
       False and for those images set the property hw_pointer_model=usbtablet
+  unique-server-names:
+    type: string
+    default:
+    description: |
+      Sets the scope of the check for unique instance names.
+      .
+      An empty value (the default) means that no uniqueness check is done and
+      duplicate names are possible. 'project': The instance name check is done
+      only for instances within the same project. 'global': The instance name
+      check is done for all instances regardless of the project.
