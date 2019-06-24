@@ -315,9 +315,6 @@ def amqp_changed():
     # db relation-changed hooks.
     update_cell_db_if_ready_allowed_units()
 
-    for r_id in hookenv.relation_ids('nova-api'):
-        nova_api_relation_joined(rid=r_id)
-
     update_child_cell_records()
 
     # NOTE: trigger restart on nova-api-metadata on
@@ -412,9 +409,6 @@ def image_service_changed():
     CONFIGS.write(ncc_utils.NOVA_CONF)
     # TODO: special case config flag for essex (strip protocol)
 
-    for r_id in hookenv.relation_ids('nova-api'):
-        nova_api_relation_joined(rid=r_id)
-
 
 @hooks.hook('identity-service-relation-joined')
 def identity_joined(rid=None):
@@ -447,9 +441,6 @@ def identity_changed():
     for rid in hookenv.relation_ids('neutron-api'):
         neutron_api_relation_joined(rid)
     configure_https()
-
-    for r_id in hookenv.relation_ids('nova-api'):
-        nova_api_relation_joined(rid=r_id)
 
 
 @hooks.hook('nova-volume-service-relation-joined',
@@ -624,9 +615,6 @@ def compute_joined(rid=None, remote_restart=False):
 
 @hooks.hook('cloud-compute-relation-changed')
 def compute_changed(rid=None, unit=None):
-    for r_id in hookenv.relation_ids('nova-api'):
-        nova_api_relation_joined(rid=r_id)
-
     rel_settings = hookenv.relation_get(rid=rid, unit=unit)
     if not rel_settings.get('region', None) == hookenv.config('region'):
         hookenv.relation_set(relation_id=rid, region=hookenv.config('region'))
@@ -986,13 +974,6 @@ def memcached_common():
 @ch_utils.pausable_restart_on_change(ncc_utils.restart_map, stopstart=True)
 def zeromq_configuration_relation_changed():
     CONFIGS.write(ncc_utils.NOVA_CONF)
-
-
-def nova_api_relation_joined(rid=None):
-    rel_data = {
-        'nova-api-ready': 'yes' if ncc_utils.is_api_ready(CONFIGS) else 'no'
-    }
-    hookenv.relation_set(rid, **rel_data)
 
 
 @hooks.hook('certificates-relation-joined')

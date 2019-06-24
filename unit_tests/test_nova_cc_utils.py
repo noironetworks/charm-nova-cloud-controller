@@ -1194,21 +1194,6 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertFalse(self.service_running.called)
         self.assertFalse(_mc.called)
 
-    def helper_test_is_api_ready(self, tgt):
-        fake_config = MagicMock()
-        with patch('charmhelpers.contrib.openstack.utils.'
-                   'incomplete_relation_data') as ird:
-            ird.return_value = (not tgt)
-            self.assertEqual(utils.is_api_ready(fake_config), tgt)
-            ird.assert_called_with(
-                fake_config, utils.REQUIRED_INTERFACES)
-
-    def test_is_api_ready_true(self):
-        self.helper_test_is_api_ready(True)
-
-    def test_is_api_ready_false(self):
-        self.helper_test_is_api_ready(False)
-
     def test_assess_status(self):
         with patch.object(utils, 'assess_status_func') as asf:
             configs = MagicMock()

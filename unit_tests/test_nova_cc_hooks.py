@@ -345,18 +345,6 @@ class NovaCCHooksTests(CharmTestCase):
 
     @patch('hooks.nova_cc_utils.is_cellv2_init_ready')
     @patch('hooks.nova_cc_utils.is_db_initialised')
-    @patch.object(hooks, 'nova_api_relation_joined')
-    def test_compute_changed_nova_api_trigger(self, api_joined,
-                                              mock_is_db_initialised,
-                                              mock_is_cellv2_init_ready):
-        self.relation_ids.return_value = ['nova-api/0']
-        mock_is_db_initialised.return_value = False
-        mock_is_cellv2_init_ready.return_value = False
-        hooks.compute_changed()
-        api_joined.assert_called_with(rid='nova-api/0')
-
-    @patch('hooks.nova_cc_utils.is_cellv2_init_ready')
-    @patch('hooks.nova_cc_utils.is_db_initialised')
     def test_compute_changed_ssh_migration(self, mock_is_db_initialised,
                                            mock_is_cellv2_init_ready):
         self.test_relation.set({
@@ -623,12 +611,10 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.db_changed()
 
     @patch.object(utils, 'resource_map')
-    @patch.object(hooks, 'nova_api_relation_joined')
     @patch('hooks.nova_cc_utils.is_db_initialised')
     @patch.object(hooks, 'CONFIGS')
     def test_db_changed(self, configs,
-                        mock_is_db_initialised, api_joined, mock_resource_map):
-        self.relation_ids.return_value = ['nova-api/0']
+                        mock_is_db_initialised, mock_resource_map):
         mock_is_db_initialised.return_value = False
         mock_resource_map.return_value = {}
         'No database migration is attempted when ACL list is not present'
@@ -636,7 +622,6 @@ class NovaCCHooksTests(CharmTestCase):
         self._shared_db_test(configs)
         self.assertTrue(configs.write_all.called)
         self.assertFalse(self.migrate_nova_databases.called)
-        api_joined.asert_called_with(rid='nova-api/0')
 
     @patch.object(utils, 'resource_map')
     @patch('hooks.nova_cc_utils.is_db_initialised')
@@ -721,16 +706,14 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'update_cell_db_if_ready_allowed_units')
     @patch('hooks.nova_cc_utils.is_db_initialised')
     @patch.object(hooks, 'quantum_joined')
-    @patch.object(hooks, 'nova_api_relation_joined')
     @patch.object(hooks, 'CONFIGS')
-    def test_amqp_changed_api_rel(self, configs, api_joined,
+    def test_amqp_changed_api_rel(self, configs,
                                   quantum_joined, mock_is_db_initialised,
                                   update_db_allowed, init_db_allowed,
                                   mock_resource_map,
                                   mock_update_child_cell_records):
         mock_resource_map.return_value = {}
         self.relation_ids.side_effect = [
-            ['nova-api/0'],
             ['quantum-service/0'],
         ]
         mock_is_db_initialised.return_value = False
@@ -742,7 +725,6 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.amqp_changed()
         self.assertEqual(configs.write.call_args_list,
                          [call('/etc/nova/nova.conf')])
-        api_joined.assert_called_with(rid='nova-api/0')
         quantum_joined.assert_called_with(rid='quantum-service/0',
                                           remote_restart=True)
 
@@ -752,11 +734,9 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(utils, 'resource_map')
     @patch('hooks.nova_cc_utils.is_db_initialised')
     @patch.object(hooks, 'quantum_joined')
-    @patch.object(hooks, 'nova_api_relation_joined')
     @patch.object(hooks, 'CONFIGS')
     def test_amqp_changed_noapi_rel(self,
                                     configs,
-                                    api_joined,
                                     quantum_joined,
                                     mock_is_db_initialised,
                                     mock_resource_map,
@@ -769,7 +749,6 @@ class NovaCCHooksTests(CharmTestCase):
         configs.complete_contexts.return_value = ['amqp']
         configs.write = MagicMock()
         self.relation_ids.side_effect = [
-            ['nova-api/0'],
             ['quantum-service/0'],
         ]
         self.is_relation_made.return_value = False
@@ -778,7 +757,6 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.amqp_changed()
         self.assertEqual(configs.write.call_args_list,
                          [call('/etc/nova/nova.conf')])
-        api_joined.assert_called_with(rid='nova-api/0')
         quantum_joined.assert_called_with(rid='quantum-service/0',
                                           remote_restart=True)
 
@@ -958,20 +936,6 @@ class NovaCCHooksTests(CharmTestCase):
         self.relation_set.assert_called_once_with(
             ha='settings',
             relation_id=None)
-
-    @patch('hooks.nova_cc_utils.is_api_ready')
-    def helper_test_nova_api_relation_joined(self, tgt, is_api_ready):
-        is_api_ready.return_value = tgt
-        exp = 'yes' if tgt else 'no'
-        hooks.nova_api_relation_joined(rid='foo')
-        self.relation_set.assert_called_with(
-            'foo', **{'nova-api-ready': exp})
-
-    def test_nova_api_relation_joined_ready(self):
-        self.helper_test_nova_api_relation_joined(True)
-
-    def test_nova_api_relation_joined_not_ready(self):
-        self.helper_test_nova_api_relation_joined(False)
 
     @patch.object(hooks, 'memcached_common')
     def test_memcache_joined(self, _memcached_common):

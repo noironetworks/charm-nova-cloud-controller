@@ -1392,11 +1392,6 @@ def check_optional_relations(configs):
     return "unknown", ""
 
 
-def is_api_ready(configs):
-    return (not ch_utils.incomplete_relation_data(configs,
-                                                  REQUIRED_INTERFACES))
-
-
 def assess_status(configs):
     """Assess status of current unit
     Decides what the state of the unit should be based on the current
