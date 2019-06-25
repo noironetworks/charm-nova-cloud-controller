@@ -1131,23 +1131,30 @@ def ssh_authorized_keys_lines(unit=None, user=None):
 
 
 def ssh_compute_remove(public_key, unit=None, user=None):
+    """Remove a key from the authorized_keys file for the unit/user
+
+    :param public_key: the key to remove
+    :type public_key: str
+    :param unit: The unit (as identified by Juju) to reference (default None)
+    :type unit: Union[str, None]
+    :param user: The username to reference (default None)
+    :type user: Union[str, None]
+    """
     if not (os.path.isfile(authorized_keys(unit, user)) or
             os.path.isfile(known_hosts(unit, user))):
         return
 
-    with open(authorized_keys(unit, user), 'rt') as _keys:
-        keys = [k.strip() for k in _keys.readlines()]
+    with open(authorized_keys(unit, user), 'rt') as f:
+        keys = [k.strip() for k in f.readlines()]
 
     if public_key not in keys:
         return
 
-    [keys.remove(key) for key in keys if key == public_key]
-
-    with open(authorized_keys(unit, user), 'wt') as _keys:
-        keys = '\n'.join(keys)
-        if not keys.endswith('\n'):
-            keys += '\n'
-        _keys.write(keys)
+    with open(authorized_keys(unit, user), 'wt') as f:
+        out = "\n".join([key for key in keys if key != public_key])
+        if not out.endswith('\n'):
+            out += '\n'
+        f.write(out)
 
 
 def determine_endpoints(public_url, internal_url, admin_url):

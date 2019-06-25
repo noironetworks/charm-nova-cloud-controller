@@ -744,12 +744,19 @@ class NovaCCUtilsTests(CharmTestCase):
         )
         isfile.return_value = True
         self.remote_unit.return_value = 'nova-compute/2'
+
+        _written = ""
+
+        def _writer(s):
+            nonlocal _written
+            _written += s
+
         with patch_open() as (_open, _file):
             _file.readlines = MagicMock()
-            _file.write = MagicMock()
+            _file.write.side_effect = _writer
             _file.readlines.return_value = AUTHORIZED_KEYS.split('\n')
             utils.ssh_compute_remove(removed_key)
-            _file.write.assert_called_with(keys_removed)
+            self.assertEqual(_written, keys_removed)
 
     def test_determine_endpoints_base(self):
         self.relation_ids.return_value = []
