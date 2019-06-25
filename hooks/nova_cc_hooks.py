@@ -577,9 +577,18 @@ def console_settings():
     return rel_settings
 
 
-def get_compute_config(rid=None, remote_restart=False):
-    cons_settings = console_settings()
-    hookenv.relation_set(relation_id=rid, **cons_settings)
+def get_compute_config(remote_restart=False):
+    """Get the compute config as a dictionary to set on the relation.
+
+    This gets the console settings (from console_settings()) the serial console
+    settings and some additional items that are in the form suitable for a
+    relation_set.
+
+    :param remote_restart: whether a restart should be notified
+    :type remote_restart: bool
+    :returns: dictionary settings for the relation
+    :rtype: Dict[str, ANY]
+    """
     rel_settings = {
         'network_manager': ch_neutron.network_manager(),
         'volume_service': 'cinder',
@@ -588,6 +597,7 @@ def get_compute_config(rid=None, remote_restart=False):
         'ec2_host': hookenv.unit_get('private-address'),
         'region': hookenv.config('region'),
     }
+    rel_settings.update(console_settings())
     rel_settings.update(ncc_utils.serial_console_settings())
     # update relation setting if we're attempting to restart remote
     # services
@@ -608,7 +618,7 @@ def update_nova_relation(remote_restart=False):
 
 @hooks.hook('cloud-compute-relation-joined')
 def compute_joined(rid=None, remote_restart=False):
-    rel_settings = get_compute_config(rid=rid, remote_restart=remote_restart)
+    rel_settings = get_compute_config(remote_restart=remote_restart)
     rel_settings.update(keystone_compute_settings())
     hookenv.relation_set(relation_id=rid, **rel_settings)
 
@@ -1019,7 +1029,7 @@ def shared_db_cell_joined(relation_id=None):
 
 @hooks.hook('nova-cell-api-relation-joined')
 def nova_cell_api_relation_joined(rid=None, remote_restart=False):
-    rel_settings = get_compute_config(rid=rid, remote_restart=remote_restart)
+    rel_settings = get_compute_config(remote_restart=remote_restart)
     if ch_neutron.network_manager() == 'neutron':
         rel_settings.update(neutron_settings())
     hookenv.relation_set(relation_id=rid, **rel_settings)
