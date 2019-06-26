@@ -316,8 +316,9 @@ class NovaCCHooksTests(CharmTestCase):
     @patch('charmhelpers.fetch.filter_installed_packages')
     @patch.object(hooks, 'configure_https')
     @patch.object(hooks, 'compute_joined')
-    @patch.object(hooks, 'compute_changed')
-    def test_config_changed_region_change(self, mock_compute_changed,
+    @patch.object(hooks, 'notify_region_to_unit')
+    def test_config_changed_region_change(self,
+                                          mock_notify_region_to_unit,
                                           mock_compute_joined,
                                           mock_config_https,
                                           mock_filter_packages,
@@ -338,15 +339,27 @@ class NovaCCHooksTests(CharmTestCase):
         self.os_release.return_value = 'diablo'
         hooks.resolve_CONFIGS()
         hooks.config_changed()
-        mock_compute_changed.assert_has_calls([call('generic_rid', 'unit/0')])
+        mock_notify_region_to_unit.assert_has_calls(
+            [call('generic_rid', 'unit/0')])
         mock_compute_joined.assert_has_calls(
             [call(rid='generic_rid', remote_restart=False)])
         self.assertTrue(mock_update_aws_compat_services.called)
 
-    @patch('hooks.nova_cc_utils.is_cellv2_init_ready')
-    @patch('hooks.nova_cc_utils.is_db_initialised')
-    def test_compute_changed_ssh_migration(self, mock_is_db_initialised,
-                                           mock_is_cellv2_init_ready):
+    @patch.object(hooks, 'add_hosts_to_cell_when_ready')
+    @patch.object(hooks, 'notify_region_to_unit')
+    @patch.object(hooks, 'update_ssh_keys_and_notify_compute_units')
+    def test_cloud_compute_relation_changed(
+            self,
+            mock_update_ssh_keys_and_notify_compute_units,
+            mock_notify_region_to_unit,
+            mock_add_hosts_to_cell_when_ready):
+        hooks.cloud_compute_relation_changed()
+        mock_add_hosts_to_cell_when_ready.assert_called_once_with()
+        mock_notify_region_to_unit.assert_called_once_with(rid=None, unit=None)
+        mock_update_ssh_keys_and_notify_compute_units.assert_called_once_with(
+            rid=None, unit=None)
+
+    def test_update_ssh_keys_and_notify_compute_units_ssh_migration(self):
         self.test_relation.set({
             'migration_auth_type': 'ssh', 'ssh_public_key': 'fookey',
             'private-address': '10.0.0.1', 'region': 'RegionOne'})
@@ -354,9 +367,7 @@ class NovaCCHooksTests(CharmTestCase):
             'k_h_0', 'k_h_1', 'k_h_2']
         self.ssh_authorized_keys_lines.return_value = [
             'auth_0', 'auth_1', 'auth_2']
-        mock_is_db_initialised.return_value = False
-        mock_is_cellv2_init_ready.return_value = False
-        hooks.compute_changed()
+        hooks.update_ssh_keys_and_notify_compute_units()
         self.ssh_compute_add.assert_called_with('fookey', rid=None, unit=None)
         expected_relations = [
             call(relation_settings={'authorized_keys_0': 'auth_0'},
@@ -375,10 +386,7 @@ class NovaCCHooksTests(CharmTestCase):
             call(known_hosts_max_index=3, relation_id=None)]
         self.relation_set.assert_has_calls(expected_relations, any_order=True)
 
-    @patch('hooks.nova_cc_utils.is_cellv2_init_ready')
-    @patch('hooks.nova_cc_utils.is_db_initialised')
-    def test_compute_changed_nova_public_key(self, mock_is_db_initialised,
-                                             mock_is_cellv2_init_ready):
+    def test_update_ssh_keys_and_notify_compute_units_nova_public_key(self):
         self.test_relation.set({
             'migration_auth_type': 'sasl', 'nova_ssh_public_key': 'fookey',
             'private-address': '10.0.0.1', 'region': 'RegionOne'})
@@ -386,9 +394,7 @@ class NovaCCHooksTests(CharmTestCase):
             'k_h_0', 'k_h_1', 'k_h_2']
         self.ssh_authorized_keys_lines.return_value = [
             'auth_0', 'auth_1', 'auth_2']
-        mock_is_db_initialised.return_value = False
-        mock_is_cellv2_init_ready.return_value = False
-        hooks.compute_changed()
+        hooks.update_ssh_keys_and_notify_compute_units()
         self.ssh_compute_add.assert_called_with('fookey', user='nova',
                                                 rid=None, unit=None)
         expected_relations = [
@@ -413,14 +419,14 @@ class NovaCCHooksTests(CharmTestCase):
     @patch('hooks.nova_cc_utils.is_cellv2_init_ready')
     @patch('hooks.nova_cc_utils.is_db_initialised')
     @patch('hooks.nova_cc_utils.add_hosts_to_cell')
-    def test_compute_changed_add_hosts_leader(self,
-                                              mock_add_hosts_to_cell,
-                                              mock_is_db_initialised,
-                                              mock_is_cellv2_init_ready):
+    def test_add_hosts_to_cell_when_ready_leader(self,
+                                                 mock_add_hosts_to_cell,
+                                                 mock_is_db_initialised,
+                                                 mock_is_cellv2_init_ready):
         self.is_leader.return_value = True
         mock_is_db_initialised.return_value = True
         mock_is_cellv2_init_ready.return_value = True
-        hooks.compute_changed()
+        hooks.add_hosts_to_cell_when_ready()
         self.assertTrue(self.is_leader.called)
         self.assertTrue(mock_is_db_initialised.called)
         self.assertTrue(mock_is_cellv2_init_ready.called)
@@ -429,14 +435,14 @@ class NovaCCHooksTests(CharmTestCase):
     @patch('hooks.nova_cc_utils.is_cellv2_init_ready')
     @patch('hooks.nova_cc_utils.is_db_initialised')
     @patch('hooks.nova_cc_utils.add_hosts_to_cell')
-    def test_compute_changed_add_hosts_nonleader(self,
-                                                 mock_add_hosts_to_cell,
-                                                 mock_is_db_initialised,
-                                                 mock_is_cellv2_init_ready):
+    def test_add_hosts_to_cell_when_ready_nonleader(self,
+                                                    mock_add_hosts_to_cell,
+                                                    mock_is_db_initialised,
+                                                    mock_is_cellv2_init_ready):
         self.is_leader.return_value = False
         mock_is_db_initialised.return_value = True
         mock_is_cellv2_init_ready.return_value = True
-        hooks.compute_changed()
+        hooks.add_hosts_to_cell_when_ready()
         self.assertTrue(self.is_leader.called)
         self.assertFalse(mock_is_db_initialised.called)
         self.assertFalse(mock_is_cellv2_init_ready.called)

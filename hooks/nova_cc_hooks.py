@@ -279,7 +279,10 @@ def config_changed():
     if ch_utils.config_value_changed('region'):
         for rid in hookenv.relation_ids('cloud-compute'):
             for unit in hookenv.related_units(rid):
-                compute_changed(rid, unit)
+                # Note(ajkavanagh) This used to also update all of the ssh keys
+                # and hosts to every unit; but that's almost certainly not
+                # needed on a config changed hook
+                notify_region_to_unit(rid, unit)
 
     ncc_utils.update_aws_compat_services()
 
@@ -624,15 +627,70 @@ def compute_joined(rid=None, remote_restart=False):
 
 
 @hooks.hook('cloud-compute-relation-changed')
-def compute_changed(rid=None, unit=None):
-    rel_settings = hookenv.relation_get(rid=rid, unit=unit)
-    if not rel_settings.get('region', None) == hookenv.config('region'):
-        hookenv.relation_set(relation_id=rid, region=hookenv.config('region'))
+def cloud_compute_relation_changed():
+    """Performs actions associated with when the cloud compute relation changes
+    for a unit.
 
+    * add hosts to the cell when ready
+    * notifies the region to the unit, if it has changed
+    * notifies the ssh known hosts and authorized keys to the unit
+    """
+    add_hosts_to_cell_when_ready()
+    notify_region_to_unit(rid=None, unit=None)
+    update_ssh_keys_and_notify_compute_units(rid=None, unit=None)
+
+
+def add_hosts_to_cell_when_ready():
+    """Helper function to call add_hosts_to_cell() when the unit is the leader
+    and the cellv2 and database are ready.
+
+    :raises: subprocess.CalledProcessError if cells command fails
+    """
     if (hookenv.is_leader() and
             ncc_utils.is_cellv2_init_ready() and
             ncc_utils.is_db_initialised()):
         ncc_utils.add_hosts_to_cell()
+
+
+def notify_region_to_unit(rid=None, unit=None):
+    """Helper function that if the relation data set by the unit differs from
+    the config on nova-cloud-controller, then nova-cc sets the new region for
+    that relation to trigger a change for any units that see it differently.
+
+    :param rid: The relation to check/set, or if None, the current one related
+                to the hook.
+    :type rid: Union[str. None]
+    :param unit: the unit to check, of None for the current one according to
+                  the hook.
+    :type unit: Union[str, None]
+    """
+    rel_settings = hookenv.relation_get(rid=rid, unit=unit)
+    if not rel_settings.get('region', None) == hookenv.config('region'):
+        hookenv.relation_set(relation_id=rid, region=hookenv.config('region'))
+
+
+def update_ssh_keys_and_notify_compute_units(rid=None, unit=None):
+    """Update and notify the collected ssh keys to nova-compute units
+
+    Update/add and notify, for the associated nova-compute unit, the ssh key to
+    all the other nova-compute units.
+
+    If rid=None and unit=None, then this function is being called in the
+    context of a cloud-compute relation changed hook, and will relate to that
+    unit.  If rid and unit are set, then this function is being called to
+    refresh and update all specific units.
+
+    TODO: split this function in to updating/adding SSH keys and notifying
+    (set_relation) all of the other units.
+
+    :param rid: The relation to check/set, or if None, the current one related
+                to the hook.
+    :type rid: Union[str, None]
+    :param unit: the unit to check, of None for the current one according to
+                 the hook.
+    :type unit: Union[str, None]
+    """
+    rel_settings = hookenv.relation_get(rid=rid, unit=unit)
 
     if 'migration_auth_type' not in rel_settings:
         return
@@ -899,9 +957,12 @@ def upgrade_charm():
         identity_joined(rid=r_id)
     for r_id in hookenv.relation_ids('cloud-compute'):
         for unit in hookenv.related_units(r_id):
-            compute_changed(r_id, unit)
+            notify_region_to_unit(r_id, unit)
+            update_ssh_keys_and_notify_compute_units(r_id, unit)
     for r_id in hookenv.relation_ids('shared-db'):
         db_joined(relation_id=r_id)
+
+    add_hosts_to_cell_when_ready()
 
     leader_init_db_if_ready_allowed_units()
 
