@@ -382,8 +382,10 @@ class NovaCCHooksTests(CharmTestCase):
                  relation_id=None),
             call(relation_settings={'known_hosts_2': 'k_h_2'},
                  relation_id=None),
-            call(authorized_keys_max_index=3, relation_id=None),
-            call(known_hosts_max_index=3, relation_id=None)]
+            call(relation_settings={'known_hosts_max_index': 3},
+                 relation_id=None),
+            call(relation_settings={'authorized_keys_max_index': 3},
+                 relation_id=None)]
         self.relation_set.assert_has_calls(expected_relations, any_order=True)
 
     def test_update_ssh_keys_and_notify_compute_units_nova_public_key(self):

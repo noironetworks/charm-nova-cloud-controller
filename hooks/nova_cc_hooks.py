@@ -680,8 +680,32 @@ def update_ssh_keys_and_notify_compute_units(rid=None, unit=None):
     unit.  If rid and unit are set, then this function is being called to
     refresh and update all specific units.
 
-    TODO: split this function in to updating/adding SSH keys and notifying
-    (set_relation) all of the other units.
+    :param rid: The relation to check/set, or if None, the current one related
+                to the hook.
+    :type rid: Union[str. None]
+    :param unit: the unit to check, of None for the current one according to
+                  the hook.
+    :type unit: Union[str, None]
+    """
+    update_ssh_key(rid=rid, unit=unit)
+    notify_ssh_keys_to_compute_units(rid=rid, unit=unit)
+
+
+def update_ssh_key(rid=None, unit=None):
+    """Update ssh keys for a nova-compute unit connected on the cloud-compute
+    relation.
+
+    If rid=None and unit=None, then this function is being called in the
+    context of a cloud-compute relation changed hook, and will relate to that
+    unit.  If rid and unit are set, then this function is being called to
+    refresh/update all specified units.
+
+    If the 'migration_auth_type' isn't 'ssh' or the 'nova_ssh_public_key' in
+    the relation data from the connected nova-compute unit isn't available,
+    then this function does nothing.  Note that the compute unit sets keys for
+    the charm (root user) and the nova service (nova user), and these are
+    supplied separately.  Note that the nova ssh public is processed (if
+    available) even if the migration auth type is not 'ssh'.
 
     :param rid: The relation to check/set, or if None, the current one related
                 to the hook.
@@ -692,64 +716,134 @@ def update_ssh_keys_and_notify_compute_units(rid=None, unit=None):
     """
     rel_settings = hookenv.relation_get(rid=rid, unit=unit)
 
-    if 'migration_auth_type' not in rel_settings:
+    migration_auth_type = rel_settings.get('migration_auth_type', None)
+
+    # bail out of doing ANY ssh keys for the remote unit if not
+    # migration_auth_type is set in that units relation_data
+    if migration_auth_type is None:
         return
-    if rel_settings['migration_auth_type'] == 'ssh':
-        hookenv.status_set('maintenance', 'configuring live migration')
+
+    if migration_auth_type == 'ssh':
+        # TODO(ajkavanagh) -- the hookenv was previous behaviour, but there
+        # isn't a good place to put this yet; it will be moved or removed at
+        # the end of the patch series.
+        # hookenv.status_set('maintenance', 'configuring live migration')
         key = rel_settings.get('ssh_public_key')
         if not key:
-            hookenv.log('SSH migration set but peer did not publish key.')
+            hookenv.log('SSH migration set but peer did not publish key.'
+                        ' relation={}, unit={}'
+                        .format(rid or hookenv.relation_id(),
+                                unit or hookenv.remote_unit()))
             return
         ncc_utils.ssh_compute_add(key, rid=rid, unit=unit)
-        index = 0
-        for line in ncc_utils.ssh_known_hosts_lines(unit=unit):
-            hookenv.relation_set(relation_id=rid,
-                                 relation_settings={
-                                     'known_hosts_{}'.format(index): line
-                                 })
-            index += 1
-        hookenv.relation_set(relation_id=rid, known_hosts_max_index=index)
-        index = 0
-        for line in ncc_utils.ssh_authorized_keys_lines(unit=unit):
-            hookenv.relation_set(relation_id=rid,
-                                 relation_settings={
-                                     'authorized_keys_{}'.format(index): line
-                                 })
-            index += 1
-        hookenv.relation_set(relation_id=rid, authorized_keys_max_index=index)
-    if 'nova_ssh_public_key' not in rel_settings:
-        return
-    if rel_settings['nova_ssh_public_key']:
-        ncc_utils.ssh_compute_add(rel_settings['nova_ssh_public_key'],
+
+    nova_ssh_public_key = rel_settings.get('nova_ssh_public_key', None)
+
+    # Always try to fetch the user 'nova' key on the remote compute unit
+    if nova_ssh_public_key:
+        ncc_utils.ssh_compute_add(nova_ssh_public_key,
                                   rid=rid, unit=unit, user='nova')
-        index = 0
-        for line in ncc_utils.ssh_known_hosts_lines(unit=unit, user='nova'):
-            hookenv.relation_set(relation_id=rid,
-                                 relation_settings={
-                                     '{}_known_hosts_{}'.format('nova',
-                                                                index): line
-                                 })
-            index += 1
-        hookenv.relation_set(relation_id=rid,
-                             relation_settings={
-                                 ('{}_known_hosts_max_index'
-                                  .format('nova')): index
-                             })
-        index = 0
-        for line in ncc_utils.ssh_authorized_keys_lines(
-                unit=unit, user='nova'):
-            hookenv.relation_set(relation_id=rid,
-                                 relation_settings={
-                                     '{}_authorized_keys_{}'.format(
-                                         'nova',
-                                         index): line
-                                 })
-            index += 1
-        hookenv.relation_set(relation_id=rid,
-                             relation_settings={
-                                 '{}_authorized_keys_max_index'.format(
-                                     'nova'): index
-                             })
+
+
+def notify_ssh_keys_to_compute_units(rid=None, unit=None):
+    """Update and notify the collected ssh keys to nova-compute units
+
+    Update/add and notify, for the associated nova-compute unit, the ssh key to
+    all the other nova-compute units.
+
+    If rid=None and unit=None, then this function is being called in the
+    context of a cloud-compute relation changed hook, and will relate to that
+    unit.  If rid and unit are set, then this function is being called to
+    refresh and update all specific units.
+
+    TODO(ajkavanagh) it's not clear why unit is required as relation data can't
+    be set for a particular unit, only on the relation; a coming refactor will
+    sort this out.
+
+    :param rid: The relation to check/set, or if None, the current one related
+                to the hook.
+    :type rid: Union[str. None]
+    :param unit: the unit to check, of None for the current one according to
+                  the hook.
+    :type unit: Union[str, None]
+    """
+    rel_settings = hookenv.relation_get(rid=rid, unit=unit)
+
+    migration_auth_type = rel_settings.get('migration_auth_type', None)
+    if migration_auth_type is None:
+        return
+    if migration_auth_type == 'ssh':
+        _set_hosts_and_keys_on_relation(rid, unit, user=None)
+
+    if rel_settings.get('nova_ssh_public_key', None):
+        _set_hosts_and_keys_on_relation(rid, unit, user='nova')
+
+
+def _set_hosts_and_keys_on_relation(rid=None, unit=None, user=None):
+    """Set the known hosts and authorized keys on the relation specified.
+
+    Takes the authorized_keys and known hosts collected from all of the related
+    compute units (that have been processed) and sets them on the relation via
+    the _batch_write_ssh_on_relation() helper.
+
+    TODO(ajkavanagh) it's not clear why unit is required as relation data can't
+    be set for a particular unit, only on the relation; a coming refactor will
+    sort this out.
+
+    :param rid: The relation to check/set, or if None, the current one related
+                to the hook.
+    :type rid: Union[str. None]
+    :param unit: the unit to check, of None for the current one according to
+                  the hook.
+    :type unit: Union[str, None]
+    :param user: the user to use in the format strings, or None for default
+    :type user: Union[str, None]
+    """
+    if user is not None:
+        known_hosts_prefix = "{}_known_hosts".format(user)
+        known_hosts_max_key = "{}_known_hosts_max_index".format(user)
+        authorized_prefix = "{}_authorized_keys".format(user)
+        authorized_keys_max_key = "{}_authorized_keys_max_index".format(user)
+    else:
+        known_hosts_prefix = "known_hosts"
+        known_hosts_max_key = "known_hosts_max_index"
+        authorized_prefix = "authorized_keys"
+        authorized_keys_max_key = "authorized_keys_max_index"
+
+    _batch_write_ssh_on_relation(
+        rid, known_hosts_prefix, known_hosts_max_key,
+        ncc_utils.ssh_known_hosts_lines(unit=unit, user=user))
+
+    _batch_write_ssh_on_relation(
+        rid, authorized_prefix, authorized_keys_max_key,
+        ncc_utils.ssh_authorized_keys_lines(unit=unit, user=user))
+
+
+def _batch_write_ssh_on_relation(rid, prefix, max_index, _iter):
+    """Helper to set the relation data from an iterable to specified relation
+    (which may be None to indicate the current, default, relation).  The prefix
+    param is used to construct the key a "{prefix}_{index}" with index
+    incrementing from 0 for each line delivered from the iterable.
+
+    :param rid: The relation to check/set, or if None, the current one related
+                to the hook.
+    :type rid: Union[str, None]
+    :param prefix: The prefix for writing the related index line (e.g.
+                   known_hosts)
+    :type prefix: str
+    :param max_index_key: the key against which to set the maximum index that
+                          was written (i.e. number of keys set).
+    :param _iter: an iterable that returns the lines to associate with keys
+    :type _iter: Iterable[str]
+    """
+    index = 0
+    for line in _iter:
+        hookenv.relation_set(
+            relation_id=rid,
+            relation_settings={"{}_{}".format(prefix, index): line})
+        index += 1
+    hookenv.relation_set(relation_id=rid,
+                         relation_settings={"{}".format(max_index): index})
 
 
 @hooks.hook('cloud-compute-relation-departed')
