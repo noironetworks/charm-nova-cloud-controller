@@ -961,7 +961,7 @@ def auth_token_config(setting):
     _config.read('/etc/nova/api-paste.ini')
     try:
         value = _config.get('filter:authtoken', setting)
-    except:
+    except Exception:
         return None
     if value.startswith('%'):
         return None
@@ -976,34 +976,112 @@ def keystone_ca_cert_b64():
         return base64.b64encode(_in.read()).decode('utf-8')
 
 
-def ssh_directory_for_unit(unit=None, user=None):
+def _ssh_directory_for_remote_service(remote_service, user=None):
+    """Return the directory where ssh known hosts and authorized keys are
+    stored for a remote_service and user (both str)
+
+    :param remote_service: the key that represents the remote service; this is
+        usually derived from the first part of the unit name.  See
+        `remote_service_from_unit()`.
+    :type remote_service: str
+    :param user: the user to use, default is None, meaning root (in effect)
+    :type user: Union[str, None]
+    :return: path suitable for joining
+    :rtype: str
+    """
+    if user:
+        remote_service = "{}_{}".format(remote_service, user)
+    _dir = os.path.join(NOVA_SSH_DIR, remote_service)
+    return _dir
+
+
+def _ensure_ssh_dir_and_file_exists(remote_service, file, user=None):
+    """Ensure that the file associated with a remote_service, filename and
+    optional user does exist, and return that file name.
+
+    :param remote_service: The service str ensure that the dir and file exists
+    :type path: str
+    :param file: The filename (either known_hosts or authorized_keys)
+    :type file: str
+    :param user: The optional user to make the directory more unique
+    :type user: Union[str, None]
+    :returns: the full path of the file (guaranteed to exist)
+    :rtype: str
+    """
+    path = _ssh_directory_for_remote_service(remote_service, user)
+    if not os.path.exists(path):
+        os.makedirs(path)
+    _f = os.path.join(path, file)
+    if not os.path.isfile(_f):
+        open(_f, 'w').close()
+    return _f
+
+
+def remote_service_from_unit(unit=None):
+    """Extract a remote service name from the unit passed, or use the current
+    remote unit for the executing hook call.
+
+    :param unit: the unit name, or None for the current remote unit.
+    :type unit: Union[str, None]
+    :returns: the remote service name which should be consistent for all units
+              on the current relation.
+    :rtype: str
+    """
     if unit:
         remote_service = unit.split('/')[0]
     else:
         remote_service = hookenv.remote_unit().split('/')[0]
-    if user:
-        remote_service = "{}_{}".format(remote_service, user)
-    _dir = os.path.join(NOVA_SSH_DIR, remote_service)
-    for d in [NOVA_SSH_DIR, _dir]:
-        if not os.path.isdir(d):
-            os.mkdir(d)
-    for f in ['authorized_keys', 'known_hosts']:
-        f = os.path.join(_dir, f)
-        if not os.path.isfile(f):
-            open(f, 'w').close()
-    return _dir
+    return remote_service
 
 
-def known_hosts(unit=None, user=None):
-    return os.path.join(ssh_directory_for_unit(unit, user), 'known_hosts')
+def known_hosts(remote_service=None, user=None):
+    """Return the known_hosts file as a path for a remote_service string and
+    optional user.
+
+    :param remote_service: The remote service strings to return a file for.
+    :type remote_service: str
+    :param user: optional user to return a file for
+    :type user: Union[str, None]
+    :returns: the path for the file, and a guarantee that it exists
+    :rtype: str
+    """
+    return _ensure_ssh_dir_and_file_exists(remote_service, 'known_hosts', user)
 
 
-def authorized_keys(unit=None, user=None):
-    return os.path.join(ssh_directory_for_unit(unit, user), 'authorized_keys')
+def authorized_keys(remote_service=None, user=None):
+    """Return the authorized_keys file as a path for a remote_service string
+    and optional user.
+
+    :param remote_service: The remote service strings to return a file for.
+    :type remote_service: str
+    :param user: optional user to return a file for
+    :type user: Union[str, None]
+    :returns: the path for the file, and a guarantee that it exists
+    :rtype: str
+    """
+    return _ensure_ssh_dir_and_file_exists(
+        remote_service, 'authorized_keys', user)
 
 
-def ssh_known_host_key(host, unit=None, user=None):
-    cmd = ['ssh-keygen', '-f', known_hosts(unit, user), '-H', '-F', host]
+def ssh_known_host_key(host, remote_service, user=None):
+    """Search the known_hosts file for a host.
+
+    The known_hosts file is determined by the remote_service key and (optional)
+    user.  Returns None if not found, otherwise the FIRST line from the
+    known_hosts file that contains the host.
+
+    :param host: the host to search for in the known_hosts file
+    :type host: str
+    :param remote_service: the remote service used to determine the known_hosts
+        file.
+    :type remote_service: str
+    :param user: optional user used to determine the known_hosts file.
+    :type user: Union[str, None]
+    :returns: None if not found, otherwise the line from the known_hosts file.
+    :rtype: Union[str, None]
+    """
+    cmd = ['ssh-keygen', '-f',
+           known_hosts(remote_service, user), '-H', '-F', host]
     try:
         # The first line of output is like '# Host xx found: line 1 type RSA',
         # which should be excluded.
@@ -1020,9 +1098,19 @@ def ssh_known_host_key(host, unit=None, user=None):
     return None
 
 
-def remove_known_host(host, unit=None, user=None):
+def remove_known_host(host, remote_service, user=None):
+    """Removes ALL keys belonging to host from the specified known_hosts file
+
+    :param host: the host to remove from the specified known_hosts file
+    :type host: str
+    :param remote_service: the remote service used to determine the known_hosts
+        file.
+    :type remote_service: str
+    :param user: optional user used to determine the known_hosts file.
+    :type user: Union[str, None]
+    """
     hookenv.log('Removing SSH known host entry for compute host at %s' % host)
-    cmd = ['ssh-keygen', '-f', known_hosts(unit, user), '-R', host]
+    cmd = ['ssh-keygen', '-f', known_hosts(remote_service, user), '-R', host]
     subprocess.check_call(cmd)
 
 
@@ -1036,8 +1124,23 @@ def is_same_key(key_1, key_2):
     return k_1 == k_2
 
 
-def add_known_host(host, unit=None, user=None):
-    '''Add variations of host to a known hosts file.'''
+def add_known_host(host, remote_service, user=None):
+    """Add variations of host to a specified known hosts file.
+
+    The known_hosts file is determined by the remote_service param passed and
+    (optionally) the user, if it is not None.
+
+    :param host: the host to check
+    :type host: str
+    :param remote_service: the remote service used to determine the known_hosts
+        file.
+    :type remote_service: str
+    :param user: optional user used to determine the known_hosts file.
+    :type user: Union[str, None]
+    :raises: subprocess.CalledProcessError if the ssh-keyscan fails.
+    :raises: UnicodeEncodeError if the output from the ssh-keyscan can't be
+        decoded.
+    """
     cmd = ['ssh-keyscan', '-H', '-t', 'rsa', host]
     try:
         remote_key = subprocess.check_output(cmd).decode('utf-8').strip()
@@ -1046,28 +1149,56 @@ def add_known_host(host, unit=None, user=None):
                     level=hookenv.ERROR)
         raise e
 
-    current_key = ssh_known_host_key(host, unit, user)
+    current_key = ssh_known_host_key(host, remote_service, user)
     if current_key and remote_key:
         if is_same_key(remote_key, current_key):
             hookenv.log(
                 'Known host key for compute host %s up to date.' % host)
             return
         else:
-            remove_known_host(host, unit, user)
+            remove_known_host(host, remote_service, user)
 
     hookenv.log('Adding SSH host key to known hosts for compute node at {}.'
                 .format(host))
-    with open(known_hosts(unit, user), 'a') as out:
+    with open(known_hosts(remote_service, user), 'a') as out:
         out.write(remote_key + '\n')
 
 
-def ssh_authorized_key_exists(public_key, unit=None, user=None):
-    with open(authorized_keys(unit, user)) as keys:
-        return (' %s ' % public_key) in keys.read()
+def ssh_authorized_key_exists(public_key, remote_service, user=None):
+    """Check if a public key exists in a specified authorized_keys file
+
+    The authorized_keys file is determined by the remote_service param passed
+    and (optionally) the user, if it is not None.
+
+    :param public_key: The public_key to check for in the specified
+        authorized_keys file
+    :type public_key: str
+    :param remote_service: the remote service used to determine the known_hosts
+        file.
+    :type remote_service: str
+    :param user: optional user used to determine the known_hosts file.
+    :type user: Union[str, None]
+    :returns: True if the key is in the specified authorized key file
+    """
+    with open(authorized_keys(remote_service, user)) as keys:
+        return ' {} '.format(public_key) in keys.read()
 
 
-def add_authorized_key(public_key, unit=None, user=None):
-    with open(authorized_keys(unit, user), 'a') as keys:
+def add_authorized_key(public_key, remote_service, user=None):
+    """Add a public key to a specified authorized_keys file
+
+    The authorized_keys file is determined by the remote_service param passed
+    and (optionally) the user, if it is not None.
+
+    :param public_key: The public_key to add to specified authorized_keys file
+    :type public_key: str
+    :param remote_service: the remote service used to determine the known_hosts
+        file.
+    :type remote_service: str
+    :param user: optional user used to determine the known_hosts file.
+    :type user: Union[str, None]
+    """
+    with open(authorized_keys(remote_service, user), 'a') as keys:
         keys.write(public_key + '\n')
 
 
@@ -1101,32 +1232,60 @@ def ssh_compute_add(public_key, rid=None, unit=None, user=None):
     else:
         hosts.append(private_address)
 
-    for host in list(set(hosts)):
-        add_known_host(host, unit, user)
+    remote_service = remote_service_from_unit(unit)
 
-    if not ssh_authorized_key_exists(public_key, unit, user):
+    for host in set(hosts):
+        add_known_host(host, remote_service, user)
+
+    if not ssh_authorized_key_exists(public_key, remote_service, user):
         hookenv.log('Saving SSH authorized key for compute host at %s.' %
                     private_address)
-        add_authorized_key(public_key, unit, user)
+        add_authorized_key(public_key, remote_service, user)
 
 
-def ssh_known_hosts_lines(unit=None, user=None):
+def ssh_known_hosts_lines(remote_service, user=None):
+    """Return a list of known host lines currently stored for the remote
+    service (and optionally the user).
+
+    :param remote_service: the remote service string to store known hosts
+        against
+    :type remote_service: str
+    :param user: the (optional) user to store known hosts against - default
+        none
+    :type user: union[str, None]
+    :returns: stripped list of key (lines) that have been stored for the
+        service/user combination.
+    :rtype: list[str]
+    """
     known_hosts_list = []
 
-    with open(known_hosts(unit, user)) as hosts:
+    with open(known_hosts(remote_service, user)) as hosts:
         for hosts_line in hosts:
-            if hosts_line.rstrip():
-                known_hosts_list.append(hosts_line.rstrip())
+            stripped_line = hosts_line.rstrip()
+            if stripped_line:
+                known_hosts_list.append(stripped_line)
     return(known_hosts_list)
 
 
-def ssh_authorized_keys_lines(unit=None, user=None):
+def ssh_authorized_keys_lines(remote_service, user=None):
+    """Return a list of authorized keys lines currently stored for the remote
+    service (and optionally the user).
+
+    :param remote_service: the remote service string to store keys against
+    :type remote_service: str
+    :param user: the (optional) user to store keys against - default none
+    :type user: union[str, None]
+    :returns: stripped list of key (lines) that have been stored for the
+        service/user combination.
+    :rtype: list[str]
+    """
     authorized_keys_list = []
 
-    with open(authorized_keys(unit, user)) as keys:
+    with open(authorized_keys(remote_service, user)) as keys:
         for authkey_line in keys:
-            if authkey_line.rstrip():
-                authorized_keys_list.append(authkey_line.rstrip())
+            stripped_line = authkey_line.rstrip()
+            if stripped_line:
+                authorized_keys_list.append(stripped_line)
     return(authorized_keys_list)
 
 
@@ -1140,17 +1299,20 @@ def ssh_compute_remove(public_key, unit=None, user=None):
     :param user: The username to reference (default None)
     :type user: Union[str, None]
     """
-    if not (os.path.isfile(authorized_keys(unit, user)) or
-            os.path.isfile(known_hosts(unit, user))):
+    remote_service = remote_service_from_unit(unit)
+
+    authorized_keys_file = authorized_keys(remote_service, user)
+    if not (os.path.isfile(authorized_keys_file) or
+            os.path.isfile(known_hosts(remote_service, user))):
         return
 
-    with open(authorized_keys(unit, user), 'rt') as f:
+    with open(authorized_keys_file, 'rt') as f:
         keys = [k.strip() for k in f.readlines()]
 
     if public_key not in keys:
         return
 
-    with open(authorized_keys(unit, user), 'wt') as f:
+    with open(authorized_keys_file, 'wt') as f:
         out = "\n".join([key for key in keys if key != public_key])
         if not out.endswith('\n'):
             out += '\n'

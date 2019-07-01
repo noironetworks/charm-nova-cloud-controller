@@ -30,6 +30,7 @@ def _add_path(path):
     if path not in sys.path:
         sys.path.insert(1, path)
 
+
 _add_path(_root)
 
 
@@ -756,10 +757,6 @@ def notify_ssh_keys_to_compute_units(rid=None, unit=None):
     unit.  If rid and unit are set, then this function is being called to
     refresh and update all specific units.
 
-    TODO(ajkavanagh) it's not clear why unit is required as relation data can't
-    be set for a particular unit, only on the relation; a coming refactor will
-    sort this out.
-
     :param rid: The relation to check/set, or if None, the current one related
                 to the hook.
     :type rid: Union[str. None]
@@ -772,29 +769,28 @@ def notify_ssh_keys_to_compute_units(rid=None, unit=None):
     migration_auth_type = rel_settings.get('migration_auth_type', None)
     if migration_auth_type is None:
         return
+
+    remote_service = ncc_utils.remote_service_from_unit(unit)
+
     if migration_auth_type == 'ssh':
-        _set_hosts_and_keys_on_relation(rid, unit, user=None)
+        _set_hosts_and_keys_on_relation(remote_service, rid, user=None)
 
     if rel_settings.get('nova_ssh_public_key', None):
-        _set_hosts_and_keys_on_relation(rid, unit, user='nova')
+        _set_hosts_and_keys_on_relation(remote_service, rid, user='nova')
 
 
-def _set_hosts_and_keys_on_relation(rid=None, unit=None, user=None):
+def _set_hosts_and_keys_on_relation(remote_service, rid=None, user=None):
     """Set the known hosts and authorized keys on the relation specified.
 
     Takes the authorized_keys and known hosts collected from all of the related
     compute units (that have been processed) and sets them on the relation via
     the _batch_write_ssh_on_relation() helper.
 
-    TODO(ajkavanagh) it's not clear why unit is required as relation data can't
-    be set for a particular unit, only on the relation; a coming refactor will
-    sort this out.
-
+    :param remote_service: the remote service related the keys/hosts
+    :type remote_service: str
     :param rid: The relation to check/set, or if None, the current one related
                 to the hook.
     :type rid: Union[str. None]
-    :param unit: the unit to check, of None for the current one according to
-                  the hook.
     :type unit: Union[str, None]
     :param user: the user to use in the format strings, or None for default
     :type user: Union[str, None]
@@ -812,11 +808,11 @@ def _set_hosts_and_keys_on_relation(rid=None, unit=None, user=None):
 
     _batch_write_ssh_on_relation(
         rid, known_hosts_prefix, known_hosts_max_key,
-        ncc_utils.ssh_known_hosts_lines(unit=unit, user=user))
+        ncc_utils.ssh_known_hosts_lines(remote_service, user=user))
 
     _batch_write_ssh_on_relation(
         rid, authorized_prefix, authorized_keys_max_key,
-        ncc_utils.ssh_authorized_keys_lines(unit=unit, user=user))
+        ncc_utils.ssh_authorized_keys_lines(remote_service, user=user))
 
 
 def _batch_write_ssh_on_relation(rid, prefix, max_index, _iter):

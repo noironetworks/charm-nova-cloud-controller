@@ -359,7 +359,10 @@ class NovaCCHooksTests(CharmTestCase):
         mock_update_ssh_keys_and_notify_compute_units.assert_called_once_with(
             rid=None, unit=None)
 
-    def test_update_ssh_keys_and_notify_compute_units_ssh_migration(self):
+    @patch('hooks.nova_cc_utils.remote_service_from_unit')
+    def test_update_ssh_keys_and_notify_compute_units_ssh_migration(
+            self, mock_remote_service_from_unit):
+        mock_remote_service_from_unit.return_value = 'aservice'
         self.test_relation.set({
             'migration_auth_type': 'ssh', 'ssh_public_key': 'fookey',
             'private-address': '10.0.0.1', 'region': 'RegionOne'})
@@ -388,7 +391,10 @@ class NovaCCHooksTests(CharmTestCase):
                  relation_id=None)]
         self.relation_set.assert_has_calls(expected_relations, any_order=True)
 
-    def test_update_ssh_keys_and_notify_compute_units_nova_public_key(self):
+    @patch('hooks.nova_cc_utils.remote_service_from_unit')
+    def test_update_ssh_keys_and_notify_compute_units_nova_public_key(
+            self, mock_remote_service_from_unit):
+        mock_remote_service_from_unit.return_value = 'aservice'
         self.test_relation.set({
             'migration_auth_type': 'sasl', 'nova_ssh_public_key': 'fookey',
             'private-address': '10.0.0.1', 'region': 'RegionOne'})
