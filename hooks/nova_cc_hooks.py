@@ -279,11 +279,7 @@ def config_changed():
     # to ensure the value is propagated to the compute nodes.
     if ch_utils.config_value_changed('region'):
         for rid in hookenv.relation_ids('cloud-compute'):
-            for unit in hookenv.related_units(rid):
-                # Note(ajkavanagh) This used to also update all of the ssh keys
-                # and hosts to every unit; but that's almost certainly not
-                # needed on a config changed hook
-                notify_region_to_unit(rid, unit)
+            set_region_on_relation_from_config(rid)
 
     ncc_utils.update_aws_compat_services()
 
@@ -637,7 +633,7 @@ def cloud_compute_relation_changed():
     * notifies the ssh known hosts and authorized keys to the unit
     """
     add_hosts_to_cell_when_ready()
-    notify_region_to_unit(rid=None, unit=None)
+    set_region_on_relation_from_config(rid=None)
     update_ssh_keys_and_notify_compute_units(rid=None, unit=None)
 
 
@@ -653,21 +649,15 @@ def add_hosts_to_cell_when_ready():
         ncc_utils.add_hosts_to_cell()
 
 
-def notify_region_to_unit(rid=None, unit=None):
-    """Helper function that if the relation data set by the unit differs from
-    the config on nova-cloud-controller, then nova-cc sets the new region for
-    that relation to trigger a change for any units that see it differently.
+def set_region_on_relation_from_config(rid=None):
+    """Helper function that sets the new region for that relation to trigger a
+    change for any units that see it differently.
 
-    :param rid: The relation to check/set, or if None, the current one related
+    :param rid: The relation to set, or if None, the current one related
                 to the hook.
     :type rid: Union[str. None]
-    :param unit: the unit to check, of None for the current one according to
-                  the hook.
-    :type unit: Union[str, None]
     """
-    rel_settings = hookenv.relation_get(rid=rid, unit=unit)
-    if not rel_settings.get('region', None) == hookenv.config('region'):
-        hookenv.relation_set(relation_id=rid, region=hookenv.config('region'))
+    hookenv.relation_set(relation_id=rid, region=hookenv.config('region'))
 
 
 def update_ssh_keys_and_notify_compute_units(rid=None, unit=None):
@@ -1046,8 +1036,8 @@ def upgrade_charm():
     for r_id in hookenv.relation_ids('identity-service'):
         identity_joined(rid=r_id)
     for r_id in hookenv.relation_ids('cloud-compute'):
+        set_region_on_relation_from_config(r_id)
         for unit in hookenv.related_units(r_id):
-            notify_region_to_unit(r_id, unit)
             update_ssh_keys_and_notify_compute_units(r_id, unit)
     for r_id in hookenv.relation_ids('shared-db'):
         db_joined(relation_id=r_id)

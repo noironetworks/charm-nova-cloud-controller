@@ -316,46 +316,48 @@ class NovaCCHooksTests(CharmTestCase):
     @patch('charmhelpers.fetch.filter_installed_packages')
     @patch.object(hooks, 'configure_https')
     @patch.object(hooks, 'compute_joined')
-    @patch.object(hooks, 'notify_region_to_unit')
-    def test_config_changed_region_change(self,
-                                          mock_notify_region_to_unit,
-                                          mock_compute_joined,
-                                          mock_config_https,
-                                          mock_filter_packages,
-                                          mock_is_db_initialised,
-                                          mock_update_aws_compat_services,
-                                          mock_relation_ids,
-                                          mock_resource_map,
-                                          mock_update_nrpe_config,
-                                          mock_get_shared_metadatasecret,
-                                          mock_set_shared_metadatasecret):
+    @patch.object(hooks, 'set_region_on_relation_from_config')
+    def test_config_changed_region_change(
+            self,
+            mock_set_region_on_relation_from_config,
+            mock_compute_joined,
+            mock_config_https,
+            mock_filter_packages,
+            mock_is_db_initialised,
+            mock_update_aws_compat_services,
+            mock_relation_ids,
+            mock_resource_map,
+            mock_update_nrpe_config,
+            mock_get_shared_metadatasecret,
+            mock_set_shared_metadatasecret):
         mock_resource_map.return_value = {}
         self.openstack_upgrade_available.return_value = False
         self.config_value_changed.return_value = True
         self.related_units.return_value = ['unit/0']
         self.relation_ids.side_effect = \
             lambda x: ['generic_rid'] if x == 'cloud-compute' else []
-        mock_is_db_initialised.return_value = False
+        mock_set_region_on_relation_from_config.return_value = False
         self.os_release.return_value = 'diablo'
         hooks.resolve_CONFIGS()
         hooks.config_changed()
-        mock_notify_region_to_unit.assert_has_calls(
-            [call('generic_rid', 'unit/0')])
+        mock_set_region_on_relation_from_config.assert_has_calls(
+            [call('generic_rid')])
         mock_compute_joined.assert_has_calls(
             [call(rid='generic_rid', remote_restart=False)])
         self.assertTrue(mock_update_aws_compat_services.called)
 
     @patch.object(hooks, 'add_hosts_to_cell_when_ready')
-    @patch.object(hooks, 'notify_region_to_unit')
+    @patch.object(hooks, 'set_region_on_relation_from_config')
     @patch.object(hooks, 'update_ssh_keys_and_notify_compute_units')
     def test_cloud_compute_relation_changed(
             self,
             mock_update_ssh_keys_and_notify_compute_units,
-            mock_notify_region_to_unit,
+            mock_set_region_on_relation_from_config,
             mock_add_hosts_to_cell_when_ready):
         hooks.cloud_compute_relation_changed()
         mock_add_hosts_to_cell_when_ready.assert_called_once_with()
-        mock_notify_region_to_unit.assert_called_once_with(rid=None, unit=None)
+        mock_set_region_on_relation_from_config.assert_called_once_with(
+            rid=None)
         mock_update_ssh_keys_and_notify_compute_units.assert_called_once_with(
             rid=None, unit=None)
 
