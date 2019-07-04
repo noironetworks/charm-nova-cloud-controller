@@ -361,10 +361,77 @@ class NovaCCHooksTests(CharmTestCase):
         mock_update_ssh_keys_and_notify_compute_units.assert_called_once_with(
             rid=None, unit=None)
 
+    @patch('charmhelpers.core.hookenv.related_units')
+    @patch('charmhelpers.core.hookenv.expected_related_units')
+    def test__goal_state_achieved_for_relid__goal_state_not_available(
+            self, mock_expected_related_units, mock_related_units):
+        mock_related_units.return_value = ['service/0']
+
+        def _side_effect(*_, **__):
+            raise NotImplementedError()
+
+        mock_expected_related_units.side_effect = _side_effect
+        self.assertTrue(hooks._goal_state_achieved_for_relid('aservice', None))
+
+    @patch('charmhelpers.core.hookenv.related_units')
+    @patch('charmhelpers.core.hookenv.expected_related_units')
+    def test__goal_state_achieved_for_relid__goal_state_key_error(
+            self, mock_expected_related_units, mock_related_units):
+        mock_related_units.return_value = ['service/0']
+
+        def _side_effect(*_, **__):
+            raise KeyError()
+
+        mock_expected_related_units.side_effect = _side_effect
+        self.assertFalse(
+            hooks._goal_state_achieved_for_relid('aservice', None))
+
+    @patch('charmhelpers.core.hookenv.related_units')
+    @patch('charmhelpers.core.hookenv.expected_related_units')
+    def test__goal_state_achieved_for_relid__goal_state_no_related_units_yet(
+            self, mock_expected_related_units, mock_related_units):
+        mock_related_units.return_value = []
+        mock_expected_related_units.return_value = ['service/0']
+        self.assertFalse(
+            hooks._goal_state_achieved_for_relid('aservice', None))
+
+    @patch('charmhelpers.core.hookenv.related_units')
+    @patch('charmhelpers.core.hookenv.expected_related_units')
+    def test__goal_state_achieved_for_relid__goal_state_insufficient_units(
+            self, mock_expected_related_units, mock_related_units):
+        mock_related_units.return_value = ['service/0']
+        mock_expected_related_units.return_value = ['service/0', 'service/1']
+        self.assertFalse(
+            hooks._goal_state_achieved_for_relid('aservice', None))
+
+    @patch('charmhelpers.core.hookenv.related_units')
+    @patch('charmhelpers.core.hookenv.expected_related_units')
+    def test__goal_state_achieved_for_relid__goal_state_sufficient_units(
+            self, mock_expected_related_units, mock_related_units):
+        mock_related_units.return_value = ['service/0', 'service/1']
+        mock_expected_related_units.return_value = ['service/0', 'service/1']
+        self.assertTrue(hooks._goal_state_achieved_for_relid('aservice', None))
+
+    @patch('charmhelpers.core.hookenv.related_units')
+    @patch('charmhelpers.core.hookenv.expected_related_units')
+    def test__goal_state_achieved_for_relid__goal_state_different_units(
+            self, mock_expected_related_units, mock_related_units):
+        # this shouldn't actually be able to happen, but let's check for it
+        # anyway
+        mock_related_units.return_value = ['service/0']
+        mock_expected_related_units.return_value = \
+            ['service-a/0', 'service-b/0']
+        self.assertFalse(
+            hooks._goal_state_achieved_for_relid('aservice', None))
+
+    @patch('hooks.nova_cc_hooks._goal_state_achieved_for_relid')
     @patch('hooks.nova_cc_utils.remote_service_from_unit')
     def test_update_ssh_keys_and_notify_compute_units_ssh_migration(
-            self, mock_remote_service_from_unit):
+            self,
+            mock_remote_service_from_unit,
+            mock__goal_state_achieved_for_relid):
         mock_remote_service_from_unit.return_value = 'aservice'
+        mock__goal_state_achieved_for_relid.return_value = True
         self.test_relation.set({
             'migration_auth_type': 'ssh', 'ssh_public_key': 'fookey',
             'private-address': '10.0.0.1', 'region': 'RegionOne'})
@@ -392,11 +459,17 @@ class NovaCCHooksTests(CharmTestCase):
             call(relation_settings={'authorized_keys_max_index': 3},
                  relation_id=None)]
         self.relation_set.assert_has_calls(expected_relations, any_order=True)
+        mock__goal_state_achieved_for_relid.assert_called_once_with(
+            'cloud-compute', None)
 
+    @patch('hooks.nova_cc_hooks._goal_state_achieved_for_relid')
     @patch('hooks.nova_cc_utils.remote_service_from_unit')
     def test_update_ssh_keys_and_notify_compute_units_nova_public_key(
-            self, mock_remote_service_from_unit):
+            self,
+            mock_remote_service_from_unit,
+            mock__goal_state_achieved_for_relid):
         mock_remote_service_from_unit.return_value = 'aservice'
+        mock__goal_state_achieved_for_relid.return_value = True
         self.test_relation.set({
             'migration_auth_type': 'sasl', 'nova_ssh_public_key': 'fookey',
             'private-address': '10.0.0.1', 'region': 'RegionOne'})
@@ -425,6 +498,8 @@ class NovaCCHooksTests(CharmTestCase):
             call(relation_settings={'nova_authorized_keys_max_index': 3},
                  relation_id=None)]
         self.relation_set.assert_has_calls(expected_relations, any_order=True)
+        mock__goal_state_achieved_for_relid.assert_called_once_with(
+            'cloud-compute', None)
 
     @patch('hooks.nova_cc_utils.is_cellv2_init_ready')
     @patch('hooks.nova_cc_utils.is_db_initialised')

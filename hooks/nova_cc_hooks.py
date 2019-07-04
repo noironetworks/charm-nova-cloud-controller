@@ -679,7 +679,63 @@ def update_ssh_keys_and_notify_compute_units(rid=None, unit=None):
     :type unit: Union[str, None]
     """
     update_ssh_key(rid=rid, unit=unit)
-    notify_ssh_keys_to_compute_units(rid=rid, unit=unit)
+
+    # if we have goal state, then only notify the ssh authorized_keys and
+    # known_hosts onto the relation when the last compute unit has arrived
+    # (i.e. we've reached the goal state)
+    if _goal_state_achieved_for_relid('cloud-compute', rid):
+        notify_ssh_keys_to_compute_units(rid=rid, unit=unit)
+
+
+def _goal_state_achieved_for_relid(reltype, rid=None):
+    """Check that the goal-state has been achieved for the reltype and relid.
+
+    If goal state is not available, then the function returns True.
+    Otherwise, as goal state (from Juju) replies with all the units for the
+    relation type, without respect for the relation id.  i.e. normally, Juju is
+    a hierarchy of relation type -> relation id -> units, but goal state is
+    relation type -> units (where all the units across the relation ids are
+    grouped.
+
+    If the relid is None, then the relation_id for the hook is used (by the
+    library function related_units()).
+
+    Note this function checks a particular relation id for reaching goal state,
+    not all relation ids.  To do that (with this function) do:
+
+        all(_goal_state_achieved_for_relid(reltype, rid)
+            for rid in relation_ids(reltype))
+
+    :param reltype: the relation type (e.g. 'cloud-compute')
+    :type reltype: str
+    :param rid: the relation id, or None for the default
+    :type rid: Union[str, None]
+    :returns: True if goal state is achieved, or not available
+    :rtype: bool
+    """
+    try:
+        # There should always be one unit -- if not, this block KeyErrors and
+        # so the goal is false.
+        units_so_far = hookenv.related_units(relid=rid)
+        # goal state returns all the units by the relation type (in this
+        # case 'cloud-compute').  So we need to only check the ones with
+        # the same prefix e.g. nova-compute/0, nova-compute/1 vs
+        # nova-compute-b/0, etc if there were two separate relations to two
+        # nova-compute applications
+        all_units = list(
+            hookenv.expected_related_units(reltype=reltype))
+        prefix = units_so_far[0].split('/')[0]
+        target_units = [u for u in all_units if u.split('/')[0] == prefix]
+        return units_so_far == target_units
+    except (KeyError, IndexError):
+        # expected_related_units() can raise a KeyError in the case there are
+        # no units  - in that case assume that the goal wasn't met
+        # if there are no units_so_far, then Index error is raised
+        return False
+    except NotImplementedError:
+        # Not implemented means that goal state is not available
+        pass
+    return True
 
 
 def update_ssh_key(rid=None, unit=None):
