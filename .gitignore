@@ -11,3 +11,4 @@ xenial/
 tests/cirros-*-disk.img
 func*.json
 .stestr
+__pycache__

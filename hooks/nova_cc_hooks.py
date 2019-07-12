@@ -487,6 +487,7 @@ def _auth_config():
         'service_tenant': ncc_utils.auth_token_config('admin_tenant_name'),
         # add api version if found
         'api_version': ncc_utils.auth_token_config('api_version') or '2.0',
+        'admin_domain_name': ncc_utils.auth_token_config('admin_domain_name')
     }
     return cfg
 
