@@ -100,7 +100,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             {'name': 'nova-compute', 'units': 2},
             {'name': 'keystone'},
             {'name': 'glance'},
-            {'name': 'percona-cluster', 'constraints': {'mem': '3072M'}},
+            self.get_percona_service_entry(),
         ]
         if self._get_openstack_release() >= self.xenial_ocata:
             other_ocata_services = [
