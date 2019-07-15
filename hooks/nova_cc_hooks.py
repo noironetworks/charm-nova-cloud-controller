@@ -770,6 +770,10 @@ def update_ssh_key(rid=None, unit=None):
     if migration_auth_type is None:
         return
 
+    remote_service = ncc_utils.remote_service_from_unit(unit)
+    private_address = rel_settings.get('private-address', None)
+    hostname = rel_settings.get('hostname', '')
+
     if migration_auth_type == 'ssh':
         # TODO(ajkavanagh) -- the hookenv was previous behaviour, but there
         # isn't a good place to put this yet; it will be moved or removed at
@@ -782,14 +786,19 @@ def update_ssh_key(rid=None, unit=None):
                         .format(rid or hookenv.relation_id(),
                                 unit or hookenv.remote_unit()))
             return
-        ncc_utils.ssh_compute_add(key, rid=rid, unit=unit)
+        ncc_utils.ssh_resolve_compute_hosts(
+            remote_service, private_address, hostname, user=None)
+        ncc_utils.add_authorized_key_if_doesnt_exist(
+            key, remote_service, private_address, user=None)
 
     nova_ssh_public_key = rel_settings.get('nova_ssh_public_key', None)
 
     # Always try to fetch the user 'nova' key on the remote compute unit
     if nova_ssh_public_key:
-        ncc_utils.ssh_compute_add(nova_ssh_public_key,
-                                  rid=rid, unit=unit, user='nova')
+        ncc_utils.ssh_resolve_compute_hosts(
+            remote_service, private_address, hostname, user='nova')
+        ncc_utils.add_authorized_key_if_doesnt_exist(
+            nova_ssh_public_key, remote_service, private_address, user='nova')
 
 
 def notify_ssh_keys_to_compute_units(rid=None, unit=None):
