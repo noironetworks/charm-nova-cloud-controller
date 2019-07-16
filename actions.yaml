@@ -1,15 +1,51 @@
 openstack-upgrade:
-    description: Perform openstack upgrades. Config option action-managed-upgrade must be set to True.
+  description: |
+    Perform openstack upgrades. Config option action-managed-upgrade must be
+    set to True.
 pause:
-  description: Pause the nova-cloud-controller unit.  This action will stop related services.
+  description: |
+    Pause the nova-cloud-controller unit.  This action will stop related
+    services.
 resume:
-  descrpition: Resume the nova-cloud-controller unit.  This action will start related services.
+  description: |
+    Resume the nova-cloud-controller unit.  This action will start related
+    services.
 archive-data:
-  descrpition: Run job to archive deleted rows in database
+  description: Run job to archive deleted rows in database
   params:
     batch-size:
       type: integer
       default: 10000
-      description: Archive old data to shadow tables
+  description: Archive old data to shadow tables
 security-checklist:
-  description: Validate the running configuration against the OpenStack security guides checklist
+  description: |
+    Validate the running configuration against the OpenStack security guides
+    checklist
+clear-unit-knownhost-cache:
+  params:
+    unit:
+      target: string
+      default: ""
+  description: |
+    Clear the knownhost cache for (default) all the units, a service, or a
+    single unit.
+    .
+    The default is all units.  If the 'target' param has an '/' in it, then it
+    is assumed ot be a single unit.  If no '/' is present, then all the units
+    in a service will be refreshed.
+    .
+    e.g. target="nova-compute/4" will just clear the nova-compute/4 unit (in
+    the 'nova-compute' application), whereas target='nova-compute' will refresh
+    all of the units in the 'nova-compute' application.
+    .
+    The action triggers a refresh resolution of the known hosts for the unit,
+    which then populates the cache, updates the knownhosts file for the
+    associated service (e.g. 'nova-compute'), and, importantly, sets the
+    relation data for that associated service with the new knownhosts file.
+    This may cause a 'cloud-compute' relation changed hook on the associated
+    nova-compute units if the hosts have changed.
+    .
+    This action still functions even if the 'cache-known-hosts' config value is
+    not set; caching of hosts occurs regardless of that setting, and so this
+    action can be used to force an update if DNS has changed in the system, or
+    for a particular host (although this scenario is unlikely).
