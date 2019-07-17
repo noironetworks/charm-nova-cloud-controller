@@ -68,7 +68,7 @@ TO_PATCH = [
     'hooks.nova_cc_utils.serial_console_settings',
     'hooks.nova_cc_utils.services',
     'hooks.nova_cc_utils.ssh_authorized_keys_lines',
-    'hooks.nova_cc_utils.ssh_compute_add',
+    'hooks.nova_cc_utils.ssh_resolve_compute_hosts',
     'hooks.nova_cc_utils.ssh_known_hosts_lines',
     'uuid',
 ]
@@ -424,12 +424,16 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertFalse(
             hooks._goal_state_achieved_for_relid('aservice', None))
 
+    @patch('hooks.nova_cc_utils.add_authorized_key_if_doesnt_exist')
+    @patch('hooks.nova_cc_utils.ssh_resolve_compute_hosts')
     @patch('hooks.nova_cc_hooks._goal_state_achieved_for_relid')
     @patch('hooks.nova_cc_utils.remote_service_from_unit')
     def test_update_ssh_keys_and_notify_compute_units_ssh_migration(
             self,
             mock_remote_service_from_unit,
-            mock__goal_state_achieved_for_relid):
+            mock__goal_state_achieved_for_relid,
+            mock_ssh_resolve_compute_hosts,
+            mock_add_authorized_key_if_doesnt_exist):
         mock_remote_service_from_unit.return_value = 'aservice'
         mock__goal_state_achieved_for_relid.return_value = True
         self.test_relation.set({
@@ -440,7 +444,10 @@ class NovaCCHooksTests(CharmTestCase):
         self.ssh_authorized_keys_lines.return_value = [
             'auth_0', 'auth_1', 'auth_2']
         hooks.update_ssh_keys_and_notify_compute_units()
-        self.ssh_compute_add.assert_called_with('fookey', rid=None, unit=None)
+        mock_ssh_resolve_compute_hosts.assert_called_once_with(
+            'aservice', '10.0.0.1', '', user=None)
+        mock_add_authorized_key_if_doesnt_exist.assert_called_once_with(
+            'fookey', 'aservice', '10.0.0.1', user=None)
         expected_relations = [
             call(relation_settings={'authorized_keys_0': 'auth_0'},
                  relation_id=None),
@@ -462,12 +469,16 @@ class NovaCCHooksTests(CharmTestCase):
         mock__goal_state_achieved_for_relid.assert_called_once_with(
             'cloud-compute', None)
 
+    @patch('hooks.nova_cc_utils.add_authorized_key_if_doesnt_exist')
+    @patch('hooks.nova_cc_utils.ssh_resolve_compute_hosts')
     @patch('hooks.nova_cc_hooks._goal_state_achieved_for_relid')
     @patch('hooks.nova_cc_utils.remote_service_from_unit')
     def test_update_ssh_keys_and_notify_compute_units_nova_public_key(
             self,
             mock_remote_service_from_unit,
-            mock__goal_state_achieved_for_relid):
+            mock__goal_state_achieved_for_relid,
+            mock_ssh_resolve_compute_hosts,
+            mock_add_authorized_key_if_doesnt_exist):
         mock_remote_service_from_unit.return_value = 'aservice'
         mock__goal_state_achieved_for_relid.return_value = True
         self.test_relation.set({
@@ -478,8 +489,10 @@ class NovaCCHooksTests(CharmTestCase):
         self.ssh_authorized_keys_lines.return_value = [
             'auth_0', 'auth_1', 'auth_2']
         hooks.update_ssh_keys_and_notify_compute_units()
-        self.ssh_compute_add.assert_called_with('fookey', user='nova',
-                                                rid=None, unit=None)
+        mock_ssh_resolve_compute_hosts.assert_called_once_with(
+            'aservice', '10.0.0.1', '', user='nova')
+        mock_add_authorized_key_if_doesnt_exist.assert_called_once_with(
+            'fookey', 'aservice', '10.0.0.1', user='nova')
         expected_relations = [
             call(relation_settings={'nova_authorized_keys_0': 'auth_0'},
                  relation_id=None),

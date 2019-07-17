@@ -1184,63 +1184,116 @@ def ssh_authorized_key_exists(public_key, remote_service, user=None):
         return ' {} '.format(public_key) in keys.read()
 
 
-def add_authorized_key(public_key, remote_service, user=None):
-    """Add a public key to a specified authorized_keys file
+def add_authorized_key_if_doesnt_exist(public_key,
+                                       remote_service,
+                                       private_address,
+                                       user=None):
+    """Add the public key to the authorized_keys file if it doesn't already
+    exist.
 
     The authorized_keys file is determined by the remote_service param passed
     and (optionally) the user, if it is not None.
+
+    If the private_address is None, then the function bails until a further
+    hook makes it available.
 
     :param public_key: The public_key to add to specified authorized_keys file
     :type public_key: str
     :param remote_service: the remote service used to determine the known_hosts
         file.
     :type remote_service: str
+    :param private_address: The private address of the unit
+    :type private_address: Union[str, None]
     :param user: optional user used to determine the known_hosts file.
     :type user: Union[str, None]
     """
-    with open(authorized_keys(remote_service, user), 'a') as keys:
-        keys.write(public_key + '\n')
-
-
-def ssh_compute_add(public_key, rid=None, unit=None, user=None):
-    # If remote compute node hands us a hostname, ensure we have a
-    # known hosts entry for its IP, hostname and FQDN.
-    private_address = hookenv.relation_get(rid=rid, unit=unit,
-                                           attribute='private-address')
-    hosts = []
-
-    if not ch_ip.is_ipv6(private_address):
-        hostname = hookenv.relation_get(rid=rid, unit=unit,
-                                        attribute='hostname')
-        if hostname:
-            hosts.append(hostname.lower())
-
-        if not ch_utils.is_ip(private_address):
-            hosts.append(private_address.lower())
-            hosts.append(ch_utils.get_host_ip(private_address))
-            short = private_address.split('.')[0]
-            if ch_ip.ns_query(short):
-                hosts.append(short.lower())
-        else:
-            hosts.append(private_address)
-            hn = ch_utils.get_hostname(private_address)
-            if hn:
-                hosts.append(hn.lower())
-                short = hn.split('.')[0]
-                if ch_ip.ns_query(short):
-                    hosts.append(short.lower())
-    else:
-        hosts.append(private_address)
-
-    remote_service = remote_service_from_unit(unit)
-
-    for host in set(hosts):
-        add_known_host(host, remote_service, user)
-
+    if private_address is None:
+        return
     if not ssh_authorized_key_exists(public_key, remote_service, user):
         hookenv.log('Saving SSH authorized key for compute host at %s.' %
                     private_address)
-        add_authorized_key(public_key, remote_service, user)
+        with open(authorized_keys(remote_service, user), 'a') as keys:
+            keys.write(public_key + '\n')
+
+
+def ssh_resolve_compute_hosts(remote_service,
+                              private_address,
+                              hostname,
+                              user=None):
+    """Resolve all the host names for the private address, and store it against
+    the remote service (effectively the relation) and an optional user.
+
+    Note(ajkavanagh) a further patch will remove the remote_service aspect so
+    that the hosts are just stored per user at the target.  However, how to
+    upgrade an existing system still needs to be considered.
+
+    :param remote_service: The remote service against which to store the hosts
+        file.
+    :type remote_service: str
+    :param private_address: The private address to resolve hostnames against.
+    :type private_address: Union[str, None]
+    :param hostname: An optional hostname (extracted from the relation data of
+        the unit), to also use to resolve hostnames for the compute unit.
+    :type hostname: str
+    :param user: an optional user against which to store the resolved
+        hostnames.
+    :type user: Union[str, None]
+    """
+    for host in _resolve_hosts(private_address, hostname):
+        # TODO(ajkavanagh) expensive
+        add_known_host(host, remote_service, user)
+
+
+def _resolve_hosts(private_address, hostname):
+    """Return all of the resolved hosts for a unit
+
+    Using private-address and (if availble) hostname attributes on the
+    relation, create a definite list of hostnames for that unit according to
+    the DNS set up for the system.
+
+    If remote compute node hands us a hostname, ensure we have a known hosts
+    entry for its IP, hostname and FQDN.
+
+    :param private_address: the private address of the unit from its relation
+                            data.
+    :type private_address: Union[str, None]
+    :param hostname: the 'hostname' from the relation data for the unit.
+    :type hostname: str
+    :returns: list of hostname strings
+    :rtype: List[str]
+    """
+    if private_address is None:
+        return []
+
+    # Use a set to enforce uniqueness; order doesn't matter
+    hosts = set()
+
+    if not ch_ip.is_ipv6(private_address):
+        if hostname:
+            hosts.add(hostname.lower())
+
+        if not ch_utils.is_ip(private_address):
+            hosts.append(private_address.lower())
+            # TODO(ajkavanagh) expensive
+            hosts.add(ch_utils.get_host_ip(private_address))
+            short = private_address.split('.')[0]
+            # TODO(ajkavanagh) expensive
+            if ch_ip.ns_query(short):
+                hosts.add(short.lower())
+        else:
+            hosts.add(private_address)
+            # TODO(ajkavanagh) expensive
+            hn = ch_utils.get_hostname(private_address)
+            if hn:
+                hosts.add(hn.lower())
+                short = hn.split('.')[0]
+                # TODO(ajkananagh) expensive
+                if ch_ip.ns_query(short):
+                    hosts.add(short.lower())
+    else:
+        hosts.add(private_address)
+
+    return list(hosts)
 
 
 def ssh_known_hosts_lines(remote_service, user=None):
@@ -1552,7 +1605,7 @@ def check_optional_relations(configs):
     if hookenv.relation_ids('ha'):
         try:
             ch_cluster.get_hacluster_config()
-        except:
+        except Exception:
             return ('blocked',
                     'hacluster missing configuration: '
                     'vip, vip_iface, vip_cidr')
