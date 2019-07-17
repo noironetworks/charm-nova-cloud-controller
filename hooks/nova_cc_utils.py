@@ -31,6 +31,7 @@ import charmhelpers.contrib.peerstorage as ch_peerstorage
 import charmhelpers.core.decorators as ch_decorators
 import charmhelpers.core.hookenv as hookenv
 import charmhelpers.core.host as ch_host
+import charmhelpers.core.unitdata as unitdata
 import charmhelpers.fetch as ch_fetch
 
 import hooks.nova_cc_common as common
@@ -1216,10 +1217,9 @@ def add_authorized_key_if_doesnt_exist(public_key,
             keys.write(public_key + '\n')
 
 
-def ssh_resolve_compute_hosts(remote_service,
-                              private_address,
-                              hostname,
-                              user=None):
+def ssh_compute_add_known_hosts(remote_service,
+                                resolved_hosts,
+                                user=None):
     """Resolve all the host names for the private address, and store it against
     the remote service (effectively the relation) and an optional user.
 
@@ -1230,21 +1230,18 @@ def ssh_resolve_compute_hosts(remote_service,
     :param remote_service: The remote service against which to store the hosts
         file.
     :type remote_service: str
-    :param private_address: The private address to resolve hostnames against.
-    :type private_address: Union[str, None]
-    :param hostname: An optional hostname (extracted from the relation data of
-        the unit), to also use to resolve hostnames for the compute unit.
-    :type hostname: str
+    :param resolved_hosts: The hosts to add
+    :type resolved_hosts: List[str]
     :param user: an optional user against which to store the resolved
         hostnames.
     :type user: Union[str, None]
     """
-    for host in _resolve_hosts(private_address, hostname):
+    for host in resolved_hosts:
         # TODO(ajkavanagh) expensive
         add_known_host(host, remote_service, user)
 
 
-def _resolve_hosts(private_address, hostname):
+def resolve_hosts_for(private_address, hostname):
     """Return all of the resolved hosts for a unit
 
     Using private-address and (if availble) hostname attributes on the
@@ -1265,35 +1262,65 @@ def _resolve_hosts(private_address, hostname):
     if private_address is None:
         return []
 
+    db = unitdata.kv()
+    db_key = "hostset-{}".format(private_address)
+    cached_hostset = db.get(db_key, default=None)
+    if hostname:
+        hostname = hostname.lower()
+
+    # only use the cached hostset if the config flag is true
+    if hookenv.config('cache-known-hosts') and cached_hostset is not None:
+        # in the unlikely event that we've already cached the host but the
+        # hostname is now present, add that in.
+        if (not ch_ip.is_ipv6(private_address) and
+                hostname and
+                hostname not in cached_hostset):
+            return cached_hostset + hostname
+        return cached_hostset
+
     # Use a set to enforce uniqueness; order doesn't matter
     hosts = set()
 
     if not ch_ip.is_ipv6(private_address):
         if hostname:
-            hosts.add(hostname.lower())
+            hosts.add(hostname)
 
         if not ch_utils.is_ip(private_address):
             hosts.append(private_address.lower())
-            # TODO(ajkavanagh) expensive
             hosts.add(ch_utils.get_host_ip(private_address))
             short = private_address.split('.')[0]
-            # TODO(ajkavanagh) expensive
             if ch_ip.ns_query(short):
                 hosts.add(short.lower())
         else:
             hosts.add(private_address)
-            # TODO(ajkavanagh) expensive
             hn = ch_utils.get_hostname(private_address)
             if hn:
                 hosts.add(hn.lower())
                 short = hn.split('.')[0]
-                # TODO(ajkananagh) expensive
                 if ch_ip.ns_query(short):
                     hosts.add(short.lower())
     else:
         hosts.add(private_address)
 
-    return list(hosts)
+    # Note, the cache is maintained regardless of whether the config
+    # 'cache-known-hosts' flag is set; the flag only affects usage and lookup.
+    hosts = list(hosts)
+    db.set(db_key, hosts)
+    db.flush()
+
+    return hosts
+
+
+def clear_hostset_cache_for(private_address):
+    """Clear the hostset cache for a private address that refers to a unit.
+
+    :param private_address: the private address corresponding to the unit
+    :type private_address: str
+    """
+    db = unitdata.kv()
+    db_key = "hostset-{}".format(private_address)
+    db.unset(db_key)
+    db.flush()
 
 
 def ssh_known_hosts_lines(remote_service, user=None):

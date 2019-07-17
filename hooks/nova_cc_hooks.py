@@ -774,6 +774,9 @@ def update_ssh_key(rid=None, unit=None):
     private_address = rel_settings.get('private-address', None)
     hostname = rel_settings.get('hostname', '')
 
+    # only resolve the hosts once, so this is the memo for it
+    resolved_hosts = None
+
     if migration_auth_type == 'ssh':
         # TODO(ajkavanagh) -- the hookenv was previous behaviour, but there
         # isn't a good place to put this yet; it will be moved or removed at
@@ -786,8 +789,9 @@ def update_ssh_key(rid=None, unit=None):
                         .format(rid or hookenv.relation_id(),
                                 unit or hookenv.remote_unit()))
             return
-        ncc_utils.ssh_resolve_compute_hosts(
-            remote_service, private_address, hostname, user=None)
+        resolved_hosts = ncc_utils.resolve_hosts_for(private_address, hostname)
+        ncc_utils.ssh_compute_add_known_hosts(
+            remote_service, resolved_hosts, user=None)
         ncc_utils.add_authorized_key_if_doesnt_exist(
             key, remote_service, private_address, user=None)
 
@@ -795,8 +799,13 @@ def update_ssh_key(rid=None, unit=None):
 
     # Always try to fetch the user 'nova' key on the remote compute unit
     if nova_ssh_public_key:
-        ncc_utils.ssh_resolve_compute_hosts(
-            remote_service, private_address, hostname, user='nova')
+        # in the unlikely event the migration type wasn't ssh, we still have to
+        # resolve the hosts
+        if resolved_hosts is None:
+            resolved_hosts = ncc_utils.resolve_hosts_for(private_address,
+                                                         hostname)
+        ncc_utils.ssh_compute_add_known_hosts(
+            remote_service, resolved_hosts, user='nova')
         ncc_utils.add_authorized_key_if_doesnt_exist(
             nova_ssh_public_key, remote_service, private_address, user='nova')
 
@@ -899,8 +908,10 @@ def _batch_write_ssh_on_relation(rid, prefix, max_index, _iter):
 
 @hooks.hook('cloud-compute-relation-departed')
 def compute_departed():
+    relation_data = hookenv.relation_get()
     ncc_utils.ssh_compute_remove(
-        public_key=hookenv.relation_get('ssh_public_key'))
+        public_key=relation_data.get('ssh_public_key'))
+    ncc_utils.clear_hostset_cache_for(relation_data.get('private-address'))
 
 
 @hooks.hook('neutron-network-service-relation-joined',
