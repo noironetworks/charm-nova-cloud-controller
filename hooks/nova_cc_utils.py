@@ -409,6 +409,14 @@ def determine_packages():
         packages = [p for p in packages if not p.startswith('python-')]
         packages.extend(PY3_PACKAGES)
         packages.remove('libapache2-mod-wsgi')
+    if release >= 'stein':
+        # NOTE(jamespage):
+        # workaround to deal with lack of functionality to update the db
+        # connection for Cell 0. At stein, the default SQLAlchemy dialect
+        # switched to mysqldb, which requires use of mysql+pymysql:// in
+        # all connection strings, but there is no way to update the
+        # db url for cell0 as stored in the nova_api DB.
+        packages.append('python3-mysqldb')
 
     return list(set(packages))
 

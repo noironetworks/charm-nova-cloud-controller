@@ -508,7 +508,23 @@ class NovaCCUtilsTests(CharmTestCase):
         ex.remove('nova-objectstore')
         ex.remove('nova-api-ec2')
         self.assertEqual(sorted(ex), sorted(pkgs))
-        self.assertEqual(ex, pkgs)
+
+    @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
+    def test_determine_packages_base_stein(self, subcontext):
+        self.relation_ids.return_value = []
+        self.os_release.return_value = 'stein'
+        self.token_cache_pkgs.return_value = []
+        self.enable_memcache.return_value = False
+        pkgs = utils.determine_packages()
+        ex = list(set([p for p in utils.BASE_PACKAGES + utils.BASE_SERVICES
+                      if not p.startswith('python-')] + utils.PY3_PACKAGES))
+        # some packages still need to be removed
+        ex.remove('libapache2-mod-wsgi')
+        ex.remove('nova-cert')
+        ex.remove('nova-objectstore')
+        ex.remove('nova-api-ec2')
+        ex.append('python3-mysqldb')
+        self.assertEqual(sorted(ex), sorted(pkgs))
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_determine_packages_serial_console(self, subcontext):
