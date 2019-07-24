@@ -23,8 +23,8 @@ security-checklist:
     checklist
 clear-unit-knownhost-cache:
   params:
-    unit:
-      target: string
+    target:
+      type: string
       default: ""
   description: |
     Clear the knownhost cache for (default) all the units, a service, or a
