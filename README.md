@@ -87,3 +87,41 @@ quota-injected_file_path_length - 255
 quota-key_pairs - 100
 quota-server_groups - 10 (only available after Icehouse)
 quota-server_group_members - 10 (only available after Icehouse)
+
+## EXPERIMENTAL: SSH knownhosts caching
+
+This section covers an EXPERIMENTAL option involving the caching of SSH
+host lookups (knownhosts) on each nova-compute unit.
+
+There is a new Boolean configuration key `cache-known-hosts` that ensures
+that any given host lookup to be performed just once.  The default is
+`false` which effectively means that caching is not performed.
+
+**Note**: A cloud can be deployed with the `cache-known-hosts` key set to
+`false`, and be set to `true` post-deployment. At that point the hosts
+will have been cached. The key only controls whether the cache is used or
+not.
+
+If the above key is set, a new Juju action `clear-unit-knownhost-cache` is
+provided to clear the cache. This can be applied to a unit, service, or an
+entire nova-cloud-controller application. This would be needed if DNS
+resolution had changed in an existing cloud or during a cloud deployment.
+Not clearing the cache in such cases could result in an inconsistent set
+of knownhosts files.
+
+This action will cause DNS resolution to be performed (for
+unit/service/application), thus potentially triggering a relation-set on
+the nova-cloud-controller unit(s) and subsequent changed hook on the
+related nova-compute units.
+
+The action is used as follows, based on unit, service, or application,
+respectively:
+
+```
+juju run-action nova-cloud-controller/0 clear-unit-knownhost-cache target=nova-compute/2
+juju run-action nova-cloud-controller/0 clear-unit-knownhost-cache target=nova-compute
+juju run-action nova-cloud-controller/0 clear-unit-knownhost-cache
+```
+
+In a high-availability setup, the action must be run on all
+`nova-cloud-controller` units.
