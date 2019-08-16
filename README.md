@@ -88,14 +88,16 @@ quota-key_pairs - 100
 quota-server_groups - 10 (only available after Icehouse)
 quota-server_group_members - 10 (only available after Icehouse)
 
-## EXPERIMENTAL: SSH knownhosts caching
+## SSH knownhosts caching
 
-This section covers an EXPERIMENTAL option involving the caching of SSH
-host lookups (knownhosts) on each nova-compute unit.
+This section covers the option involving the caching of SSH host lookups
+(knownhosts) on each nova-compute unit.  Caching of SSH host lookups speeds up
+deployment of nova-compute units when first deploying a cloud, and when adding
+a new unit.
 
-There is a new Boolean configuration key `cache-known-hosts` that ensures
-that any given host lookup to be performed just once.  The default is
-`false` which effectively means that caching is not performed.
+There is a Boolean configuration key `cache-known-hosts` that ensures that any
+given host lookup to be performed just once.  The default is `true` which means
+that caching is performed.
 
 **Note**: A cloud can be deployed with the `cache-known-hosts` key set to
 `false`, and be set to `true` post-deployment. At that point the hosts

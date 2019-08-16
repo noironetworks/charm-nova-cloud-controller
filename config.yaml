@@ -145,29 +145,27 @@ options:
         * identity-service
   cache-known-hosts:
     type: boolean
-    default: false
+    default: true
     description: |
-      EXPERIMENTAL - If true then the charm will cache host and ip lookups for
-      a unit when populating the knownhosts file for nova-compute service.
-      This is a known performance issue around maintaining the knownhosts files
-      for each nova-compute service, and caching is a strategy to reduce the
-      hook execution time when the 'cloud-compute' relation changes.  If false,
-      then no caching is performed.  Changing from true to false will NOT cause
-      new lookups to be performed.
+      If true then the charm will cache host and ip lookups for a unit when
+      populating the knownhosts file for nova-compute service.  This is a known
+      performance issue around maintaining the knownhosts files for each
+      nova-compute service, and caching is a strategy to reduce the hook
+      execution time when the 'cloud-compute' relation changes.  If false, then
+      no caching is performed.  Changing from true to false will NOT cause new
+      lookups to be performed.
       .
       To clear the caches and force new lookups to be performed, the action
       'clear-unit-knownhost-cache' should be used.
       .
-      This config flag is experimental as it's very hard to determine if there
-      will be any DNS issues during the deployment onto different platforms.
-      Thus it may be preferred to keep the flag false during deployment and
-      then switch to true after deployment.
+      This config flag is new. If there are any DNS issues during the
+      deployment onto different platforms then the knownhost lookups may be
+      inconsistent.  Thus it may be preferred to keep the flag false during
+      deployment and then switch to true after deployment.
       .
       Note that the charm keeps a record of the lookups for each unit
       regardless of the setting of this flag.  The cache is only used if the
       flag is true.
-      .
-      At a future release the default will be true.
   console-access-protocol:
     type: string
     default:
