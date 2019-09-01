@@ -30,6 +30,7 @@ TO_PATCH = [
     'charmhelpers.contrib.network.ip.get_iface_for_address',
     'charmhelpers.contrib.network.ip.get_netmask_for_address',
     'charmhelpers.contrib.network.ip.get_relation_ip',
+    'charmhelpers.contrib.network.ip.ns_query',
     'charmhelpers.contrib.openstack.ha.utils.generate_ha_relation_data',
     'charmhelpers.contrib.openstack.ha.utils.update_dns_ha_resource_params',
     'charmhelpers.contrib.openstack.neutron.network_manager',
@@ -98,6 +99,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.config.side_effect = self.test_config.get
         self.relation_get.side_effect = self.test_relation.get
         self.charm_dir.return_value = '/var/lib/juju/charms/nova/charm'
+        self.ns_query.return_value = None
         self.is_unit_paused_set.return_value = False
         # disable hardening for unit tests
         harden._DISABLE_HARDENING_FOR_UNIT_TEST = True
