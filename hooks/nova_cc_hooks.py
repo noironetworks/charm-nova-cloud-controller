@@ -195,15 +195,15 @@ def install():
     ncc_utils.stop_deprecated_services()
 
     opt = ['--option=Dpkg::Options::=--force-confdef' ,'--option=Dpkg::Options::=--force-confold']
-    if config('aci-repo'):
-       if config('aci-repo-key'):
-           ch_fetch.add_source(config('aci-repo'), key=config('aci-repo-key'))
+    if hookenv.config('aci-repo'):
+       if hookenv.config('aci-repo-key'):
+           ch_fetch.add_source(hookenv.config('aci-repo'), key=hookenv.config('aci-repo-key'))
        else:
-           ch_fetch.add_source(config('aci-repo'))
+           ch_fetch.add_source(hookenv.config('aci-repo'))
            opt.append('--allow-unauthenticated')
        ch_fetch.apt_update()
 
-    if config('enable-sriov-nic-selection'):
+    if hookenv.config('enable-sriov-nic-selection'):
         ch_fetch.apt_install(['python-nova-sriov-nics'], options=opt, fatal=True)
 
 
@@ -282,15 +282,15 @@ def config_changed():
         ch_fetch.apt_install(filtered, fatal=True)
 
     opt = ['--option=Dpkg::Options::=--force-confdef' ,'--option=Dpkg::Options::=--force-confold']
-    if config('aci-repo'):
-       if config('aci-repo-key'):
-           ch_fetch.add_source(config('aci-repo'), key=config('aci-repo-key'))
+    if hookenv.config('aci-repo'):
+       if hookenv.config('aci-repo-key'):
+           ch_fetch.add_source(hookenv.config('aci-repo'), key=hookenv.config('aci-repo-key'))
        else:
-           ch_fetch.add_source(config('aci-repo'))
+           ch_fetch.add_source(hookenv.config('aci-repo'))
            opt.append('--allow-unauthenticated')
        ch_fetch.apt_update()
 
-    if config('enable-sriov-nic-selection'):
+    if hookenv.config('enable-sriov-nic-selection'):
         ch_fetch.apt_install(['python-nova-sriov-nics'], options=opt, fatal=True)
 
     for r_id in hookenv.relation_ids('identity-service'):
