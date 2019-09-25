@@ -199,6 +199,8 @@ def install():
        if hookenv.config('aci-repo-key'):
            ch_fetch.add_source(hookenv.config('aci-repo'), key=hookenv.config('aci-repo-key'))
        else:
+           with open('/etc/apt/apt.conf.d/90insecure', 'w') as ou:
+              ou.write('Acquire::AllowInsecureRepositories "true";')
            ch_fetch.add_source(hookenv.config('aci-repo'))
            opt.append('--allow-unauthenticated')
        ch_fetch.apt_update()
@@ -286,6 +288,8 @@ def config_changed():
        if hookenv.config('aci-repo-key'):
            ch_fetch.add_source(hookenv.config('aci-repo'), key=hookenv.config('aci-repo-key'))
        else:
+           with open('/etc/apt/apt.conf.d/90insecure', 'w') as ou:
+              ou.write('Acquire::AllowInsecureRepositories "true";')
            ch_fetch.add_source(hookenv.config('aci-repo'))
            opt.append('--allow-unauthenticated')
        ch_fetch.apt_update()
@@ -1139,6 +1143,8 @@ def upgrade_charm():
        if hookenv.config('aci-repo-key'):
            ch_fetch.add_source(hookenv.config('aci-repo'), key=hookenv.config('aci-repo-key'))
        else:
+           with open('/etc/apt/apt.conf.d/90insecure', 'w') as ou:
+              ou.write('Acquire::AllowInsecureRepositories "true";')
            ch_fetch.add_source(hookenv.config('aci-repo'))
            opt.append('--allow-unauthenticated')
        ch_fetch.apt_update()
