@@ -572,6 +572,7 @@ class NovaCCHooksTests(CharmTestCase):
 
         self.relation_set.assert_called_with(
             relation_id=None,
+            console_access_protocol=None,
             ca_cert='foocert64',
             region='RegionOne',
             volume_service='cinder',
@@ -608,6 +609,7 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.compute_joined()
         self.relation_set.assert_called_with(
             relation_id=None,
+            console_access_protocol=None,
             quantum_url='http://nova-cc-host1:9696',
             ca_cert='foocert64',
             quantum_port=9696,
@@ -989,6 +991,12 @@ class NovaCCHooksTests(CharmTestCase):
             'console_keymap': 'en-us'
         }
         self.assertEqual(_con_sets, console_settings)
+
+    def test_console_settings_none(self):
+        self.test_config.set('console-access-protocol', '')
+        self.assertEqual(
+            hooks.console_settings(),
+            {'console_access_protocol': None})
 
     @patch('charmhelpers.contrib.hahelpers.cluster.https')
     def test_console_settings_explicit_ip(self, _https):
