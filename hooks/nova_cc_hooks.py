@@ -534,7 +534,7 @@ def console_settings():
     rel_settings = {}
     proto = common.console_attributes('protocol')
     if not proto:
-        return {}
+        return {'console_access_protocol': None}
     rel_settings['console_keymap'] = hookenv.config('console-keymap')
     rel_settings['console_access_protocol'] = proto
 
