@@ -501,6 +501,7 @@ class NovaComputeContextTests(CharmTestCase):
         self.related_units.return_value = ['neutron-api/0']
         settings = {'neutron-plugin': 'ovs',
                     'enable-sriov': 'False',
+                    'enable-hardware-offload': 'False',
                     'neutron-security-groups': 'yes',
                     'neutron-url': 'http://neutron:9696'}
 
@@ -519,6 +520,12 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual(ctxt, expected)
 
         settings['enable-sriov'] = 'True'
+        expected['additional_neutron_filters'] = 'PciPassthroughFilter'
+        ctxt = context.NeutronAPIContext()()
+        self.assertEqual(ctxt, expected)
+
+        settings['enable-sriov'] = 'False'
+        settings['enable-hardware-offload'] = 'True'
         expected['additional_neutron_filters'] = 'PciPassthroughFilter'
         ctxt = context.NeutronAPIContext()()
         self.assertEqual(ctxt, expected)

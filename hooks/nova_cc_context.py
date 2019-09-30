@@ -143,7 +143,9 @@ class NeutronAPIContext(ch_context.OSContextGenerator):
                     rdata.get('neutron-security-groups'),
                     'network_manager': 'neutron',
                 }
-                if rdata.get('enable-sriov', '').lower() == 'true':
+                if (rdata.get('enable-sriov', '').lower() == 'true' or
+                        rdata.get('enable-hardware-offload',
+                                  '').lower() == 'true'):
                     ctxt['additional_neutron_filters'] = 'PciPassthroughFilter'
                 # LP Bug#1805645
                 if rdata.get('dns-domain', ''):
