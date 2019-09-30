@@ -43,6 +43,7 @@ import charmhelpers.contrib.openstack.context as ch_context
 import charmhelpers.contrib.openstack.ha.utils as ch_ha_utils
 import charmhelpers.contrib.openstack.ip as ch_ip
 import charmhelpers.contrib.openstack.neutron as ch_neutron
+import charmhelpers.contrib.openstack.policyd as policyd
 import charmhelpers.contrib.openstack.utils as ch_utils
 import charmhelpers.contrib.peerstorage as ch_peerstorage
 import charmhelpers.core.hookenv as hookenv
@@ -211,6 +212,9 @@ def install():
     else:
         hookenv.log('Unit is in paused state, not issuing stop/pause '
                     'to all services')
+    # call the policy overrides handler which will install any policy overrides
+    policyd.maybe_do_policyd_overrides(
+        ch_utils.os_release('nova-common'), 'nova')
 
 
 @hooks.hook('config-changed')
@@ -290,6 +294,9 @@ def config_changed():
     if (not ch_utils.is_unit_paused_set() and
             ncc_utils.is_console_auth_enabled()):
         ch_host.service_resume('nova-consoleauth')
+    # call the policy overrides handler which will install any policy overrides
+    policyd.maybe_do_policyd_overrides_on_config_changed(
+        ch_utils.os_release('nova-common'), 'nova')
 
 
 @hooks.hook('amqp-relation-joined')
@@ -1124,6 +1131,9 @@ def upgrade_charm():
     leader_init_db_if_ready_allowed_units()
 
     update_nrpe_config()
+    # call the policy overrides handler which will install any policy overrides
+    policyd.maybe_do_policyd_overrides(
+        ch_utils.os_release('nova-common'), 'nova')
 
 
 @hooks.hook('neutron-api-relation-joined')

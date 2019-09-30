@@ -34,6 +34,9 @@ TO_PATCH = [
     'charmhelpers.contrib.openstack.ha.utils.generate_ha_relation_data',
     'charmhelpers.contrib.openstack.ha.utils.update_dns_ha_resource_params',
     'charmhelpers.contrib.openstack.neutron.network_manager',
+    'charmhelpers.contrib.openstack.policyd.maybe_do_policyd_overrides',
+    'charmhelpers.contrib.openstack.policyd.'
+    'maybe_do_policyd_overrides_on_config_changed',
     'charmhelpers.contrib.openstack.utils.configure_installation_source',
     'charmhelpers.contrib.openstack.utils.config_value_changed',
     'charmhelpers.contrib.openstack.utils.is_unit_paused_set',
