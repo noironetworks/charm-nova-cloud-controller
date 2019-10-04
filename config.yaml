@@ -591,3 +591,17 @@ options:
       override YAML files in the service's policy.d directory.  The resource
       file should be a ZIP file containing at least one yaml file with a .yaml
       or .yml extension.  If False then remove the overrides.
+  scheduler-host-subset-size:
+    type: int
+    default:
+    description: |
+      The value to be configured for the host_subset_size property on
+      FilterScheduler. This property sets the size of the subset of best hosts
+      selected by the scheduler.
+      .
+      When a new instance is created, it will be scheduled on a host chosen
+      randomly from a subset of the best hosts with the size set by this
+      property.
+      .
+      Possible Values are positive integers. Any value less than 1 will be
+      treated as 1.
