@@ -91,6 +91,7 @@ AWS_COMPAT_SERVICES = ['nova-api-ec2', 'nova-objectstore']
 SERVICE_BLACKLIST = {
     'liberty': AWS_COMPAT_SERVICES,
     'newton': ['nova-cert'],
+    'train': ['nova-placement-api'],
 }
 
 # API_PORTS is now in nova_cc_common.py to break the circular dependency
@@ -1447,7 +1448,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
                                  common.api_port('nova-objectstore'))
     s3_admin_url = '%s:%s' % (admin_url, common.api_port('nova-objectstore'))
 
-    if cmp_os_rel >= 'ocata':
+    if placement_api_enabled():
         placement_public_url = '%s:%s' % (
             public_url, common.api_port('nova-placement-api'))
         placement_internal_url = '%s:%s' % (
@@ -1491,7 +1492,7 @@ def determine_endpoints(public_url, internal_url, admin_url):
             's3_internal_url': None,
         })
 
-    if cmp_os_rel >= 'ocata':
+    if placement_api_enabled():
         endpoints.update({
             'placement_service': 'placement',
             'placement_region': region,
@@ -1755,8 +1756,12 @@ def serial_console_settings():
 
 def placement_api_enabled():
     """Return true if nova-placement-api is enabled in this release"""
-    return ch_utils.CompareOpenStackReleases(
-        ch_utils.os_release('nova-common')) >= 'ocata'
+    rids = hookenv.relation_ids('placement')
+    release = ch_utils.os_release('nova-common')
+    return (
+        not rids and
+        ch_utils.CompareOpenStackReleases(release) >= 'ocata' and
+        ch_utils.CompareOpenStackReleases(release) <= 'stein')
 
 
 def enable_metadata_api(release=None):
@@ -1806,6 +1811,14 @@ def stop_deprecated_services():
     release = ch_utils.os_release('nova-common')
     if ch_utils.CompareOpenStackReleases(release) >= 'rocky':
         ch_host.service_pause('nova-api-os-compute')
+
+
+def disable_deprecated_nova_placement_apache_site():
+    """Disable deprecated nova placement apache2 configuration"""
+    release = ch_utils.os_release('nova-common')
+    if ch_utils.CompareOpenStackReleases(release) >= 'stein':
+        if os.path.exists(WSGI_NOVA_PLACEMENT_API_CONF):
+            os.remove(WSGI_NOVA_PLACEMENT_API_CONF)
 
 
 def get_shared_metadatasecret():

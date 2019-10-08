@@ -218,7 +218,10 @@ class HAProxyContext(ch_context.HAProxyContext):
             del port_mapping['nova-api-ec2']
             del port_mapping['nova-objectstore']
 
-        if cmp_os_rel < 'ocata':
+        rids = hookenv.relation_ids('placement')
+        if (rids or
+                cmp_os_rel < 'ocata' or
+                cmp_os_rel > 'stein'):
             del listen_ports['placement_listen_port']
             del port_mapping['nova-placement-api']
 

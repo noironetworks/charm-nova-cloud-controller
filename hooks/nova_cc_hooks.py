@@ -1292,6 +1292,32 @@ def nova_cell_api_relation_changed(rid=None, unit=None):
             restart_trigger=str(uuid.uuid4()))
 
 
+@hooks.hook('placement-relation-joined')
+def placement_relation_joined(rid=None, unit=None):
+    # For Stein->Train upgrades, operators must pause nova-cloud-controller
+    # while placement charm is added.
+    ncc_utils.disable_deprecated_nova_placement_apache_site()
+    hookenv.relation_set(nova_placement_disabled=True, relation_id=rid)
+
+
+@hooks.hook('placement-relation-changed')
+def placement_relation_changed(rid=None, unit=None):
+    data = hookenv.relation_get(rid=rid, unit=unit)
+    if not data.get('placement_enabled'):
+        return
+    CONFIGS.write_all()
+    # kick identity_joined() to publish endpoints without nova placement
+    for rid in hookenv.relation_ids('identity-service'):
+        identity_joined(rid)
+    # kick compute_joined() to restart services on nova compute
+    for rid in hookenv.relation_ids('cloud-compute'):
+        compute_joined(rid=rid, remote_restart=True)
+    # For Stein->Train upgrades, operators can resume nova-cloud-controller
+    # once the new placement endpoints are published.
+    for s in ncc_utils.services():
+        ch_host.service_restart(s)
+
+
 @hooks.hook('update-status')
 @ch_harden.harden()
 def update_status():

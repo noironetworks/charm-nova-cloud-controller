@@ -504,7 +504,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             expected['ec2_region'] = 'RegionOne'
             expected['ec2_service'] = 'ec2'
 
-        if self._get_openstack_release() >= self.xenial_ocata:
+        if (self._get_openstack_release() >= self.xenial_ocata and
+                self._get_openstack_release() <= self.disco_stein):
             expected['placement_service'] = 'placement'
             expected['placement_internal_url'] = u.valid_url
             expected['placement_public_url'] = u.valid_url
@@ -539,7 +540,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         if self._get_openstack_release() >= self.trusty_kilo:
             expected['service_username'] = 'nova'
 
-        if self._get_openstack_release() >= self.xenial_ocata:
+        if (self._get_openstack_release() >= self.xenial_ocata and
+                self._get_openstack_release() <= self.disco_stein):
             expected['service_username'] = 'nova_placement'
 
         ret = u.validate_relation_data(unit, relation, expected)
@@ -903,7 +905,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             del services['nova-api-os-compute']
             services['apache2'] = conf_file
 
-        if self._get_openstack_release() >= self.xenial_ocata:
+        if (self._get_openstack_release() >= self.xenial_ocata and
+                self._get_openstack_release() <= self.disco_stein):
             # nova-placement-api is run under apache2 with mod_wsgi
             services['apache2'] = conf_file
 

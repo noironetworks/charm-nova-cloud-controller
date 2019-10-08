@@ -64,6 +64,8 @@ requires:
     interface: mysql-shared
   amqp-cell:
     interface: rabbitmq
+  placement:
+    interface: placement
 peers:
   cluster:
     interface: nova-ha

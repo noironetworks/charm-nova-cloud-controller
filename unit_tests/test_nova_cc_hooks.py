@@ -57,6 +57,7 @@ TO_PATCH = [
     'charmhelpers.core.hookenv.unit_get',
     'charmhelpers.core.host.service_pause',
     'charmhelpers.core.host.service_reload',
+    'charmhelpers.core.host.service_restart',
     'charmhelpers.core.host.service_resume',
     'charmhelpers.fetch.apt_install',
     'charmhelpers.fetch.apt_update',
@@ -1059,6 +1060,28 @@ class NovaCCHooksTests(CharmTestCase):
         self.relation_set.assert_called_once_with(
             ha='settings',
             relation_id=None)
+
+    @patch('hooks.nova_cc_utils.disable_deprecated_nova_placement_apache_site')
+    def test_placement_joined(self, disable_nova_placement):
+        hooks.placement_relation_joined()
+        self.assertTrue(disable_nova_placement.called)
+        self.relation_set.assert_called_with(nova_placement_disabled=True,
+                                             relation_id=None)
+
+    @patch.object(hooks, 'compute_joined')
+    @patch.object(hooks, 'identity_joined')
+    @patch.object(hooks, 'CONFIGS')
+    def test_placement_changed(self, configs, identity_joined, compute_joined):
+        self.test_relation.set({
+            'placement_enabled': True,
+        })
+        self.services.return_value = ['dummy-service']
+        self.relation_ids.return_value = ['generic_rid']
+        hooks.placement_relation_changed()
+        self.assertTrue(self.service_restart.called)
+        self.assertTrue(configs.write_all.called)
+        self.assertTrue(identity_joined.called)
+        self.assertTrue(compute_joined.called)
 
     @patch.object(hooks, 'memcached_common')
     def test_memcache_joined(self, _memcached_common):

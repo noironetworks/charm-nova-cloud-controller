@@ -340,41 +340,47 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertIsInstance(_map, OrderedDict)
         self.assertEqual(_map, RESTART_MAP_ICEHOUSE)
 
+    @patch('charmhelpers.core.hookenv.relation_ids')
     @patch('charmhelpers.contrib.openstack.neutron.os_release')
     @patch('os.path.exists')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_restart_map_api_actual_ocata(
-            self, subcontext, _exists, _os_release):
+            self, subcontext, _exists, _os_release, rids):
         _os_release.return_value = 'ocata'
         self.os_release.return_value = 'ocata'
         _exists.return_value = False
         self.enable_memcache.return_value = False
+        rids.return_value = []
         _map = utils.restart_map()
         self.assertIsInstance(_map, OrderedDict)
         self.assertEqual(_map, RESTART_MAP_OCATA_ACTUAL)
 
+    @patch('charmhelpers.core.hookenv.relation_ids')
     @patch('charmhelpers.contrib.openstack.neutron.os_release')
     @patch('os.path.exists')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_restart_map_api_actual_rocky(
-            self, subcontext, _exists, _os_release):
+            self, subcontext, _exists, _os_release, rids):
         _os_release.return_value = 'rocky'
         self.os_release.return_value = 'rocky'
         _exists.return_value = False
         self.enable_memcache.return_value = False
+        rids.return_value = []
         _map = utils.restart_map()
         self.assertIsInstance(_map, OrderedDict)
         self.assertEqual(_map, RESTART_MAP_ROCKY_ACTUAL)
 
+    @patch('charmhelpers.core.hookenv.relation_ids')
     @patch('charmhelpers.contrib.openstack.neutron.os_release')
     @patch('os.path.exists')
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_restart_map_api_ocata_base(
-            self, subcontext, _exists, _os_release):
+            self, subcontext, _exists, _os_release, rids):
         _os_release.return_value = 'ocata'
         self.os_release.return_value = 'ocata'
         _exists.return_value = False
         self.enable_memcache.return_value = False
+        rids.return_value = []
         _map = utils.restart_map(actual_services=False)
         self.assertIsInstance(_map, OrderedDict)
         self.assertEqual(_map, RESTART_MAP_OCATA_BASE)
@@ -1456,10 +1462,16 @@ class NovaCCUtilsTests(CharmTestCase):
         shared_db.assert_called_once()
         self.log.assert_not_called()
 
-    def test_placement_api_enabled(self):
+    @patch('charmhelpers.core.hookenv.relation_ids')
+    def test_placement_api_enabled(self, rids):
         self.os_release.return_value = 'ocata'
+        rids.return_value = []
         self.assertTrue(utils.placement_api_enabled())
         self.os_release.return_value = 'mitaka'
+        rids.return_value = []
+        self.assertFalse(utils.placement_api_enabled())
+        self.os_release.return_value = 'train'
+        rids.return_value = ['placement:1']
         self.assertFalse(utils.placement_api_enabled())
 
     def test_enable_metadata_api(self):
@@ -1635,3 +1647,12 @@ class NovaCCUtilsTests(CharmTestCase):
         utils.update_child_cell('cell2', 'mysql-cell2', 'amqp-cell2')
         self.assertFalse(mock_check_output.called)
         self.assertFalse(self.service_restart.called)
+
+    @patch('os.remove')
+    @patch('os.path.exists')
+    def test_disable_deprecated_nova_placement_apache_site(self, exists,
+                                                           remove):
+        self.os_release.return_value = 'stein'
+        exists.return_value = True
+        utils.disable_deprecated_nova_placement_apache_site()
+        self.assertTrue(remove.called)
