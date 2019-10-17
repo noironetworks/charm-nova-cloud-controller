@@ -278,6 +278,11 @@ class NovaCCUtilsTests(CharmTestCase):
         console_services = ['nova-xvpvncproxy', 'nova-consoleauth']
         for service in console_services:
             self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
+        self.os_release.return_value = 'train'
+        _map = utils.resource_map()
+        self.assertNotIn(
+            'nova-consoleauth',
+            _map['/etc/nova/nova.conf']['services'])
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_resource_map_console_novnc(self, subcontext):
@@ -288,6 +293,11 @@ class NovaCCUtilsTests(CharmTestCase):
         console_services = ['nova-novncproxy', 'nova-consoleauth']
         for service in console_services:
             self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
+        self.os_release.return_value = 'train'
+        _map = utils.resource_map()
+        self.assertNotIn(
+            'nova-consoleauth',
+            _map['/etc/nova/nova.conf']['services'])
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_resource_map_console_vnc(self, subcontext):
@@ -299,6 +309,11 @@ class NovaCCUtilsTests(CharmTestCase):
                             'nova-consoleauth']
         for service in console_services:
             self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
+        self.os_release.return_value = 'train'
+        _map = utils.resource_map()
+        self.assertNotIn(
+            'nova-consoleauth',
+            _map['/etc/nova/nova.conf']['services'])
 
     def test_console_attributes_none(self):
         self.test_config.set('console-access-protocol', 'None')
@@ -326,6 +341,11 @@ class NovaCCUtilsTests(CharmTestCase):
         console_services = ['nova-spiceproxy', 'nova-consoleauth']
         for service in console_services:
             self.assertIn(service, _map['/etc/nova/nova.conf']['services'])
+        self.os_release.return_value = 'train'
+        _map = utils.resource_map()
+        self.assertNotIn(
+            'nova-consoleauth',
+            _map['/etc/nova/nova.conf']['services'])
 
     @patch('charmhelpers.contrib.openstack.neutron.os_release')
     @patch('os.path.exists')
@@ -419,8 +439,8 @@ class NovaCCUtilsTests(CharmTestCase):
         _servs = utils.common.console_attributes('services')
         _pkgs = utils.common.console_attributes('packages')
         _proxy_page = utils.common.console_attributes('proxy-page')
-        vnc_pkgs = ['nova-novncproxy', 'nova-xvpvncproxy', 'nova-consoleauth']
-        vnc_servs = ['nova-novncproxy', 'nova-xvpvncproxy', 'nova-consoleauth']
+        vnc_pkgs = ['nova-novncproxy', 'nova-xvpvncproxy']
+        vnc_servs = ['nova-novncproxy', 'nova-xvpvncproxy']
         self.assertEqual(_proto, 'vnc')
         self.assertEqual(sorted(_servs), sorted(vnc_servs))
         self.assertEqual(sorted(_pkgs), sorted(vnc_pkgs))
@@ -472,6 +492,10 @@ class NovaCCUtilsTests(CharmTestCase):
         console_pkgs = ['nova-spiceproxy', 'nova-consoleauth']
         for console_pkg in console_pkgs:
             self.assertIn(console_pkg, pkgs)
+        self.os_release.return_value = 'train'
+        pkgs = utils.determine_packages()
+        self.assertNotIn(
+            'nova-consoleauth', pkgs)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_determine_packages_base_icehouse(self, subcontext):
@@ -541,6 +565,9 @@ class NovaCCUtilsTests(CharmTestCase):
         console_pkgs = ['nova-serialproxy', 'nova-consoleauth']
         for console_pkg in console_pkgs:
             self.assertIn(console_pkg, pkgs)
+        self.os_release.return_value = 'train'
+        pkgs = utils.determine_packages()
+        self.assertNotIn('nova-consoleauth', pkgs)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     def test_determine_packages_serial_console_icehouse(self, subcontext):
@@ -1409,28 +1436,34 @@ class NovaCCUtilsTests(CharmTestCase):
             utils.is_serial_console_enabled())
 
     @patch.object(utils, 'is_serial_console_enabled')
-    def test_is_console_auth_enabled(self, is_serial_console_enabled):
+    def test_is_consoleauth_enabled(self, is_serial_console_enabled):
+        self.os_release.return_value = 'mitaka'
         is_serial_console_enabled.return_value = True
         self.test_config.set('console-access-protocol', 'vnc')
         self.assertTrue(
-            utils.is_console_auth_enabled())
+            utils.is_consoleauth_enabled())
+        self.os_release.return_value = 'train'
+        self.assertFalse(
+            utils.is_consoleauth_enabled())
 
     @patch.object(utils, 'is_serial_console_enabled')
-    def test_is_console_auth_enabled_no_serial(self,
-                                               is_serial_console_enabled):
+    def test_is_consoleauth_enabled_no_serial(self,
+                                              is_serial_console_enabled):
+        self.os_release.return_value = 'mitaka'
         is_serial_console_enabled.return_value = False
         self.test_config.set('console-access-protocol', 'vnc')
         self.assertTrue(
-            utils.is_console_auth_enabled())
+            utils.is_consoleauth_enabled())
 
     @patch.object(utils, 'is_serial_console_enabled')
-    def test_is_console_auth_enabled_no_serial_no_console(
+    def test_is_consoleauth_enabled_no_serial_no_console(
             self,
             is_serial_console_enabled):
+        self.os_release.return_value = 'mitaka'
         is_serial_console_enabled.return_value = False
         self.test_config.set('console-access-protocol', None)
         self.assertFalse(
-            utils.is_console_auth_enabled())
+            utils.is_consoleauth_enabled())
 
     @patch.object(utils, 'get_cell_uuid')
     @patch('subprocess.check_output')

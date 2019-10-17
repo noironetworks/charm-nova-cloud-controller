@@ -292,7 +292,7 @@ def config_changed():
     for rid in hookenv.relation_ids('ha'):
         ha_joined(rid)
     if (not ch_utils.is_unit_paused_set() and
-            ncc_utils.is_console_auth_enabled()):
+            ncc_utils.is_consoleauth_enabled()):
         ch_host.service_resume('nova-consoleauth')
     # call the policy overrides handler which will install any policy overrides
     policyd.maybe_do_policyd_overrides_on_config_changed(

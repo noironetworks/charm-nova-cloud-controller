@@ -222,9 +222,8 @@ CA_CERT_PATH = '/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt'
 NOVA_SSH_DIR = '/etc/nova/compute_ssh/'
 
 SERIAL_CONSOLE = {
-    'packages': ['nova-serialproxy', 'nova-consoleauth',
-                 'websockify'],
-    'services': ['nova-serialproxy', 'nova-consoleauth'],
+    'packages': ['nova-serialproxy', 'websockify'],
+    'services': ['nova-serialproxy'],
 }
 
 
@@ -282,6 +281,9 @@ def resource_map(actual_services=True):
 
     if is_serial_console_enabled(cmp_os_release):
         _resource_map[NOVA_CONF]['services'] += SERIAL_CONSOLE['services']
+
+    if is_consoleauth_enabled(cmp_os_release):
+        _resource_map[NOVA_CONF]['services'] += ['nova-consoleauth']
 
     # also manage any configs that are being updated by subordinates.
     vmware_ctxt = ch_context.SubordinateConfigContext(
@@ -404,6 +406,8 @@ def determine_packages():
         packages.extend(common.console_attributes('packages'))
     if is_serial_console_enabled(release):
         packages.extend(SERIAL_CONSOLE['packages'])
+    if is_consoleauth_enabled(release):
+        packages.extend(['nova-consoleauth'])
     packages.extend(
         ch_utils.token_cache_pkgs(source=hookenv.config('openstack-origin')))
     if release >= 'rocky':
@@ -558,14 +562,30 @@ def is_serial_console_enabled(cmp_os_release=None):
     return hookenv.config('enable-serial-console') and cmp_os_release >= 'juno'
 
 
-def is_console_auth_enabled():
-    """Determine whether console auth is enabled in this deploy
+def is_consoleauth_enabled(cmp_os_release=None):
+    """Determine whether the ``consoleauth`` service is enabled in this deploy
 
-    :returns: Whether console auth is enabled in this deploy
+    Note that the fact that the service is enabled or not may not be tied to
+    the reality of Nova doing console access authorization.
+
+    Since OpenStack Rocky the console token authorization storage has been
+    moved to the database backend, and in OpenStack Train the service
+    was removed.
+
+    https://github.com/openstack/nova/blob/master/releasenotes/notes/deprecate-nova-consoleauth-ed6ccbc324a0fb10.yaml
+
+    :param cmp_os_release: Release comparison object.
+    :type cmp_os_release: charmhelpers.contrib.openstack.utils.
+                          CompareOpenStackReleases
+    :returns: Whether ``consoleauth`` service is enabled in this deploy
     :rtype: bool
     """
-    return bool(is_serial_console_enabled() or
-                hookenv.config('console-access-protocol'))
+    if not cmp_os_release:
+        release = ch_utils.os_release('nova-common')
+        cmp_os_release = ch_utils.CompareOpenStackReleases(release)
+    return cmp_os_release < 'train' and (bool(is_serial_console_enabled() or
+                                         hookenv.config(
+                                             'console-access-protocol')))
 
 
 def is_db_initialised():

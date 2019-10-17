@@ -30,20 +30,20 @@ API_PORTS = {
 
 CONSOLE_CONFIG = {
     'spice': {
-        'packages': ['nova-spiceproxy', 'nova-consoleauth'],
-        'services': ['nova-spiceproxy', 'nova-consoleauth'],
+        'packages': ['nova-spiceproxy'],
+        'services': ['nova-spiceproxy'],
         'proxy-page': '/spice_auto.html',
         'proxy-port': 6082,
     },
     'novnc': {
-        'packages': ['nova-novncproxy', 'nova-consoleauth'],
-        'services': ['nova-novncproxy', 'nova-consoleauth'],
+        'packages': ['nova-novncproxy'],
+        'services': ['nova-novncproxy'],
         'proxy-page': '/vnc_auto.html',
         'proxy-port': 6080,
     },
     'xvpvnc': {
-        'packages': ['nova-xvpvncproxy', 'nova-consoleauth'],
-        'services': ['nova-xvpvncproxy', 'nova-consoleauth'],
+        'packages': ['nova-xvpvncproxy'],
+        'services': ['nova-xvpvncproxy'],
         'proxy-page': '/console',
         'proxy-port': 6081,
     },
