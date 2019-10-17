@@ -706,6 +706,13 @@ def database_setup(prefix):
 
 
 def do_openstack_upgrade(configs):
+    # If attempting to upgrade from Stein->Train, block until Placement
+    # charm is related. Status is set in check_optional_relations().
+    release = ch_utils.os_release('nova-common')
+    cmp_os_release = ch_utils.CompareOpenStackReleases(release)
+    if (cmp_os_release == 'stein' and not hookenv.relation_ids('placement')):
+        return None
+
     new_src = hookenv.config('openstack-origin')
 
     step_src = get_step_upgrade_source(new_src)
@@ -1648,7 +1655,12 @@ def get_optional_interfaces():
 
 
 def check_optional_relations(configs):
-    """Check that if we have a relation_id for high availability that we can
+    """Check optional relations and set status
+
+    If attempting to upgrade from Stein->Train, block until Placement
+    charm is related.
+
+    Also check that if we have a relation_id for high availability that we can
     get the hacluster config.  If we can't then we are blocked.
 
     This function is called from assess_status/set_os_workload_status as the
@@ -1658,6 +1670,19 @@ def check_optional_relations(configs):
     :param configs: an OSConfigRender() instance.
     :return 2-tuple: (string, string) = (status, message)
     """
+    cur_os_rel = ch_utils.os_release('nova-common')
+    cmp_cur_os_rel = ch_utils.CompareOpenStackReleases(cur_os_rel)
+    new_src = hookenv.config('openstack-origin')
+    new_os_rel = ch_utils.get_os_codename_install_source(new_src)
+    cmp_new_os_rel = ch_utils.CompareOpenStackReleases(new_os_rel)
+
+    if (cmp_cur_os_rel == 'stein' and
+            cmp_new_os_rel == 'train' and
+            not hookenv.relation_ids('placement')):
+        return ('blocked',
+                'placement charm must be related prior to '
+                'upgrading to OpenStack Train')
+
     if hookenv.relation_ids('ha'):
         try:
             ch_cluster.get_hacluster_config()
@@ -1665,6 +1690,7 @@ def check_optional_relations(configs):
             return ('blocked',
                     'hacluster missing configuration: '
                     'vip, vip_iface, vip_cidr')
+
     # return 'unknown' as the lowest priority to not clobber an existing
     # status.
     return "unknown", ""

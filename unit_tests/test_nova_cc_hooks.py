@@ -312,6 +312,14 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(mock_quantum_joined.called)
         self.assertTrue(mock_update_aws_compat_services.called)
 
+        # test upgrade from stein->train without placement related
+        self.do_openstack_upgrade.return_value = None
+        self.os_release.return_value = 'stein'
+        self.save_script_rc.reset_mock()
+        hooks.config_changed()
+        self.assertTrue(self.do_openstack_upgrade.called)
+        self.assertFalse(self.save_script_rc.called)
+
     @patch.object(utils, 'set_shared_metadatasecret')
     @patch.object(utils, 'get_shared_metadatasecret')
     @patch.object(hooks, 'update_nrpe_config')

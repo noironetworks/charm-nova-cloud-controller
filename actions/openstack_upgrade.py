@@ -41,6 +41,13 @@ def openstack_upgrade():
     code to run, otherwise a full service level upgrade will fire
     on config-changed."""
 
+    # If attempting to upgrade from Stein->Train, block until Placement
+    # charm is related. Status is set in check_optional_relations().
+    release = ch_utils.os_release('nova-common')
+    cmp_os_release = ch_utils.CompareOpenStackReleases(release)
+    if (cmp_os_release == 'stein' and not hookenv.relation_ids('placement')):
+        return
+
     if (ch_utils.do_action_openstack_upgrade('nova-common',
                                              utils.do_openstack_upgrade,
                                              hooks.CONFIGS)):

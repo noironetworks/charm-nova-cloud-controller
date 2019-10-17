@@ -52,7 +52,9 @@ TO_PATCH = [
     'charmhelpers.core.host.service_running',
     'charmhelpers.core.host.service_start',
     'charmhelpers.core.host.service_stop',
+    'charmhelpers.fetch.apt_autoremove',
     'charmhelpers.fetch.apt_install',
+    'charmhelpers.fetch.apt_purge',
     'charmhelpers.fetch.apt_update',
     'charmhelpers.fetch.apt_upgrade',
     'disable_policy_rcd',
@@ -1038,12 +1040,12 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch.object(utils, 'get_step_upgrade_source')
     @patch.object(utils, 'migrate_nova_databases')
     @patch.object(utils, 'determine_packages')
-    def test_upgrade_queens_rocky(self, determine_packages,
-                                  migrate_nova_databases,
-                                  get_step_upgrade_source,
-                                  database_setup,
-                                  disable_package_apache_site,
-                                  online_data_migrations_if_needed):
+    def test_upgrade_to_rocky_and_to_train(self, determine_packages,
+                                           migrate_nova_databases,
+                                           get_step_upgrade_source,
+                                           database_setup,
+                                           disable_package_apache_site,
+                                           online_data_migrations_if_needed):
         "Simulate a call to do_openstack_upgrade() for queens->rocky"
         self.test_config.set('openstack-origin', 'cloud:bionic-queens')
         get_step_upgrade_source.return_value = None
@@ -1052,7 +1054,9 @@ class NovaCCUtilsTests(CharmTestCase):
         self.is_leader.return_value = True
         self.relation_ids.return_value = []
         database_setup.return_value = False
+
         utils.do_openstack_upgrade(self.register_configs())
+
         self.apt_update.assert_called_with(fatal=True)
         self.apt_upgrade.assert_called_with(options=DPKG_OPTS, fatal=True,
                                             dist=True)
@@ -1062,6 +1066,25 @@ class NovaCCUtilsTests(CharmTestCase):
         database_setup.assert_called_with(prefix='novaapi')
         online_data_migrations_if_needed.assert_called_once()
         disable_package_apache_site.assert_called_once()
+
+        # test upgrade from stein->train without placement related
+        self.os_release.return_value = 'stein'
+        self.get_os_codename_install_source.return_value = 'train'
+        self.apt_update.reset_mock()
+
+        utils.do_openstack_upgrade(self.register_configs())
+
+        self.assertFalse(self.apt_update.called)
+
+        # test upgrade from stein->train with placement related
+        self.os_release.return_value = 'stein'
+        self.get_os_codename_install_source.return_value = 'train'
+        self.relation_ids.return_value = ['placement-id']
+        self.apt_update.reset_mock()
+
+        utils.do_openstack_upgrade(self.register_configs())
+
+        self.assertTrue(self.apt_update.called)
 
     def test_guard_map_nova(self):
         self.relation_ids.return_value = []

@@ -252,7 +252,8 @@ def config_changed():
     if not hookenv.config('action-managed-upgrade'):
         if ch_utils.openstack_upgrade_available('nova-common'):
             hookenv.status_set('maintenance', 'Running openstack upgrade')
-            ncc_utils.do_openstack_upgrade(CONFIGS)
+            if not ncc_utils.do_openstack_upgrade(CONFIGS):
+                return
             for rid in hookenv.relation_ids('neutron-api'):
                 neutron_api_relation_joined(rid=rid, remote_restart=True)
             # NOTE(jamespage): Force re-fire of shared-db joined hook

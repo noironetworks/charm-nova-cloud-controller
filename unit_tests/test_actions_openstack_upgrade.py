@@ -33,13 +33,19 @@ class TestNovaCCUpgradeActions(CharmTestCase):
         super(TestNovaCCUpgradeActions, self).setUp(openstack_upgrade,
                                                     TO_PATCH)
 
+    @patch('charmhelpers.contrib.openstack.utils.CompareOpenStackReleases')
+    @patch('charmhelpers.contrib.openstack.utils.os_release')
     @patch('charmhelpers.contrib.openstack.utils.config')
     @patch('charmhelpers.contrib.openstack.utils.action_set')
     @patch('charmhelpers.contrib.openstack.utils.openstack_upgrade_available')
-    def test_openstack_upgrade_true(self, upgrade_avail,
-                                    action_set, config):
+    def test_openstack_upgrade_true(self, upgrade_avail, action_set,
+                                    config, os_release, compare_releases):
         upgrade_avail.return_value = True
         config.return_value = True
+
+        # upgrade from stein with placement related
+        os_release.return_value = 'stein'
+        compare_releases.return_value = 'stein'
         self.relation_ids.return_value = ['relid1']
 
         openstack_upgrade.openstack_upgrade()
@@ -50,13 +56,25 @@ class TestNovaCCUpgradeActions(CharmTestCase):
         self.db_joined.assert_called_with(relation_id='relid1')
         self.assertTrue(self.config_changed.called)
 
+        # upgrade from stein without placement related
+        os_release.return_value = 'stein'
+        compare_releases.return_value = 'stein'
+        self.relation_ids.return_value = []
+        self.do_openstack_upgrade.reset_mock()
+
+        openstack_upgrade.openstack_upgrade()
+
+        self.assertFalse(self.do_openstack_upgrade.called)
+
+    @patch('charmhelpers.contrib.openstack.utils.os_release')
     @patch('charmhelpers.contrib.openstack.utils.config')
     @patch('charmhelpers.contrib.openstack.utils.action_set')
     @patch('charmhelpers.contrib.openstack.utils.openstack_upgrade_available')
     def test_openstack_upgrade_false(self, upgrade_avail,
-                                     action_set, config):
+                                     action_set, config, os_release):
         upgrade_avail.return_value = True
         config.return_value = False
+        os_release.return_value = 'stein'
 
         openstack_upgrade.openstack_upgrade()
 
