@@ -109,6 +109,11 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 {'name': 'neutron-openvswitch'},
             ]
             other_services += other_ocata_services
+        if self._get_openstack_release() >= self.bionic_train:
+            other_train_services = [
+                {'name': 'placement'},
+            ]
+            other_services += other_train_services
         super(NovaCCBasicDeployment, self)._add_services(this_service,
                                                          other_services)
 
@@ -143,12 +148,20 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
                 'rabbitmq-server:amqp': 'neutron-openvswitch:amqp',
             }
             relations.update(ocata_relations)
+        if self._get_openstack_release() >= self.bionic_train:
+            train_relations = {
+                'placement:shared-db': 'percona-cluster:shared-db',
+                'placement:identity-service': 'keystone:identity-service',
+                'placement:placement': 'nova-cloud-controller:placement',
+            }
+            relations.update(train_relations)
         super(NovaCCBasicDeployment, self)._add_relations(relations)
 
     def _configure_services(self):
         """Configure all of the services."""
         nova_cc_config = {}
         nova_config = {}
+        placement_config = {}
 
         # Add some rate-limiting options to the charm. These will noop before
         # icehouse.
@@ -174,6 +187,8 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             'nova-compute': nova_config,
             'percona-cluster': pxc_config,
         }
+        if self._get_openstack_release() >= self.bionic_train:
+            configs['placement'] = placement_config
 
         super(NovaCCBasicDeployment, self)._configure_services(configs)
 
