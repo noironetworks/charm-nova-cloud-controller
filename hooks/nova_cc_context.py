@@ -115,6 +115,18 @@ class CloudComputeContext(ch_context.OSContextGenerator):
         return ctxt
 
 
+class PlacementContext(ch_context.OSContextGenerator):
+    "Dummy context used by service status to check relation exists"
+    interfaces = ['placement']
+
+    def __call__(self):
+        ctxt = {}
+        rids = [rid for rid in hookenv.relation_ids('placement')]
+        if rids:
+            ctxt['rids'] = rids
+        return ctxt
+
+
 class NeutronAPIContext(ch_context.OSContextGenerator):
     interfaces = ['neutron-api']
 

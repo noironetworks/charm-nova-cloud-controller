@@ -1260,13 +1260,16 @@ class NovaCCUtilsTests(CharmTestCase):
     @patch.object(utils, 'services')
     @patch.object(utils, 'determine_ports')
     @patch.object(utils.ch_utils, 'make_assess_status_func')
+    @patch.object(utils.ch_utils, 'CompareOpenStackReleases')
     def test_assess_status_func(self,
+                                compare_releases,
                                 make_assess_status_func,
                                 determine_ports,
                                 services,
                                 REQUIRED_INTERFACES,
                                 check_optional_relations,
                                 get_optional_interfaces):
+        compare_releases.return_value = 'stein'
         services.return_value = 's1'
         REQUIRED_INTERFACES.copy.return_value = {'int': ['test 1']}
         get_optional_interfaces.return_value = {'opt': ['test 2']}
@@ -1276,6 +1279,15 @@ class NovaCCUtilsTests(CharmTestCase):
         make_assess_status_func.assert_called_once_with(
             'test-config',
             {'int': ['test 1'], 'opt': ['test 2']},
+            charm_func=check_optional_relations, services='s1',
+            ports=None)
+
+        make_assess_status_func.reset_mock()
+        compare_releases.return_value = 'train'
+        utils.assess_status_func('test-config')
+        make_assess_status_func.assert_called_once_with(
+            'test-config',
+            {'int': ['test 1'], 'placement': ['placement'], 'opt': ['test 2']},
             charm_func=check_optional_relations, services='s1',
             ports=None)
 

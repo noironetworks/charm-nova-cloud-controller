@@ -53,6 +53,10 @@ REQUIRED_INTERFACES = {
     'compute': ['nova-compute', 'nova-cell-api'],
 }
 
+REQUIRED_INTERFACES_TRAIN = {
+    'placement': ['placement'],
+}
+
 # removed from original: charm-helper-sh
 BASE_PACKAGES = [
     'apache2',
@@ -180,6 +184,7 @@ def get_base_resource_map():
                     nova_cc_context.InstanceConsoleContext(),
                     nova_cc_context.ConsoleSSLContext(),
                     nova_cc_context.CloudComputeContext(),
+                    nova_cc_context.PlacementContext(),
                     ch_context.InternalEndpointContext(),
                     ch_context.VolumeAPIContext('nova-common'),
                     nova_cc_context.NeutronAPIContext(),
@@ -1731,7 +1736,11 @@ def assess_status_func(configs):
     @param configs: a templating.OSConfigRenderer() object
     @return f() -> None : a function that assesses the unit's workload status
     """
+    release = ch_utils.os_release('nova-common')
+    cmp_os_release = ch_utils.CompareOpenStackReleases(release)
     required_interfaces = REQUIRED_INTERFACES.copy()
+    if cmp_os_release >= 'train':
+        required_interfaces.update(REQUIRED_INTERFACES_TRAIN)
     required_interfaces.update(get_optional_interfaces())
     return ch_utils.make_assess_status_func(
         configs, required_interfaces,
