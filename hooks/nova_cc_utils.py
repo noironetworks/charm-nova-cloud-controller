@@ -1187,9 +1187,14 @@ def add_known_host(host, remote_service, user=None):
     try:
         remote_key = subprocess.check_output(cmd).decode('utf-8').strip()
     except Exception as e:
-        hookenv.log('Could not obtain SSH host key from %s' % host,
+        # NOTE(ajkavanagh): Bug#1849501
+        # if we can't get an SSH host key it's probably due to a DNS error for
+        # a short host that doesn't actually exist on the DNS server ... let's
+        # log that and just ignore it.
+        hookenv.log('Could not obtain SSH host key from {}: reason: {}'
+                    .format(host, str(e)),
                     level=hookenv.ERROR)
-        raise e
+        return
 
     current_key = ssh_known_host_key(host, remote_service, user)
     if current_key and remote_key:
