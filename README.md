@@ -132,9 +132,9 @@ In a high-availability setup, the action must be run on all
 
 This feature allows for policy overrides using the `policy.d` directory.  This
 is an **advanced** feature and the policies that the OpenStack service supports
-should be clearly and unambiguously understood before trying to override, or
-add to, the default policies that the service uses.  The charm also has some
-policy defaults.  They should also be understood before being overridden.
+should be clearly understood before trying to override, or add to, the default
+policies that the service uses.  The charm also has some policy defaults.  They
+should also be understood before being overridden.
 
 > **Caution**: It is possible to break the system (for tenants and other
   services) if policies are incorrectly applied to the service.
@@ -142,13 +142,12 @@ policy defaults.  They should also be understood before being overridden.
 Policy overrides are YAML files that contain rules that will add to, or
 override, existing policy rules in the service.  The `policy.d` directory is
 a place to put the YAML override files.  This charm owns the
-`/etc/keystone/policy.d` directory, and as such, any manual changes to it will
+`/etc/nova/policy.d` directory, and as such, any manual changes to it will
 be overwritten on charm upgrades.
 
 Overrides are provided to the charm using a Juju resource called
 `policyd-override`.  The resource is a ZIP file.  This file, say
 `overrides.zip`, is attached to the charm by:
-
 
     juju attach-resource nova-cloud-controller policyd-override=overrides.zip
 
