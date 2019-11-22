@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import amulet
+import functools
 import json
-import tempfile
+import mock
 import os
+import tempfile
 
 from charmhelpers.contrib.openstack.amulet.deployment import (
     OpenStackAmuletDeployment
@@ -51,6 +53,22 @@ class NovaOpenStackAmuletUtils(OpenStackAmuletUtils):
 
 # Use DEBUG to turn on debug logging
 u = NovaOpenStackAmuletUtils(DEBUG)
+
+
+def _file_contents(unit, filename):
+    """Get the contents of ``filename`` on the remote unit.
+
+    Note, for Juju 2.7 compat, this function uses juju ssh instead
+
+    :param str filename: Path of file to stat on the remote unit.
+    :raises: IOError if the call fails.
+    :return: File contents as string.
+    """
+    output, return_code = unit.ssh('sudo cat {}'.format(filename))
+    if return_code == 0:
+        return output
+    else:
+        raise IOError(output)
 
 
 class NovaCCBasicDeployment(OpenStackAmuletDeployment):
@@ -455,10 +473,16 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
             amulet.raise_status(amulet.FAIL, msg=message)
 
     def test_110_memcache(self):
-        u.validate_memcache(self.nova_cc_sentry,
-                            '/etc/nova/nova.conf',
-                            self._get_openstack_release(),
-                            earliest_release=self.trusty_mitaka)
+        # Juju 2.7 breaks unit.run, so we need to patch file_contents with an
+        # alternative function for this test.  This is because Amulet is no
+        # longer maintained.
+        with mock.patch.object(self.nova_cc_sentry, 'file_contents',
+                               new=functools.partial(_file_contents,
+                                                     self.nova_cc_sentry)):
+            u.validate_memcache(self.nova_cc_sentry,
+                                '/etc/nova/nova.conf',
+                                self._get_openstack_release(),
+                                earliest_release=self.trusty_mitaka)
 
     def test_200_nova_cc_shared_db_relation(self):
         """Verify the nova-cc to mysql shared-db relation data"""
