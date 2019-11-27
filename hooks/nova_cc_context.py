@@ -402,6 +402,8 @@ class NovaConfigContext(ch_context.WorkerConfigContext):
         ctxt['console_access_protocol'] = hookenv.config(
             'console-access-protocol')
         ctxt['console_access_port'] = hookenv.config('console-access-port')
+        ctxt['scheduler_host_subset_size'] = hookenv.config(
+            'scheduler-host-subset-size')
         return ctxt
 
 
