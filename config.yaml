@@ -627,3 +627,15 @@ options:
       duplicate names are possible. 'project': The instance name check is done
       only for instances within the same project. 'global': The instance name
       check is done for all instances regardless of the project.
+  notification-format:
+    type: string
+    default: unversioned
+    description: |
+      Specifies which notification format shall be used by nova-cloud-controller.
+      .
+      Starting in the Pike release, the notification_format includes both the
+      versioned and unversioned message notifications. Ceilometer does not yet
+      consume the versioned message notifications, so intentionally make the
+      default notification format unversioned until this is implemented.
+      .
+      Possible Values are both, versioned, unversioned.
