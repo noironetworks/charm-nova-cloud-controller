@@ -572,6 +572,7 @@ def console_settings():
         protocols = ['novnc', 'xvpvnc']
     else:
         protocols = [proto]
+
     for _proto in protocols:
         rel_settings['console_proxy_{}_address'.format(_proto)] = \
             "{}:{}{}".format(
@@ -582,6 +583,8 @@ def console_settings():
             urlparse(proxy_base_addr).hostname
         rel_settings['console_proxy_%s_port' % (_proto)] = \
             common.console_attributes('proxy-port', proto=_proto)
+
+    rel_settings['spice_agent_enabled'] = hookenv.config('spice-agent-enabled')
 
     return rel_settings
 

@@ -952,7 +952,8 @@ class NovaCCHooksTests(CharmTestCase):
             'console_proxy_xvpvnc_host': _cc_host,
             'console_proxy_xvpvnc_address': 'http://%s:6081/console' %
                                             (_cc_host),
-            'console_keymap': 'en-us'
+            'console_keymap': 'en-us',
+            'spice_agent_enabled': True,
         }
         self.assertEqual(_con_sets, console_settings)
 
@@ -969,6 +970,7 @@ class NovaCCHooksTests(CharmTestCase):
             'console_proxy_xvpvnc_host': _cc_host,
             'console_proxy_xvpvnc_address': 'http://%s:6081/console' %
                                             (_cc_host),
+            'spice_agent_enabled': True,
         }
         self.assertEqual(_con_sets, console_settings)
 
@@ -984,7 +986,8 @@ class NovaCCHooksTests(CharmTestCase):
             'console_proxy_novnc_port': 6080,
             'console_access_protocol': 'novnc',
             'console_proxy_novnc_host': _cc_host,
-            'console_keymap': 'en-us'
+            'console_keymap': 'en-us',
+            'spice_agent_enabled': True,
         }
         self.assertEqual(_con_sets, console_settings)
 
@@ -1000,7 +1003,8 @@ class NovaCCHooksTests(CharmTestCase):
             'console_proxy_spice_host': _cc_host,
             'console_proxy_spice_port': 6082,
             'console_access_protocol': 'spice',
-            'console_keymap': 'en-us'
+            'console_keymap': 'en-us',
+            'spice_agent_enabled': True,
         }
         self.assertEqual(_con_sets, console_settings)
 
@@ -1023,7 +1027,8 @@ class NovaCCHooksTests(CharmTestCase):
             'console_proxy_spice_host': _cc_public_host,
             'console_proxy_spice_port': 6082,
             'console_access_protocol': 'spice',
-            'console_keymap': 'en-us'
+            'console_keymap': 'en-us',
+            'spice_agent_enabled': True,
         }
         self.assertEqual(_con_sets, console_settings)
 
@@ -1040,7 +1045,8 @@ class NovaCCHooksTests(CharmTestCase):
             'console_proxy_spice_host': _cc_public_host,
             'console_proxy_spice_port': 6082,
             'console_access_protocol': 'spice',
-            'console_keymap': 'en-us'
+            'console_keymap': 'en-us',
+            'spice_agent_enabled': True,
         }
         self.assertEqual(_con_sets, console_settings)
 

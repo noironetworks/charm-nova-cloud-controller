@@ -605,3 +605,15 @@ options:
       .
       Possible Values are positive integers. Any value less than 1 will be
       treated as 1.
+  spice-agent-enabled:  # LP: #1856602
+    type: boolean
+    default: True  # OpenStack's default value.
+    description: |
+      Enable the SPICE guest agent support on the instances.
+      .
+      The Spice agent works with the Spice protocol to offer a better guest
+      console experience. However, the Spice console can still be used without
+      the Spice Agent.
+      .
+      For Windows guests is recommended to set this to configuration option to
+      False and for those images set the property hw_pointer_model=usbtablet
