@@ -134,7 +134,6 @@ RESTART_MAP_ICEHOUSE = OrderedDict([
     ]),
     ('/etc/haproxy/haproxy.cfg', ['haproxy']),
     ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
-    ('/etc/apache2/ports.conf', ['apache2']),
 ])
 RESTART_MAP_OCATA_ACTUAL = OrderedDict([
     ('/etc/nova/nova.conf', [
@@ -143,7 +142,6 @@ RESTART_MAP_OCATA_ACTUAL = OrderedDict([
     ('/etc/nova/api-paste.ini', ['nova-api-os-compute', 'apache2']),
     ('/etc/haproxy/haproxy.cfg', ['haproxy']),
     ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
-    ('/etc/apache2/ports.conf', ['apache2']),
     ('/etc/apache2/sites-enabled/wsgi-placement-api.conf', ['apache2']),
 ])
 RESTART_MAP_OCATA_BASE = OrderedDict([
@@ -155,8 +153,7 @@ RESTART_MAP_OCATA_BASE = OrderedDict([
         'nova-api-os-compute', 'nova-placement-api'
     ]),
     ('/etc/haproxy/haproxy.cfg', ['haproxy']),
-    ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
-    ('/etc/apache2/ports.conf', ['apache2']),
+    ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2'])
 ])
 RESTART_MAP_ROCKY_ACTUAL = OrderedDict([
     ('/etc/nova/nova.conf', [
@@ -165,7 +162,6 @@ RESTART_MAP_ROCKY_ACTUAL = OrderedDict([
     ('/etc/nova/api-paste.ini', ['apache2']),
     ('/etc/haproxy/haproxy.cfg', ['haproxy']),
     ('/etc/apache2/sites-available/openstack_https_frontend', ['apache2']),
-    ('/etc/apache2/ports.conf', ['apache2']),
     ('/etc/apache2/sites-enabled/wsgi-api-os-compute.conf', ['apache2']),
     ('/etc/apache2/sites-enabled/wsgi-placement-api.conf', ['apache2']),
     ('/etc/apache2/sites-enabled/wsgi-openstack-metadata.conf', ['apache2']),
