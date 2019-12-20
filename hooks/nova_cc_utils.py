@@ -108,7 +108,6 @@ NOVA_CONF = '%s/nova.conf' % NOVA_CONF_DIR
 NOVA_API_PASTE = '%s/api-paste.ini' % NOVA_CONF_DIR
 VENDORDATA_FILE = '%s/vendor_data.json' % NOVA_CONF_DIR
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
-APACHE_PORTS_CONF = '/etc/apache2/ports.conf'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
 APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
 APACHE_SSL_DIR = '/etc/apache2/ssl/nova'
@@ -217,10 +216,6 @@ def get_base_resource_map():
             (APACHE_24_CONF, {
                 'contexts': [nova_cc_context.ApacheSSLContext(
                     determine_ports)],
-                'services': ['apache2'],
-            }),
-            (APACHE_PORTS_CONF, {
-                'contexts': [],
                 'services': ['apache2'],
             }),
         ])
