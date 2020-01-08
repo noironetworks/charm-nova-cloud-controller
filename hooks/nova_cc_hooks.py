@@ -518,6 +518,9 @@ def neutron_settings():
             neutron_api_info['neutron_security_groups'],
             'quantum_url': neutron_api_info['neutron_url'],
         })
+        # DNS domain is optional
+        if neutron_api_info.get('dns_domain'):
+            neutron_settings['dns_domain'] = neutron_api_info['dns_domain']
         neutron_url = urlparse(neutron_settings['quantum_url'])
         neutron_settings['quantum_host'] = neutron_url.hostname
         neutron_settings['quantum_port'] = neutron_url.port
