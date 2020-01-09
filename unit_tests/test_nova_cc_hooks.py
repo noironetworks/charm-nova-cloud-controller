@@ -422,7 +422,8 @@ class NovaCCHooksTests(CharmTestCase):
     @patch('charmhelpers.core.hookenv.expected_related_units')
     def test__goal_state_achieved_for_relid__goal_state_sufficient_units(
             self, mock_expected_related_units, mock_related_units):
-        mock_related_units.return_value = ['service/0', 'service/1']
+        # BUG: #1859050 -- units out of order should still match
+        mock_related_units.return_value = ['service/1', 'service/0']
         mock_expected_related_units.return_value = ['service/0', 'service/1']
         self.assertTrue(hooks._goal_state_achieved_for_relid('aservice', None))
 
