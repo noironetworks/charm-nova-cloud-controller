@@ -738,7 +738,9 @@ def _goal_state_achieved_for_relid(reltype, rid=None):
             hookenv.expected_related_units(reltype=reltype))
         prefix = units_so_far[0].split('/')[0]
         target_units = [u for u in all_units if u.split('/')[0] == prefix]
-        return units_so_far == target_units
+        # BUG: #1859050 -- the units may not necessarily be sorted, so we have
+        # to compare sorted lists
+        return sorted(units_so_far) == sorted(target_units)
     except (KeyError, IndexError):
         # expected_related_units() can raise a KeyError in the case there are
         # no units  - in that case assume that the goal wasn't met
