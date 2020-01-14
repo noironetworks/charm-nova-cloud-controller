@@ -605,6 +605,7 @@ class NovaCCHooksTests(CharmTestCase):
                 'neutron_plugin': 'bob',
                 'neutron_security_groups': 'yes',
                 'neutron_url': 'http://nova-cc-host1:9696',
+                'dns_domain': 'example.tld',
             }
 
         napi.return_value = mock_NeutronAPIContext
@@ -635,6 +636,7 @@ class NovaCCHooksTests(CharmTestCase):
             network_manager='neutron',
             enable_serial_console='false',
             serial_console_base_url='ws://controller:6803',
+            dns_domain='example.tld',
             **FAKE_KS_AUTH_CFG)
 
     @patch('charmhelpers.contrib.openstack.ip.canonical_url')
