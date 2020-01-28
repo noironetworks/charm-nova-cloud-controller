@@ -325,11 +325,12 @@ def amqp_changed():
 
     update_child_cell_records()
 
-    # NOTE: trigger restart on nova-api-metadata on
-    #       neutron-gateway units once nova-cc has working
-    #       amqp connection (avoiding service down on n-gateway)
-    for rid in hookenv.relation_ids('quantum-network-service'):
-        quantum_joined(rid=rid, remote_restart=True)
+    if hookenv.is_leader():
+        # NOTE: trigger restart on nova-api-metadata on
+        #       neutron-gateway units once nova-cc has working
+        #       amqp connection (avoiding service down on n-gateway)
+        #       Also trigger restart of nova-compute Bug #1861094
+        update_nova_relation(remote_restart=True)
 
 
 @hooks.hook('shared-db-relation-joined')

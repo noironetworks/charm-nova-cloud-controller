@@ -834,10 +834,10 @@ class NovaCCHooksTests(CharmTestCase):
     @patch.object(hooks, 'leader_init_db_if_ready_allowed_units')
     @patch.object(hooks, 'update_cell_db_if_ready_allowed_units')
     @patch('hooks.nova_cc_utils.is_db_initialised')
-    @patch.object(hooks, 'quantum_joined')
+    @patch.object(hooks, 'update_nova_relation')
     @patch.object(hooks, 'CONFIGS')
     def test_amqp_changed_api_rel(self, configs,
-                                  quantum_joined, mock_is_db_initialised,
+                                  update_nova_relation, mock_is_db_initialised,
                                   update_db_allowed, init_db_allowed,
                                   mock_resource_map,
                                   mock_update_child_cell_records):
@@ -854,19 +854,18 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.amqp_changed()
         self.assertEqual(configs.write.call_args_list,
                          [call('/etc/nova/nova.conf')])
-        quantum_joined.assert_called_with(rid='quantum-service/0',
-                                          remote_restart=True)
+        update_nova_relation.assert_called_with(remote_restart=True)
 
     @patch.object(hooks, 'update_child_cell_records')
     @patch.object(hooks, 'leader_init_db_if_ready_allowed_units')
     @patch.object(hooks, 'update_cell_db_if_ready_allowed_units')
     @patch.object(utils, 'resource_map')
     @patch('hooks.nova_cc_utils.is_db_initialised')
-    @patch.object(hooks, 'quantum_joined')
+    @patch.object(hooks, 'update_nova_relation')
     @patch.object(hooks, 'CONFIGS')
     def test_amqp_changed_noapi_rel(self,
                                     configs,
-                                    quantum_joined,
+                                    update_nova_relation,
                                     mock_is_db_initialised,
                                     mock_resource_map,
                                     update_db_allowed,
@@ -877,17 +876,13 @@ class NovaCCHooksTests(CharmTestCase):
         configs.complete_contexts = MagicMock()
         configs.complete_contexts.return_value = ['amqp']
         configs.write = MagicMock()
-        self.relation_ids.side_effect = [
-            ['quantum-service/0'],
-        ]
         self.is_relation_made.return_value = False
         self.network_manager.return_value = 'neutron'
         self.os_release.return_value = 'diablo'
         hooks.amqp_changed()
         self.assertEqual(configs.write.call_args_list,
                          [call('/etc/nova/nova.conf')])
-        quantum_joined.assert_called_with(rid='quantum-service/0',
-                                          remote_restart=True)
+        update_nova_relation.assert_called_with(remote_restart=True)
 
     @patch('charmhelpers.contrib.openstack.ip.canonical_url')
     @patch.object(os, 'rename')
