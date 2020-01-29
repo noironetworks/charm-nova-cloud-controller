@@ -1254,6 +1254,7 @@ class NovaCCUtilsTests(CharmTestCase):
                 utils.VERSION_PACKAGE
             )
 
+    @patch.object(utils.ch_cluster, 'get_managed_services_and_ports')
     @patch.object(utils, 'get_optional_interfaces')
     @patch.object(utils, 'check_optional_relations')
     @patch.object(utils, 'REQUIRED_INTERFACES')
@@ -1268,8 +1269,10 @@ class NovaCCUtilsTests(CharmTestCase):
                                 services,
                                 REQUIRED_INTERFACES,
                                 check_optional_relations,
-                                get_optional_interfaces):
+                                get_optional_interfaces,
+                                get_managed_services_and_ports):
         compare_releases.return_value = 'stein'
+        get_managed_services_and_ports.return_value = (['s1'], ['p1'])
         services.return_value = 's1'
         REQUIRED_INTERFACES.copy.return_value = {'int': ['test 1']}
         get_optional_interfaces.return_value = {'opt': ['test 2']}
@@ -1279,7 +1282,7 @@ class NovaCCUtilsTests(CharmTestCase):
         make_assess_status_func.assert_called_once_with(
             'test-config',
             {'int': ['test 1'], 'opt': ['test 2']},
-            charm_func=check_optional_relations, services='s1',
+            charm_func=check_optional_relations, services=['s1'],
             ports=None)
 
         make_assess_status_func.reset_mock()
@@ -1288,7 +1291,7 @@ class NovaCCUtilsTests(CharmTestCase):
         make_assess_status_func.assert_called_once_with(
             'test-config',
             {'int': ['test 1'], 'placement': ['placement'], 'opt': ['test 2']},
-            charm_func=check_optional_relations, services='s1',
+            charm_func=check_optional_relations, services=['s1'],
             ports=None)
 
     def test_pause_unit_helper(self):
@@ -1301,18 +1304,21 @@ class NovaCCUtilsTests(CharmTestCase):
             prh.assert_called_once_with(utils.ch_utils.resume_unit,
                                         'random-config')
 
+    @patch.object(utils.ch_cluster, 'get_managed_services_and_ports')
     @patch.object(utils, 'services')
     @patch.object(utils, 'determine_ports')
-    def test_pause_resume_helper(self, determine_ports, services):
+    def test_pause_resume_helper(self, determine_ports, services,
+                                 get_managed_services_and_ports):
         f = MagicMock()
-        services.return_value = 's1'
-        determine_ports.return_value = 'p1'
+        get_managed_services_and_ports.return_value = (['s1'], ['p1'])
+        services.return_value = ['s1']
+        determine_ports.return_value = ['p1']
         with patch.object(utils, 'assess_status_func') as asf:
             asf.return_value = 'assessor'
             utils._pause_resume_helper(f, 'some-config')
             asf.assert_called_once_with('some-config')
             # ports=None whilst port checks are disabled.
-            f.assert_called_once_with('assessor', services='s1', ports=None)
+            f.assert_called_once_with('assessor', services=['s1'], ports=None)
 
     @patch('charmhelpers.fetch.filter_installed_packages')
     def test_disable_aws_compat_services_uninstalled(
