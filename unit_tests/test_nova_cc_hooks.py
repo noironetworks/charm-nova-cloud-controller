@@ -40,6 +40,7 @@ TO_PATCH = [
     'charmhelpers.contrib.openstack.utils.configure_installation_source',
     'charmhelpers.contrib.openstack.utils.config_value_changed',
     'charmhelpers.contrib.openstack.utils.is_unit_paused_set',
+    'charmhelpers.contrib.openstack.utils.is_db_maintenance_mode',
     'charmhelpers.contrib.openstack.utils.openstack_upgrade_available',
     'charmhelpers.contrib.openstack.utils.os_release',
     'charmhelpers.core.hookenv.charm_dir',
@@ -105,6 +106,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.charm_dir.return_value = '/var/lib/juju/charms/nova/charm'
         self.ns_query.return_value = None
         self.is_unit_paused_set.return_value = False
+        self.is_db_maintenance_mode.return_value = False
         # disable hardening for unit tests
         harden._DISABLE_HARDENING_FOR_UNIT_TEST = True
 

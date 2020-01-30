@@ -398,6 +398,12 @@ def db_changed():
         hookenv.log('shared-db relation incomplete. Peer not ready?')
         return
 
+    if ch_utils.is_db_maintenance_mode():
+        hookenv.log(
+            'Database maintenance mode, aborting hook.',
+            level=hookenv.DEBUG)
+        return
+
     CONFIGS.write_all()
     leader_init_db_if_ready()
     # db init for cells v2 requires amqp transport_url and db connections to
