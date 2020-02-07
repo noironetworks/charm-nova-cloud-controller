@@ -63,7 +63,7 @@ def clear_unit_knownhost_cache(args):
     """
     target = hookenv.action_get('target')
     hookenv.action_set({
-        "Units updated": clear_knownhost_cache(target)
+        "units-updated": clear_knownhost_cache(target)
     })
 
 

@@ -101,7 +101,7 @@ class ClearUnitKnownhostCacheTestCase(CharmTestCase):
         self.action_get.return_value = 'aservice/2'
         actions.clear_unit_knownhost_cache([])
         self.action_set.assert_called_once_with({
-            "Units updated": [{'aservice/2': '10.0.0.2'}]
+            "units-updated": [{'aservice/2': '10.0.0.2'}]
         })
         self.clear_hostset_cache_for.assert_called_once_with('10.0.0.2')
         self.update_ssh_key.assert_called_once_with(rid="r:1",
@@ -113,7 +113,7 @@ class ClearUnitKnownhostCacheTestCase(CharmTestCase):
         self.action_get.return_value = 'bservice'
         actions.clear_unit_knownhost_cache([])
         self.action_set.assert_called_once_with({
-            "Units updated": [
+            "units-updated": [
                 {'bservice/1': '10.0.1.1'},
                 {'bservice/2': '10.0.1.2'},
                 {'bservice/3': '10.0.1.3'},
@@ -134,7 +134,7 @@ class ClearUnitKnownhostCacheTestCase(CharmTestCase):
         self.action_get.return_value = ''
         actions.clear_unit_knownhost_cache([])
         self.action_set.assert_called_once_with({
-            "Units updated": [
+            "units-updated": [
                 {'aservice/1': '10.0.0.1'},
                 {'aservice/2': '10.0.0.2'},
                 {'aservice/3': '10.0.0.3'},
