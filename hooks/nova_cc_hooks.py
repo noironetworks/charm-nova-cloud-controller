@@ -434,10 +434,12 @@ def identity_joined(rid=None):
     public_url = ch_ip.canonical_url(CONFIGS, ch_ip.PUBLIC)
     internal_url = ch_ip.canonical_url(CONFIGS, ch_ip.INTERNAL)
     admin_url = ch_ip.canonical_url(CONFIGS, ch_ip.ADMIN)
-    hookenv.relation_set(relation_id=rid,
-                         **ncc_utils.determine_endpoints(public_url,
-                                                         internal_url,
-                                                         admin_url))
+    settings = ncc_utils.determine_endpoints(
+        public_url,
+        internal_url,
+        admin_url)
+    settings['subscribe_ep_change'] = 'neutron placement'
+    hookenv.relation_set(relation_id=rid, relation_settings=settings)
 
 
 @hooks.hook('identity-service-relation-changed')
@@ -456,6 +458,16 @@ def identity_changed():
     for rid in hookenv.relation_ids('neutron-api'):
         neutron_api_relation_joined(rid)
     configure_https()
+    if ch_utils.endpoint_changed('placement'):
+        hookenv.log("Placement endpoint has changed, restarting services",
+                    "INFO")
+        ch_host.service_restart('nova-scheduler')
+        hookenv.log(("Placement endpoint has changed, requesting nova-compute "
+                     "restart"),
+                    "INFO")
+        for rid in hookenv.relation_ids('cloud-compute'):
+            compute_joined(rid=rid, remote_restart=True)
+        ch_utils.save_endpoint_changed_triggers(['placement'])
 
 
 @hooks.hook('nova-volume-service-relation-joined',
