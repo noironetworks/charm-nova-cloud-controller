@@ -1061,8 +1061,8 @@ def db_departed():
     for r_id in hookenv.relation_ids('cluster'):
         hookenv.relation_set(relation_id=r_id, dbsync_state='incomplete')
     if not ch_utils.is_unit_paused_set():
-        for svc in ncc_utils.services():
-            ch_host.service_pause(svc)
+        for svc in ncc_utils.restart_map()[ncc_utils.NOVA_CONF]:
+            ch_host.service_stop(svc)
     else:
         hookenv.log('Unit is in paused state, not issuing stop/pause to all '
                     'services')
