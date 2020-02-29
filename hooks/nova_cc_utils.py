@@ -178,6 +178,7 @@ def get_base_resource_map():
                     nova_cc_context.VolumeServiceContext(),
                     ch_context.ZeroMQContext(),
                     ch_context.NotificationDriverContext(),
+                    nova_cc_context.CinderConfigContext(),
                     nova_cc_context.NovaIPv6Context(),
                     nova_cc_context.NeutronCCContext(),
                     nova_cc_context.NovaConfigContext(),

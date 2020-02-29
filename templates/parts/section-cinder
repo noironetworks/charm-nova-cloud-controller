@@ -6,4 +6,5 @@ catalog_info = {{ volume_catalog_info }}
 {% if region -%}
 os_region_name = {{ region }}
 {% endif %}
+cross_az_attach = {{ cross_az_attach }}
 {% endif -%}
