@@ -317,13 +317,18 @@ def amqp_changed():
         hookenv.log('amqp relation incomplete. Peer not ready?')
         return
     CONFIGS.write(ncc_utils.NOVA_CONF)
-    leader_init_db_if_ready_allowed_units()
-    # db init for cells v2 requires amqp transport_url and db connections
-    # to be set in nova.conf, so we attempt db init in here as well as the
-    # db relation-changed hooks.
-    update_cell_db_if_ready_allowed_units()
+    if ch_utils.is_db_maintenance_mode():
+        hookenv.log(
+            'Database maintenance mode, defering db updates.',
+            level=hookenv.DEBUG)
+    else:
+        leader_init_db_if_ready_allowed_units()
+        # db init for cells v2 requires amqp transport_url and db connections
+        # to be set in nova.conf, so we attempt db init in here as well as the
+        # db relation-changed hooks.
+        update_cell_db_if_ready_allowed_units()
 
-    update_child_cell_records()
+        update_child_cell_records()
 
     if hookenv.is_leader():
         # NOTE: trigger restart on nova-api-metadata on
