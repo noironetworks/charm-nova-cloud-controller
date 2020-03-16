@@ -283,6 +283,13 @@ def canonical_url():
     return '%s://%s' % (scheme, ch_network_ip.format_ipv6_addr(addr) or addr)
 
 
+class CinderConfigContext(ch_context.OSContextGenerator):
+    def __call__(self):
+        return {
+            'cross_az_attach': hookenv.config('cross-az-attach')
+        }
+
+
 class NeutronCCContext(ch_context.NeutronContext):
     interfaces = ['quantum-network-service', 'neutron-network-service']
 

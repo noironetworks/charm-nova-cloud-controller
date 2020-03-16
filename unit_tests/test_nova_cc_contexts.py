@@ -523,6 +523,15 @@ class NovaComputeContextTests(CharmTestCase):
         ctxt = context.NeutronAPIContext()()
         self.assertEqual(ctxt, expected)
 
+    def test_CinderContext(self):
+        self.test_config.update({'cross-az-attach': False, })
+        ctxt = context.CinderConfigContext()()
+        self.assertEqual({'cross_az_attach': False}, ctxt)
+
+        self.test_config.update({'cross-az-attach': True, })
+        ctxt = context.CinderConfigContext()()
+        self.assertEqual({'cross_az_attach': True}, ctxt)
+
     @mock.patch('charmhelpers.contrib.openstack.context.'
                 'NovaVendorMetadataContext.__call__')
     def test_vendordata_static_and_dynamic(self, parent):
