@@ -583,6 +583,17 @@ options:
       and before
       .
       Possible Values are positive integers or 0 and -1 to disable the quota.
+  quota-count-usage-from-placement:
+    type: boolean
+    default: False
+    description: |
+      Setting this to True, enables the counting of quota usage from the
+      placement service.
+      .
+      By default, the parameter is False and Nova will count quota usage for
+      instances, cores, and ram from its cell databases.
+      .
+      This is only supported on OpenStack Train or later releases.
   use-policyd-override:
     type: boolean
     default: False

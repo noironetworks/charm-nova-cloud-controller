@@ -963,6 +963,7 @@ def _determine_os_workload_status(
     @param ports: OPTIONAL list of port numbers.
     @returns state, message: the new workload status, user message
     """
+    messages = []
     state, message = _ows_check_if_paused(services, ports)
 
     if state is None:
@@ -973,14 +974,24 @@ def _determine_os_workload_status(
         # _ows_check_charm_func() may modify the state, message
         state, message = _ows_check_charm_func(
             state, message, lambda: charm_func(configs))
+        if message is not None:
+            messages.append(message)
 
     if state is None:
         state, message = _ows_check_services_running(services, ports)
+        if message is not None:
+            messages.append(message)
 
     if state is None:
         state = 'active'
-        message = "Unit is ready"
+        if not messages:
+            message = "Unit is ready"
+        else:
+            warning_message = '; '.join(messages)
+            message = 'Unit is ready; {}'.format(warning_message)
         juju_log(message, 'INFO')
+    else:
+        message = '; '.join(messages)
 
     try:
         if config(POLICYD_CONFIG_NAME):
@@ -1130,6 +1141,13 @@ def _ows_check_charm_func(state, message, charm_func_with_configs):
                 message = "{}, {}".format(message, charm_message)
             else:
                 message = charm_message
+
+        if charm_state == 'unknown' and charm_message != '':
+            if message:
+                message = "{}, {}".format(message, charm_message)
+            else:
+                message = charm_message
+
     return state, message
 
 

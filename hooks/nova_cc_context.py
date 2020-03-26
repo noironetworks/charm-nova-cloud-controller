@@ -408,6 +408,8 @@ class NovaConfigContext(ch_context.WorkerConfigContext):
         ctxt['quota_server_groups'] = hookenv.config('quota-server-groups')
         ctxt['quota_server_group_members'] = hookenv.config(
             'quota-server-group-members')
+        ctxt['quota_count_usage_from_placement'] = hookenv.config(
+            'quota-count-usage-from-placement')
         ctxt['console_access_protocol'] = hookenv.config(
             'console-access-protocol')
         ctxt['console_access_port'] = hookenv.config('console-access-port')
