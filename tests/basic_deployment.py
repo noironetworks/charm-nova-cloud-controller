@@ -189,8 +189,7 @@ class NovaCCBasicDeployment(OpenStackAmuletDeployment):
         if self._get_openstack_release() >= self.xenial_ocata:
             nova_cc_config['network-manager'] = 'Neutron'
 
-        keystone_config = {'admin-password': 'openstack',
-                           'admin-token': 'ubuntutesting'}
+        keystone_config = {'admin-password': 'openstack'}
 
         pxc_config = {
             'dataset-size': '25%',
