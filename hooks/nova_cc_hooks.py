@@ -684,7 +684,8 @@ def add_hosts_to_cell_when_ready():
     """
     if (hookenv.is_leader() and
             ncc_utils.is_cellv2_init_ready() and
-            ncc_utils.is_db_initialised()):
+            ncc_utils.is_db_initialised() and
+            not ch_utils.is_db_maintenance_mode()):
         ncc_utils.add_hosts_to_cell()
 
 

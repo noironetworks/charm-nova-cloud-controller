@@ -551,6 +551,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(self.is_leader.called)
         self.assertTrue(mock_is_db_initialised.called)
         self.assertTrue(mock_is_cellv2_init_ready.called)
+        self.assertTrue(self.is_db_maintenance_mode.called)
         self.assertTrue(mock_add_hosts_to_cell.called)
 
     @patch('hooks.nova_cc_utils.is_cellv2_init_ready')
@@ -567,6 +568,24 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertTrue(self.is_leader.called)
         self.assertFalse(mock_is_db_initialised.called)
         self.assertFalse(mock_is_cellv2_init_ready.called)
+        self.assertFalse(self.is_db_maintenance_mode.called)
+        self.assertFalse(mock_add_hosts_to_cell.called)
+
+    @patch('hooks.nova_cc_utils.is_cellv2_init_ready')
+    @patch('hooks.nova_cc_utils.is_db_initialised')
+    @patch('hooks.nova_cc_utils.add_hosts_to_cell')
+    def test_add_hosts_to_cell_when_database_maintenance(
+            self, mock_add_hosts_to_cell, mock_is_db_initialised,
+            mock_is_cellv2_init_ready):
+        self.is_leader.return_value = True
+        mock_is_db_initialised.return_value = True
+        mock_is_cellv2_init_ready.return_value = True
+        self.is_db_maintenance_mode.return_value = True
+        hooks.add_hosts_to_cell_when_ready()
+        self.assertTrue(self.is_leader.called)
+        self.assertTrue(mock_is_db_initialised.called)
+        self.assertTrue(mock_is_cellv2_init_ready.called)
+        self.assertTrue(self.is_db_maintenance_mode.called)
         self.assertFalse(mock_add_hosts_to_cell.called)
 
     @patch('charmhelpers.contrib.openstack.ip.canonical_url')
