@@ -1,7 +1,9 @@
 charm_name: nova-cloud-controller
 smoke_bundles:
-- bionic-train
+- bionic-ussuri
 gate_bundles:
+- focal-ussuri
+- bionic-ussuri
 - bionic-train
 - bionic-stein
 - bionic-rocky
@@ -22,3 +24,6 @@ tests:
 - zaza.openstack.charm_tests.nova.tests.CirrosGuestCreateTest
 - zaza.openstack.charm_tests.nova.tests.SecurityTests
 - zaza.openstack.charm_tests.nova.tests.NovaCloudController
+tests_options:
+  force_deploy:
+    - focal-ussuri
