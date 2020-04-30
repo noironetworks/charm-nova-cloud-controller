@@ -1707,9 +1707,21 @@ def check_optional_relations(configs):
                     'hacluster missing configuration: '
                     'vip, vip_iface, vip_cidr')
 
+    if cmp_cur_os_rel < 'train' and hookenv.config(
+            'quota-count-usage-from-placement'):
+        hookenv.log(
+            'quota-count-usage-from-placement not supported in {} release'.
+            format(cmp_cur_os_rel),
+            level=hookenv.ERROR)
+        return (
+            'unknown',
+            'WARN: Reset the configuration quota-count-usage-from-placement to'
+            'false, this configuration is only availabe for releases>=Train'
+        )
+
     # return 'unknown' as the lowest priority to not clobber an existing
     # status.
-    return "unknown", ""
+    return "unknown", None
 
 
 def assess_status(configs):

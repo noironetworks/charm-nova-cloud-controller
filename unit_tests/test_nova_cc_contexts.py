@@ -374,6 +374,8 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual(ctxt['quota_server_group_members'],
                          self.config('quota-server-group-members'))
         self.assertEqual(ctxt['quota_server_group_members'], None)
+        self.assertEqual(ctxt['quota_count_usage_from_placement'],
+                         self.config('quota-count-usage-from-placement'))
         self.assertEqual(ctxt['enable_new_services'],
                          self.config('enable-new-services'))
         self.assertEqual(ctxt['console_access_protocol'],
