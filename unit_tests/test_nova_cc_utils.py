@@ -1636,6 +1636,31 @@ class NovaCCUtilsTests(CharmTestCase):
             ('mysql://nova:novapass@10.0.0.10/novadb?ssl_ca=myca&'
              'ssl_cert=mycert&ssl_key=mykey'))
 
+    def test_get_sql_uri_with_port(self):
+        base_ctxt = {
+            'database_type': 'mysql',
+            'database_user': 'nova',
+            'database_password': 'novapass',
+            'database_host': '10.0.0.10',
+            'database_port': 3316,
+            'database': 'novadb'}
+        self.assertEqual(
+            utils.get_sql_uri(base_ctxt),
+            'mysql://nova:novapass@10.0.0.10:3316/novadb')
+        sslca_ctxt = {'database_ssl_ca': 'myca'}
+        sslca_ctxt.update(base_ctxt)
+        self.assertEqual(
+            utils.get_sql_uri(sslca_ctxt),
+            'mysql://nova:novapass@10.0.0.10:3316/novadb?ssl_ca=myca')
+        ssl_cert_ctxt = {
+            'database_ssl_cert': 'mycert',
+            'database_ssl_key': 'mykey'}
+        ssl_cert_ctxt.update(sslca_ctxt)
+        self.assertEqual(
+            utils.get_sql_uri(ssl_cert_ctxt),
+            ('mysql://nova:novapass@10.0.0.10:3316/novadb?ssl_ca=myca&'
+             'ssl_cert=mycert&ssl_key=mykey'))
+
     @patch.object(utils, 'is_db_initialised')
     @patch.object(utils, 'get_cell_details')
     @patch.object(utils, 'get_cell_db_context')

@@ -1955,6 +1955,9 @@ def get_sql_uri(db_ctxt):
     """Return the uri for conextind to the database in the supplied context"""
     uri_template = ("{database_type}://{database_user}:{database_password}"
                     "@{database_host}/{database}")
+    if db_ctxt.get('database_port'):
+        uri_template = ("{database_type}://{database_user}:{database_password}"
+                        "@{database_host}:{database_port}/{database}")
     uri = uri_template.format(**db_ctxt)
     if db_ctxt.get('database_ssl_ca'):
         uri = uri + '?ssl_ca={database_ssl_ca}'.format(**db_ctxt)
