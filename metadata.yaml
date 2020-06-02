@@ -2,25 +2,26 @@ name: nova-cloud-controller
 summary: OpenStack Compute - Nova cloud controller service
 maintainer: OpenStack Charmers <openstack-charmers@lists.ubuntu.com>
 description: |
- OpenStack is a reliable cloud infrastructure. Its mission is to produce
- the ubiquitous cloud computing platform that will meet the needs of public
- and private cloud providers regardless of size, by being simple to implement
- and massively scalable.
- .
- OpenStack Compute, codenamed Nova, is a cloud computing fabric controller. In
- addition to its "native" API (the OpenStack API), it also supports the Amazon
- EC2 API.
- .
- This charm provides the cloud controller service for OpenStack Nova and includes
- nova-scheduler, nova-api and nova-conductor services.
+  OpenStack is a reliable cloud infrastructure. Its mission is to produce
+  the ubiquitous cloud computing platform that will meet the needs of public
+  and private cloud providers regardless of size, by being simple to implement
+  and massively scalable.
+  .
+  OpenStack Compute, codenamed Nova, is a cloud computing fabric controller. In
+  addition to its "native" API (the OpenStack API), it also supports the Amazon
+  EC2 API.
+  .
+  This charm provides the cloud controller service for OpenStack Nova and includes
+  nova-scheduler, nova-api and nova-conductor services.
 tags:
-  - openstack
+- openstack
 series:
-  - xenial
-  - bionic
-  - eoan
-  - focal
-  - trusty
+- xenial
+- bionic
+- eoan
+- focal
+- trusty
+- groovy
 extra-bindings:
   public:
   admin:
