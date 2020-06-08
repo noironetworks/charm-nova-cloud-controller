@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import json
-import mock
+from unittest import mock
 
 import hooks.nova_cc_context as context
 

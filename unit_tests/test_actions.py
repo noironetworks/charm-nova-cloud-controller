@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mock
+from unittest import mock
 
 from unit_tests.test_utils import (
     CharmTestCase,
@@ -273,30 +273,30 @@ class SyncComputeAvailabilityZonesTestCase(CharmTestCase):
         self.Session.assert_called_once_with(auth='v3-password-instance')
         self.Client.assert_called_once_with(2, session='keystone-session')
         self.relation_ids.assert_called_once_with('cloud-compute')
-        self.related_units.has_calls([
+        self.related_units.assert_has_calls([
             mock.call('r:1'),
             mock.call('r:2')
         ])
-        self.relation_get.has_calls([
+        self.relation_get.assert_has_calls([
             mock.call(rid='r:1', unit='aservice/0'),
             mock.call(rid='r:1', unit='aservice/1'),
             mock.call(rid='r:1', unit='aservice/2'),
             mock.call(rid='r:2', unit='bservice/0'),
             mock.call(rid='r:2', unit='bservice/1'),
         ])
-        self.Client.aggregates.find.has_calls([
+        self.Client().aggregates.find.assert_has_calls([
             mock.call(name='site-a_az', availability_zone='site-a'),
             mock.call(name='site-b_az', availability_zone='site-b'),
             mock.call(name='site-c_az', availability_zone='site-c'),
             mock.call(name='site-d_az', availability_zone='site-d'),
         ])
-        self.Client.hypervisors.find.has_calls([
+        self.Client().hypervisors.find.assert_has_calls([
             mock.call(host_ip='10.0.0.1'),
             mock.call(host_ip='10.0.0.2'),
             mock.call(host_ip='10.0.1.1'),
             mock.call(host_ip='10.0.1.2'),
         ])
-        self.Client.aggregates.add_host.has_calls([
+        self.Client().aggregates.add_host.assert_has_calls([
             mock.call(aggregate_mocks[0], 'node-1'),
             mock.call(aggregate_mocks[1], 'node-2'),
             mock.call(aggregate_mocks[2], 'node-3'),
