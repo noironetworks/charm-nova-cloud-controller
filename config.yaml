@@ -172,6 +172,9 @@ options:
     description: |
       Protocol to use when accessing virtual machine console. Supported types
       are None, spice, xvpvnc, novnc and vnc (for both xvpvnc and novnc).
+      .
+      NOTE: xvpvnc is not supported with bionic/ussuri or focal (or later)
+            releases.
   console-access-port:
     type: int
     default:
