@@ -484,6 +484,41 @@ class NovaComputeContextTests(CharmTestCase):
         mock_resolve_address.assert_called_with(
             endpoint_type=context.ch_ip.PUBLIC)
 
+    @mock.patch.object(context, 'ch_cluster')
+    @mock.patch('os.path.exists')
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
+    def test_instance_console_context(self,
+                                      mock_resolve_address,
+                                      mock_os_path_exists,
+                                      mock_ch_cluster):
+        mock_os_path_exists.return_value = True
+        mock_resolve_address.return_value = "10.20.30.40"
+        mock_ch_cluster.https.return_value = True
+        ctxt = context.InstanceConsoleContext()()
+        self.assertEqual(
+            ctxt,
+            {'ssl_cert': '/etc/apache2/ssl/nova/cert_10.20.30.40',
+             'ssl_key': '/etc/apache2/ssl/nova/key_10.20.30.40'}
+        )
+        mock_resolve_address.assert_called_once_with(
+            endpoint_type=context.ch_ip.PUBLIC
+        )
+
+    @mock.patch.object(context, 'ch_cluster')
+    @mock.patch('os.path.exists')
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
+    def test_instance_console_context_no_https(self,
+                                               mock_resolve_address,
+                                               mock_os_path_exists,
+                                               mock_ch_cluster):
+        mock_os_path_exists.return_value = True
+        mock_resolve_address.return_value = "10.20.30.40"
+        mock_ch_cluster.https.return_value = False
+        ctxt = context.InstanceConsoleContext()()
+        self.assertEqual(
+            ctxt, {}
+        )
+
     def test_nova_cellv2_shared_db_context(self):
         self.relation_ids.return_value = ['shared-db:0']
         self.related_units.return_value = ['mysql/0']

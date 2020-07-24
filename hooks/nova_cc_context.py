@@ -458,7 +458,7 @@ class InstanceConsoleContext(ch_context.OSContextGenerator):
         ctxt = {}
         # Configure nova-novncproxy https if nova-api is using https.
         if ch_cluster.https():
-            cn = ch_ip.resolve_address(endpoint_type=ch_ip.INTERNAL)
+            cn = ch_ip.resolve_address(endpoint_type=ch_ip.PUBLIC)
             if cn:
                 cert_filename = 'cert_{}'.format(cn)
                 key_filename = 'key_{}'.format(cn)
