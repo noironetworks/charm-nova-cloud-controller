@@ -416,6 +416,8 @@ class NovaConfigContext(ch_context.WorkerConfigContext):
         ctxt['scheduler_host_subset_size'] = hookenv.config(
             'scheduler-host-subset-size')
         ctxt['unique_server_names'] = hookenv.config('unique-server-names')
+        ctxt['skip_hosts_with_build_failures'] = hookenv.config(
+            'skip-hosts-with-build-failures')
         return ctxt
 
 

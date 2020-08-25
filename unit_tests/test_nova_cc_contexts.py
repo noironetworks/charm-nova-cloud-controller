@@ -384,6 +384,8 @@ class NovaComputeContextTests(CharmTestCase):
                          self.config('console-access-port'))
         self.assertEqual(ctxt['unique_server_names'],
                          self.config('unique-server-names'))
+        self.assertEqual(ctxt['skip_hosts_with_build_failures'],
+                         self.config('skip-hosts-with-build-failures'))
 
     _pci_alias1 = {
         "name": "IntelNIC",
