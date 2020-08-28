@@ -2,6 +2,7 @@ charm_name: nova-cloud-controller
 smoke_bundles:
 - bionic-ussuri
 gate_bundles:
+- focal-victoria
 - focal-ussuri
 - bionic-ussuri
 - bionic-train
@@ -15,7 +16,6 @@ gate_bundles:
 - trusty-mitaka
 dev_bundles:
 - groovy-victoria
-- focal-victoria
 configure:
 - zaza.openstack.charm_tests.glance.setup.add_cirros_image
 - zaza.openstack.charm_tests.keystone.setup.add_demo_user
