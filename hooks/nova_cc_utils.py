@@ -868,27 +868,47 @@ def get_cell_details():
 
 
 def update_cell_database():
-    '''Update the cell1 database properties
+    '''Update the cell0 and cell1 database_connection/transport_url properties
 
     This should be called whenever a database or rabbitmq-server relation is
     changed to update the transport_url in the nova_api cell_mappings table.
+    The cell0 transport_url is always none:///.
+    The cell1 transport_url and database_connection are generated from the
+    config file's [DEFAULT]/transport_url and [database]/connection.
     '''
-    hookenv.log('Updating cell1 properties', level=hookenv.INFO)
-    cell1_uuid = get_cell_uuid('cell1')
-    cmd = ['nova-manage', 'cell_v2', 'update_cell', '--cell_uuid', cell1_uuid]
-    try:
-        subprocess.check_output(cmd)
-    except subprocess.CalledProcessError as e:
-        if e.returncode == 1:
-            hookenv.log('Cell1 update_cell failed\n{}'.format(e.output),
+    cells = ['cell0', 'cell1']
+    for cell in cells:
+        hookenv.log('Updating {} properties'.format(cell), level=hookenv.INFO)
+        existing_cells = get_cell_details()
+        if not existing_cells.get(cell):
+            hookenv.log(
+                'Cell {} does not exist.'.format(cell), level=hookenv.DEBUG)
+            break
+        cell_uuid = existing_cells[cell]['uuid']
+        cmd = ['nova-manage', 'cell_v2', 'update_cell', '--cell_uuid',
+               cell_uuid]
+        if cell == 'cell0':
+            db_ctxt = ch_context.SharedDBContext(database='nova_cell0',
+                                                 relation_prefix='novacell0',
+                                                 ssl_dir=NOVA_CONF_DIR)()
+            if not db_ctxt:
+                hookenv.log(
+                    'Defering updating cell {}, cell db relation not ready.'
+                    .format(cell), level=hookenv.DEBUG)
+                break
+            sql_connection = get_sql_uri(db_ctxt)
+            cmd.extend([
+                '--transport-url', existing_cells[cell]['amqp'],
+                '--database_connection', sql_connection])
+        try:
+            subprocess.check_output(cmd)
+        except subprocess.CalledProcessError as e:
+            hookenv.log('{} update_cell failed\n{}'.format(cell, e.output),
                         level=hookenv.ERROR)
             raise
-        elif e.returncode == 2:
-            hookenv.log(
-                'Cell1 update_cell failure ignored - the properties cannot '
-                'be set.', level=hookenv.INFO)
-    else:
-        hookenv.log('cell1 was successfully updated', level=hookenv.INFO)
+        else:
+            hookenv.log('{} was successfully updated'.format(cell),
+                        level=hookenv.INFO)
 
 
 def map_instances():
@@ -1968,7 +1988,7 @@ def get_sql_uri(db_ctxt):
 
 
 def update_child_cell(name, db_service, amqp_service, skip_acl_check=True):
-    """Register cell.
+    """Register or update cell.
 
     Registering a cell requires:
         1) Complete relation with api db service.
