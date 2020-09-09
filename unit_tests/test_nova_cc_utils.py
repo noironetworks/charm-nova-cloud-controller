@@ -1759,3 +1759,31 @@ class NovaCCUtilsTests(CharmTestCase):
         exists.return_value = True
         utils.disable_deprecated_nova_placement_apache_site()
         self.assertTrue(remove.called)
+
+    @patch.object(utils.ch_context, 'SharedDBContext')
+    @patch.object(utils, 'get_cell_details')
+    @patch.object(utils, 'get_sql_uri')
+    @patch.object(utils.subprocess, 'check_output')
+    def test_update_cell_database(self,
+                                  mock_check_output,
+                                  mock_get_sql_uri,
+                                  mock_get_cell_details,
+                                  mock_SharedDBContext):
+        mock_get_cell_details.return_value = {
+            'cell0': {'uuid': 'cell0uuid',
+                      'amqp': 'none:///'},
+            'cell1': {'uuid': 'cell1uuid'},
+        }
+        mock_get_sql_uri.return_value = 'db-uri'
+        utils.update_cell_database()
+        mock_SharedDBContext.assert_called_once_with(
+            database='nova_cell0',
+            relation_prefix='novacell0',
+            ssl_dir='/etc/nova')
+        mock_check_output.assert_has_calls([
+            call(['nova-manage', 'cell_v2', 'update_cell',
+                  '--cell_uuid', 'cell0uuid', '--transport-url', 'none:///',
+                  '--database_connection', 'db-uri']),
+            call(['nova-manage', 'cell_v2', 'update_cell',
+                  '--cell_uuid', 'cell1uuid']),
+        ])
