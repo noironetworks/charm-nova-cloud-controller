@@ -693,3 +693,8 @@ class NovaComputeContextTests(CharmTestCase):
         self.os_release.return_value = 'rocky'
         self.assertEqual(context.default_enabled_filters(),
                          context._pike_enabled_filters)
+
+    def test_default_enabled_filters_victoria(self):
+        self.os_release.return_value = 'victoria'
+        self.assertEqual(context.default_enabled_filters(),
+                         context._victoria_enabled_filters)

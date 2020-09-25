@@ -359,6 +359,16 @@ _pike_enabled_filters = [
     "DifferentHostFilter",
     "SameHostFilter",
 ]
+_victoria_enabled_filters = [
+    "AvailabilityZoneFilter",
+    "ComputeFilter",
+    "ComputeCapabilitiesFilter",
+    "ImagePropertiesFilter",
+    "ServerGroupAntiAffinityFilter",
+    "ServerGroupAffinityFilter",
+    "DifferentHostFilter",
+    "SameHostFilter",
+]
 
 
 def default_enabled_filters():
@@ -370,6 +380,8 @@ def default_enabled_filters():
     """
     os_rel = ch_utils.os_release('nova-common')
     cmp_os_rel = ch_utils.CompareOpenStackReleases(os_rel)
+    if cmp_os_rel >= 'victoria':
+        return _victoria_enabled_filters
     if cmp_os_rel >= 'pike':
         return _pike_enabled_filters
     return _base_enabled_filters
