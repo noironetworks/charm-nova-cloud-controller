@@ -25,7 +25,9 @@ def _add_path(path):
     if path not in sys.path:
         sys.path.insert(1, path)
 
+
 _add_path(_root)
+
 
 import charmhelpers.contrib.openstack.utils as ch_utils
 import charmhelpers.core.hookenv as hookenv
@@ -58,6 +60,7 @@ def openstack_upgrade():
         for r_id in hookenv.relation_ids('shared-db'):
             hooks.db_joined(relation_id=r_id)
         hooks.config_changed()
+
 
 if __name__ == '__main__':
     hooks.resolve_CONFIGS()

@@ -1310,7 +1310,7 @@ def amqp_cell_changed(relation_id=None):
 @hooks.hook('nova-cell-api-relation-changed')
 def nova_cell_api_relation_changed(rid=None, unit=None):
     data = hookenv.relation_get(rid=rid, unit=unit)
-    ch_neutron.log("Data: {}".format(data, level=hookenv.DEBUG))
+    ch_neutron.log("Data: {}".format(data), level=hookenv.DEBUG)
     if not data.get('cell-name'):
         return
     cell_updated = ncc_utils.update_child_cell(
