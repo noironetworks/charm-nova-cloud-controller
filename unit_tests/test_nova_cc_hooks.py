@@ -1145,3 +1145,72 @@ class NovaCCHooksTests(CharmTestCase):
                                                rid='relid1')
         quantum_joined.assert_called_once_with(remote_restart=False,
                                                rid='relid2')
+
+    @patch.object(hooks.ch_host, 'service_restart')
+    @patch.object(hooks.ch_utils, 'save_endpoint_changed_triggers')
+    @patch.object(utils, 'resource_map')
+    @patch.object(hooks, 'configure_https')
+    @patch.object(hooks, 'compute_joined')
+    @patch.object(hooks, 'nova_vmware_relation_joined')
+    @patch.object(hooks, 'neutron_api_relation_joined')
+    @patch.object(hooks.ch_utils, 'endpoint_changed')
+    @patch.object(hooks.time, 'sleep')
+    @patch.object(hooks, 'update_nova_relation')
+    @patch.object(hooks, 'CONFIGS')
+    def test_identity_changed(self, configs, update_nova_relation, sleep,
+                              endpoint_changed, neutron_api_relation_joined,
+                              nova_vmware_relation_joined,
+                              compute_joined, configure_https, resource_map,
+                              save_endpoint_changed_triggers, service_restart):
+        configs.complete_contexts.return_value = ['identity-service']
+        endpoint_changed.return_value = True
+
+        relations = {
+            'cloud-compute': {
+                'ridcomp7': {},
+                'ridcomp9': {}},
+            'nova-vmware': {
+                'ridvmware1': {},
+                'ridvmware2': {}},
+            'neutron-api': {
+                'ridnapi1': {},
+                'ridnapi3': {}},
+            'identity-service': {
+                'ridnid2': {
+                    'ks/1': {'catalog_ttl': '2'},
+                    'ks/3': {}},
+                'ridnid5': {
+                    'rks/1': {'catalog_ttl': '2'},
+                    'rks/3': {'catalog_ttl': '73'}}}}
+
+        def _relation_ids(rel_name):
+            return relations[rel_name].keys()
+
+        def _rid_data(relid):
+            for rel_name in relations.keys():
+                if relid in relations[rel_name].keys():
+                    return relations[rel_name][relid]
+            return []
+
+        def _related_units(relid):
+            return _rid_data(relid).keys()
+
+        def _relation_get(rid, unit, attribute):
+            return _rid_data(rid)[unit].get(attribute)
+
+        self.relation_ids.side_effect = _relation_ids
+        self.related_units.side_effect = _related_units
+        self.relation_get.side_effect = _relation_get
+
+        hooks.identity_changed()
+        nova_vmware_relation_joined.assert_has_calls([
+            call('ridvmware1'), call('ridvmware2')])
+        neutron_api_relation_joined.assert_has_calls([
+            call('ridnapi1'), call('ridnapi3')])
+        configure_https.assert_called_once_with()
+        sleep.assert_called_once_with(73)
+        service_restart.assert_called_once_with('nova-scheduler')
+        save_endpoint_changed_triggers.assert_called_once_with(['placement'])
+        compute_joined.assert_has_calls([
+            call(rid='ridcomp7', remote_restart=True),
+            call(rid='ridcomp9', remote_restart=True)], any_order=True)

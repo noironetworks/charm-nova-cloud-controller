@@ -18,6 +18,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from urllib.parse import urlparse
 import uuid
 
@@ -466,6 +467,24 @@ def identity_changed():
     if ch_utils.endpoint_changed('placement'):
         hookenv.log("Placement endpoint has changed, restarting services",
                     "INFO")
+        restart_delay = 0
+        for rid in hookenv.relation_ids('identity-service'):
+            for unit in hookenv.related_units(relid=rid):
+                _delay = hookenv.relation_get(
+                    rid=rid,
+                    unit=unit,
+                    attribute='catalog_ttl')
+                if _delay and int(_delay) > restart_delay:
+                    restart_delay = int(_delay)
+        hookenv.log("Waiting for catalog cache ttl to expire {}".format(
+            restart_delay), "INFO")
+        hookenv.status_set(
+            'maintenance',
+            'Waiting for cache expiry before restart')
+        time.sleep(restart_delay)
+        hookenv.status_set(
+            'active',
+            'Restart complete')
         ch_host.service_restart('nova-scheduler')
         hookenv.log(("Placement endpoint has changed, requesting nova-compute "
                      "restart"),
