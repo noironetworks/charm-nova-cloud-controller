@@ -2,6 +2,7 @@ charm_name: nova-cloud-controller
 smoke_bundles:
 - vault: focal-ussuri
 gate_bundles:
+- vault: groovy-victoria
 - vault: focal-victoria
 - vault: focal-ussuri
 - bionic-ussuri
@@ -13,8 +14,6 @@ gate_bundles:
 - xenial-pike
 - xenial-ocata
 - xenial-mitaka
-dev_bundles:
-- vault: groovy-victoria
 target_deploy_status:
   vault:
     workload-status: blocked
