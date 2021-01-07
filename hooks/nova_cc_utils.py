@@ -1694,7 +1694,11 @@ def check_optional_relations(configs):
     """Check optional relations and set status
 
     If attempting to upgrade from Stein->Train, block until Placement
-    charm is related.
+    charm is related.  If placement does exist, but openstack-origin doesn't
+    match installed payload then order of upgrades may mean that the blocked
+    message has been missed; e.g. the upgrade was attempted, then placement was
+    related, but the payload version doesn't match the corresponding
+    openstack-origin.  Check only performed if action-managed-upgrade is false.
 
     Also check that if we have a relation_id for high availability that we can
     get the hacluster config.  If we can't then we are blocked.
@@ -1712,12 +1716,15 @@ def check_optional_relations(configs):
     new_os_rel = ch_utils.get_os_codename_install_source(new_src)
     cmp_new_os_rel = ch_utils.CompareOpenStackReleases(new_os_rel)
 
-    if (cmp_cur_os_rel == 'stein' and
-            cmp_new_os_rel == 'train' and
-            not hookenv.relation_ids('placement')):
-        return ('blocked',
-                'placement charm must be related prior to '
-                'upgrading to OpenStack Train')
+    if cmp_cur_os_rel == 'stein' and cmp_new_os_rel == 'train':
+        if not hookenv.relation_ids('placement'):
+            return ('blocked',
+                    'placement charm must be related prior to '
+                    'upgrading to OpenStack Train')
+        if not hookenv.config('action-managed-upgrade'):
+            return ('blocked',
+                    "openstack-origin '{}' doesn't match installed payload"
+                    .format(new_src))
 
     if hookenv.relation_ids('ha'):
         try:
