@@ -137,7 +137,6 @@ class NovaComputeContextTests(CharmTestCase):
     @mock.patch('charmhelpers.contrib.openstack.context.get_relation_ip')
     @mock.patch('charmhelpers.contrib.openstack.context.mkdir')
     @mock.patch.object(neutron, 'network_manager')
-    @mock.patch('charmhelpers.contrib.openstack.context.unit_get')
     @mock.patch('charmhelpers.contrib.hahelpers.cluster.https')
     @mock.patch('charmhelpers.contrib.openstack.context.kv')
     @mock.patch('charmhelpers.contrib.openstack.context.'
@@ -150,12 +149,11 @@ class NovaComputeContextTests(CharmTestCase):
     def test_haproxy_context(self, mock_relation_ids, mock_get_ipv6_addr,
                              mock_local_unit, mock_get_netmask_for_address,
                              mock_get_address_in_network, mock_kv, mock_https,
-                             mock_unit_get, mock_network_manager, mock_mkdir,
+                             mock_network_manager, mock_mkdir,
                              mock_get_relation_ip, mock_config, mock_rids):
         self.os_release.return_value = 'ocata'
         mock_config.side_effect = self.test_config.get
         mock_https.return_value = False
-        mock_unit_get.return_value = '127.0.0.1'
         mock_network_manager.return_value = 'neutron'
         mock_rids.return_value = []
         ctxt = context.HAProxyContext()()
