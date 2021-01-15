@@ -717,15 +717,26 @@ class NovaCCUtilsTests(CharmTestCase):
             self.assertFalse(rm.called)
             _file.write.assert_called_with('|1|= fookey\n')
 
-    @patch('os.path.isfile')
-    def test_keystone_ca_cert_b64(self, isfile):
-        isfile.return_value = True
+    @patch.object(utils.hookenv, 'remote_service_name')
+    def test_get_cert_relation_ca_filename(self, mock_remote_service_name):
+        mock_remote_service_name.return_value = 'namedvault'
+        self.relation_ids.return_value = ['aRelation']
+        self.assertEquals(
+            utils.get_cert_relation_ca_filename(),
+            '/usr/local/share/ca-certificates/namedvault_juju_ca_cert.crt')
+
+    def test_get_ca_cert_b64(self):
         with patch_open() as (_open, _file):
             _file.readlines = MagicMock()
             _file.write = MagicMock()
             _file.read.return_value = b'mycert'
+            _open.side_effect = OSError
             self.assertEqual(
-                utils.keystone_ca_cert_b64(),
+                utils.get_ca_cert_b64(),
+                '')
+            _open.side_effect = None
+            self.assertEqual(
+                utils.get_ca_cert_b64(),
                 'bXljZXJ0')
 
     @patch.object(utils, 'known_hosts')

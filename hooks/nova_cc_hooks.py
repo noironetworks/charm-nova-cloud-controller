@@ -578,9 +578,9 @@ def keystone_compute_settings():
         if ks_auth_config:
             rel_settings.update(ks_auth_config)
         rel_settings.update(neutron_settings())
-    ks_ca = ncc_utils.keystone_ca_cert_b64()
-    if ks_auth_config and ks_ca:
-        rel_settings['ca_cert'] = ks_ca
+    ca = ncc_utils.get_ca_cert_b64()
+    if ca:
+        rel_settings['ca_cert'] = ca
     return rel_settings
 
 
@@ -984,10 +984,10 @@ def quantum_joined(rid=None, remote_restart=False):
     ks_auth_config = _auth_config()
     rel_settings.update(ks_auth_config)
 
-    # must pass the keystone CA cert, if it exists.
-    ks_ca = ncc_utils.keystone_ca_cert_b64()
-    if ks_auth_config and ks_ca:
-        rel_settings['ca_cert'] = ks_ca
+    # pass CA cert, if one exists.
+    ca = ncc_utils.get_ca_cert_b64()
+    if ca:
+        rel_settings['ca_cert'] = ca
 
     # update relation setting if we're attempting to restart remote
     # services

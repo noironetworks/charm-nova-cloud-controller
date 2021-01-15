@@ -21,6 +21,7 @@ import subprocess
 from urllib.parse import urlparse
 import uuid
 
+import charmhelpers.contrib.hahelpers.apache as ch_apache
 import charmhelpers.contrib.hahelpers.cluster as ch_cluster
 import charmhelpers.contrib.network.ip as ch_ip
 import charmhelpers.contrib.openstack.context as ch_context
@@ -227,8 +228,6 @@ def get_base_resource_map():
         ])
     return _BASE_RESOURCE_MAP
 
-
-CA_CERT_PATH = '/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt'
 
 NOVA_SSH_DIR = '/etc/nova/compute_ssh/'
 
@@ -1036,12 +1035,44 @@ def auth_token_config(setting):
     return value
 
 
-def keystone_ca_cert_b64():
-    '''Returns the local Keystone-provided CA cert if it exists, or None.'''
-    if not os.path.isfile(CA_CERT_PATH):
-        return None
-    with open(CA_CERT_PATH, 'rb') as _in:
-        return base64.b64encode(_in.read()).decode('utf-8')
+def get_cert_relation_ca_filename():
+    """Determine absolute path to CA certificate file as provided by relation.
+
+    The filename on disk depends on the name chosen for the application on the
+    providing end of the certificates relation.
+
+    :type cert_relation_id: str
+    :returns: Absolute path to CA certificate file
+    :rtype: str
+    """
+    # NOTE(fnordahl): this function belongs together with the c-h cert_utils
+    # module, however given we at the time of this writing are frozen I'll add
+    # it here as a tactical measure.
+    # TODO: move to c-h.contrib.openstack.cert_utils
+    for cert_relation_id in hookenv.relation_ids('certificates'):
+        return os.path.join(
+            ch_host.CA_CERT_DIR,
+            '{}_juju_ca_cert.crt'
+            .format(hookenv.remote_service_name(relid=cert_relation_id)))
+    return ''
+
+
+def get_ca_cert_b64():
+    """Retrieve CA-cert as provided by certificates relation or config.
+
+    :returns: Base64 encoded CA-certificate data
+    :rtype: str
+    """
+    ca_cert_file = (get_cert_relation_ca_filename() or
+                    ch_apache.CONFIG_CA_CERT_FILE)
+    try:
+        with open(ca_cert_file, 'rb') as _in:
+            return base64.b64encode(_in.read()).decode('utf-8')
+    except OSError as e:
+        hookenv.log('CA Certificate not found at expected location '
+                    '("{}"): "{}"'
+                    .format(ca_cert_file, str(e)))
+        return ''
 
 
 def _ssh_directory_for_remote_service(remote_service, user=None):

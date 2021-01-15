@@ -67,7 +67,7 @@ TO_PATCH = [
     'hooks.nova_cc_utils.determine_packages',
     'hooks.nova_cc_utils.determine_ports',
     'hooks.nova_cc_utils.do_openstack_upgrade',
-    'hooks.nova_cc_utils.keystone_ca_cert_b64',
+    'hooks.nova_cc_utils.get_ca_cert_b64',
     'hooks.nova_cc_utils.migrate_nova_databases',
     'hooks.nova_cc_utils.placement_api_enabled',
     'hooks.nova_cc_utils.save_script_rc',
@@ -441,6 +441,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertFalse(
             hooks._goal_state_achieved_for_relid('aservice', None))
 
+    @patch('charmhelpers.contrib.openstack.utils.get_hostname')
     @patch('charmhelpers.core.unitdata.Storage.set')
     @patch('hooks.nova_cc_utils.add_authorized_key_if_doesnt_exist')
     @patch('hooks.nova_cc_utils.ssh_compute_add_known_hosts')
@@ -452,7 +453,9 @@ class NovaCCHooksTests(CharmTestCase):
             mock__goal_state_achieved_for_relid,
             mock_ssh_compute_add_known_hosts,
             mock_add_authorized_key_if_doesnt_exist,
-            mock_db_set):
+            mock_db_set,
+            mock_get_hostname):
+        mock_get_hostname.return_value = None
         mock_remote_service_from_unit.return_value = 'aservice'
         mock__goal_state_achieved_for_relid.return_value = True
         self.test_relation.set({
@@ -489,6 +492,7 @@ class NovaCCHooksTests(CharmTestCase):
         mock__goal_state_achieved_for_relid.assert_called_once_with(
             'cloud-compute', None)
 
+    @patch('charmhelpers.contrib.openstack.utils.get_hostname')
     @patch('charmhelpers.core.unitdata.Storage.set')
     @patch('hooks.nova_cc_utils.add_authorized_key_if_doesnt_exist')
     @patch('hooks.nova_cc_utils.ssh_compute_add_known_hosts')
@@ -500,7 +504,9 @@ class NovaCCHooksTests(CharmTestCase):
             mock__goal_state_achieved_for_relid,
             mock_ssh_compute_add_known_hosts,
             mock_add_authorized_key_if_doesnt_exist,
-            mock_db_set):
+            mock_db_set,
+            mock_get_hostname):
+        mock_get_hostname.return_value = None
         mock_remote_service_from_unit.return_value = 'aservice'
         mock__goal_state_achieved_for_relid.return_value = True
         self.test_relation.set({
@@ -594,7 +600,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.is_relation_made.return_value = False
         self.network_manager.return_value = 'neutron'
         self.is_leader = True
-        self.keystone_ca_cert_b64.return_value = 'foocert64'
+        self.get_ca_cert_b64.return_value = 'foocert64'
         self.unit_get.return_value = 'nova-cc-host1'
         self.serial_console_settings.return_value = {
             'enable_serial_console': 'false',
@@ -633,7 +639,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.is_relation_made.return_value = True
         self.network_manager.return_value = 'neutron'
         self.is_leader = True
-        self.keystone_ca_cert_b64.return_value = 'foocert64'
+        self.get_ca_cert_b64.return_value = 'foocert64'
         self.unit_get.return_value = 'nova-cc-host1'
         self.serial_console_settings.return_value = {
             'enable_serial_console': 'false',
