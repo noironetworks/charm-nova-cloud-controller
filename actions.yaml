@@ -49,3 +49,18 @@ clear-unit-knownhost-cache:
     not set; caching of hosts occurs regardless of that setting, and so this
     action can be used to force an update if DNS has changed in the system, or
     for a particular host (although this scenario is unlikely).
+sync-compute-availability-zones:
+  description: |
+    Update Nova host aggregates to match the availability zone defined in the
+    related nova-compute units. This action will create any missing host
+    aggregates in Nova and add hypervisors to the appropriate host aggregates.
+    This action will not remove any hypervisors from host aggregates already
+    configured in nova.
+    .
+    This action requires that the nova-cloud-controller application be fully
+    related to keystone. This action will fail if the Nova API is unavailable.
+    Successful completion of this action will report a list of each hypervisor
+    added to an availability zone. Successful completion with no output means
+    that all hypervisors were associated with their host aggregates.
+    .
+    This action is only available for OpenStack Stein and newer.

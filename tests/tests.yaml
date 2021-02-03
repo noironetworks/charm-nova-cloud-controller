@@ -5,9 +5,9 @@ gate_bundles:
 - vault: groovy-victoria
 - vault: focal-victoria
 - vault: focal-ussuri
-- bionic-ussuri
-- bionic-train
-- bionic-stein
+- sync_az: bionic-ussuri
+- sync_az: bionic-train
+- sync_az: bionic-stein
 - bionic-queens
 - xenial-mitaka
 dev_bundles:
@@ -32,6 +32,12 @@ configure:
   - zaza.openstack.charm_tests.neutron.setup.basic_overcloud_network
   - zaza.openstack.charm_tests.nova.setup.create_flavors
   - zaza.openstack.charm_tests.nova.setup.manage_ssh_key
+- sync_az:
+  - zaza.openstack.charm_tests.glance.setup.add_cirros_image
+  - zaza.openstack.charm_tests.keystone.setup.add_demo_user
+  - zaza.openstack.charm_tests.neutron.setup.basic_overcloud_network
+  - zaza.openstack.charm_tests.nova.setup.create_flavors
+  - zaza.openstack.charm_tests.nova.setup.manage_ssh_key
 tests:
 - zaza.openstack.charm_tests.nova.tests.CirrosGuestCreateTest
 - zaza.openstack.charm_tests.nova.tests.SecurityTests
@@ -40,6 +46,12 @@ tests:
   - zaza.openstack.charm_tests.nova.tests.CirrosGuestCreateTest
   - zaza.openstack.charm_tests.nova.tests.SecurityTests
   - zaza.openstack.charm_tests.nova.tests.NovaCloudController
+  - zaza.openstack.charm_tests.nova.tests.NovaCloudControllerActionTest
+- sync_az:
+  - zaza.openstack.charm_tests.nova.tests.CirrosGuestCreateTest
+  - zaza.openstack.charm_tests.nova.tests.SecurityTests
+  - zaza.openstack.charm_tests.nova.tests.NovaCloudController
+  - zaza.openstack.charm_tests.nova.tests.NovaCloudControllerActionTest
 tests_options:
   force_deploy:
     - groovy-victoria

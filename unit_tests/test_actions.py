@@ -151,6 +151,139 @@ class ClearUnitKnownhostCacheTestCase(CharmTestCase):
              mock.call(rid="r:2", unit="bservice/3")])
 
 
+class SyncComputeAvailabilityZonesTestCase(CharmTestCase):
+
+    @staticmethod
+    def _relation_get(attribute=None, unit=None, rid=None):
+        return {
+            'aservice/0': {
+                'private-address': '10.0.0.1',
+                'availability_zone': 'site-a',
+            },
+            'aservice/1': {
+                'private-address': '10.0.0.2',
+                'availability_zone': 'site-b',
+            },
+            'aservice/2': {
+                'private-address': '10.0.0.3',
+            },
+            'bservice/0': {
+                'private-address': '10.0.1.1',
+                'availability_zone': 'site-c',
+            },
+            'bservice/1': {
+                'private-address': '10.0.1.2',
+                'availability_zone': 'site-d',
+            },
+        }.get(unit)
+
+    def setUp(self):
+        super(SyncComputeAvailabilityZonesTestCase, self).setUp(
+            actions, [
+                "charmhelpers.core.hookenv.action_fail",
+                "charmhelpers.core.hookenv.action_set",
+                "charmhelpers.core.hookenv.relation_ids",
+                "charmhelpers.core.hookenv.related_units",
+                "charmhelpers.core.hookenv.relation_get",
+                "charmhelpers.contrib.openstack.utils.os_release",
+                "hooks.nova_cc_context.IdentityServiceContext",
+                "keystoneauth1.session.Session",
+                "keystoneauth1.identity.v3.Password",
+                "novaclient.client.Client",
+            ])
+        self.relation_ids.return_value = ["r:1", "r:2"]
+        self.related_units.side_effect = [
+            ['aservice/0', 'aservice/1', 'aservice/2'],
+            ['bservice/0', 'bservice/1'],
+        ]
+        self.relation_get.side_effect = \
+            SyncComputeAvailabilityZonesTestCase._relation_get
+        self.os_release.return_value = 'ussuri'
+
+    def test_failing_action(self):
+        self.IdentityServiceContext.return_value.return_value = {}
+        actions.sync_compute_availability_zones([])
+        self.IdentityServiceContext.assert_called_once()
+        self.action_fail.assert_called_once()
+        self.action_set.assert_not_called()
+
+    def test_early_release(self):
+        self.os_release.return_value = 'queens'
+        actions.sync_compute_availability_zones([])
+        self.action_fail.assert_called_once()
+        self.action_set.assert_not_called()
+        self.IdentityServiceContext.assert_not_called()
+
+    def test_sync_compute_az(self):
+        keystone_auth = {
+            'auth_url': 'http://127.0.0.1:5000/v3',
+            'username': 'test-user',
+            'password': 'test-password',
+            'user_domain_name': 'test-user-domain',
+            'project_domain_name': 'test-project-domain',
+            'project_name': 'test-project',
+        }
+        self.IdentityServiceContext.return_value.return_value = {
+            'keystone_authtoken': keystone_auth
+        }
+        self.Password.return_value = 'v3-password-instance'
+        self.Session.return_value = 'keystone-session'
+        aggregate_mocks = [
+            mock.MagicMock(hosts=[]),
+            mock.MagicMock(hosts=[]),
+            mock.MagicMock(hosts=[]),
+            mock.MagicMock(hosts=[]),
+        ]
+        self.Client.return_value.aggregates.find.side_effect = aggregate_mocks
+        self.Client.return_value.hypervisors.find.side_effect = [
+            mock.MagicMock(hypervisor_hostname='node-1'),
+            mock.MagicMock(hypervisor_hostname='node-2'),
+            mock.MagicMock(hypervisor_hostname='node-3'),
+            mock.MagicMock(hypervisor_hostname='node-4'),
+        ]
+        actions.sync_compute_availability_zones([])
+        self.IdentityServiceContext.assert_called_once()
+        self.Password.assert_called_once_with(**keystone_auth)
+        self.Session.assert_called_once_with(auth='v3-password-instance')
+        self.Client.assert_called_once_with(2, session='keystone-session')
+        self.relation_ids.assert_called_once_with('cloud-compute')
+        self.related_units.has_calls([
+            mock.call('r:1'),
+            mock.call('r:2')
+        ])
+        self.relation_get.has_calls([
+            mock.call(rid='r:1', unit='aservice/0'),
+            mock.call(rid='r:1', unit='aservice/1'),
+            mock.call(rid='r:1', unit='aservice/2'),
+            mock.call(rid='r:2', unit='bservice/0'),
+            mock.call(rid='r:2', unit='bservice/1'),
+        ])
+        self.Client.aggregates.find.has_calls([
+            mock.call(name='site-a_az', availability_zone='site-a'),
+            mock.call(name='site-b_az', availability_zone='site-b'),
+            mock.call(name='site-c_az', availability_zone='site-c'),
+            mock.call(name='site-d_az', availability_zone='site-d'),
+        ])
+        self.Client.hypervisors.find.has_calls([
+            mock.call(host_ip='10.0.0.1'),
+            mock.call(host_ip='10.0.0.2'),
+            mock.call(host_ip='10.0.1.1'),
+            mock.call(host_ip='10.0.1.2'),
+        ])
+        self.Client.aggregates.add_host.has_calls([
+            mock.call(aggregate_mocks[0], 'node-1'),
+            mock.call(aggregate_mocks[1], 'node-2'),
+            mock.call(aggregate_mocks[2], 'node-3'),
+            mock.call(aggregate_mocks[3], 'node-4'),
+        ])
+        self.action_set.assert_called_with({
+            'output': ('Hypervisor node-1 added to availability zone site-a\n'
+                       'Hypervisor node-2 added to availability zone site-b\n'
+                       'Hypervisor node-3 added to availability zone site-c\n'
+                       'Hypervisor node-4 added to availability zone site-d\n')
+        })
+
+
 class MainTestCase(CharmTestCase):
 
     def setUp(self):
