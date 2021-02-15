@@ -1,0 +1,33 @@
+- project:
+    templates:
+      - charm-unit-jobs
+    check:
+      jobs:
+      - vault-groovy-victoria
+      - vault-focal-victoria
+      - vault-focal-ussuri
+      - bionic-ussuri
+      - bionic-train
+      - bionic-stein
+      - bionic-queens
+      - xenial-mitaka
+
+- job:
+    name: vault-groovy-victoria
+    parent: func-target
+    dependencies: &smoke-jobs
+      - bionic-ussuri
+    vars:
+      tox_extra_args: vault:groovy-victoria
+- job:
+    name: vault-focal-victoria
+    parent: func-target
+    dependencies: *smoke-jobs
+    vars:
+      tox_extra_args: vault:focal-victoria
+- job:
+    name: vault-focal-ussuri
+    parent: func-target
+    dependencies: *smoke-jobs
+    vars:
+      tox_extra_args: vault:focal-ussuri
