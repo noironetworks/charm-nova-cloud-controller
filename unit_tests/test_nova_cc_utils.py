@@ -717,27 +717,58 @@ class NovaCCUtilsTests(CharmTestCase):
             self.assertFalse(rm.called)
             _file.write.assert_called_with('|1|= fookey\n')
 
-    @patch.object(utils.hookenv, 'remote_service_name')
-    def test_get_cert_relation_ca_filename(self, mock_remote_service_name):
-        mock_remote_service_name.return_value = 'namedvault'
-        self.relation_ids.return_value = ['aRelation']
-        self.assertEquals(
-            utils.get_cert_relation_ca_filename(),
-            '/usr/local/share/ca-certificates/namedvault_juju_ca_cert.crt')
+    @patch('charmhelpers.contrib.openstack.cert_utils.'
+           'get_cert_relation_ca_name')
+    def test_get_ca_cert_b64_from_relation(self, get_cert_relation_ca_name):
+        # Test input simulating the case where a CA certificate has been
+        # provided by the 'certificates' relation and installed on disk:
+        get_cert_relation_ca_name.return_value = 'rel_juju_ca_cert'
+        open_side_effect = None  # file is found
 
-    def test_get_ca_cert_b64(self):
         with patch_open() as (_open, _file):
             _file.readlines = MagicMock()
             _file.write = MagicMock()
             _file.read.return_value = b'mycert'
-            _open.side_effect = OSError
-            self.assertEqual(
-                utils.get_ca_cert_b64(),
-                '')
-            _open.side_effect = None
+            _open.side_effect = open_side_effect
             self.assertEqual(
                 utils.get_ca_cert_b64(),
                 'bXljZXJ0')
+            _open.assert_called_once_with(
+                '/usr/local/share/ca-certificates/rel_juju_ca_cert.crt', 'rb')
+
+    @patch('charmhelpers.contrib.openstack.cert_utils.'
+           'get_cert_relation_ca_name')
+    def test_get_ca_cert_b64_from_option(self, get_cert_relation_ca_name):
+        # Test input simulating the case where a CA certificate has been
+        # provided by ssl_* option and installed on disk:
+        get_cert_relation_ca_name.return_value = ''
+        open_side_effect = None  # file is found
+
+        with patch_open() as (_open, _file):
+            _file.readlines = MagicMock()
+            _file.write = MagicMock()
+            _file.read.return_value = b'mycert'
+            _open.side_effect = open_side_effect
+            self.assertEqual(
+                utils.get_ca_cert_b64(),
+                'bXljZXJ0')
+            _open.assert_called_once_with(
+                '/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt',
+                'rb')
+
+    @patch('charmhelpers.contrib.openstack.cert_utils.'
+           'get_cert_relation_ca_name')
+    def test_get_ca_cert_b64_not_found(self, get_cert_relation_ca_name):
+        # Test input simulating the case where no CA certificate can be found
+        # on disk:
+        get_cert_relation_ca_name.return_value = ''
+        open_side_effect = OSError
+
+        with patch_open() as (_open, _file):
+            _open.side_effect = open_side_effect
+            self.assertEqual(
+                utils.get_ca_cert_b64(),
+                '')
 
     @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_call')
