@@ -1063,8 +1063,10 @@ def get_ca_cert_b64():
     :returns: Base64 encoded CA-certificate data
     :rtype: str
     """
-    ca_cert_file = (get_cert_relation_ca_filename() or
-                    ch_apache.CONFIG_CA_CERT_FILE)
+    ca_cert_file = (
+        get_cert_relation_ca_filename() or
+        os.path.join(ch_host.CA_CERT_DIR, '{}.crt'.format(
+            ch_apache.CONFIG_CA_CERT_FILE)))
     try:
         with open(ca_cert_file, 'rb') as _in:
             return base64.b64encode(_in.read()).decode('utf-8')
