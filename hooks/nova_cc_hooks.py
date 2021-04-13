@@ -654,6 +654,7 @@ def get_compute_config(remote_restart=False):
         # this may not even be needed.
         'ec2_host': hookenv.unit_get('private-address'),
         'region': hookenv.config('region'),
+        'cross_az_attach': hookenv.config('cross-az-attach'),
     }
     rel_settings.update(console_settings())
     rel_settings.update(ncc_utils.serial_console_settings())
@@ -717,6 +718,18 @@ def set_region_on_relation_from_config(rid=None):
     :type rid: Union[str. None]
     """
     hookenv.relation_set(relation_id=rid, region=hookenv.config('region'))
+
+
+def set_cross_az_attach_on_relation_from_config(rid=None):
+    """Helper function that sets the cross-az-attach policy for that relation
+    to trigger a change for any units that see it differently.
+
+    :param rid: The relation to set, or if None, the current one related
+                to the hook.
+    :type rid: Union[str, None]
+    """
+    hookenv.relation_set(relation_id=rid,
+                         cross_az_attach=hookenv.config('cross-az-attach'))
 
 
 def update_ssh_keys_and_notify_compute_units(rid=None, unit=None):
@@ -1174,6 +1187,7 @@ def upgrade_charm():
         identity_joined(rid=r_id)
     for r_id in hookenv.relation_ids('cloud-compute'):
         set_region_on_relation_from_config(r_id)
+        set_cross_az_attach_on_relation_from_config(r_id)
         for unit in hookenv.related_units(r_id):
             update_ssh_keys_and_notify_compute_units(r_id, unit)
     for r_id in hookenv.relation_ids('shared-db'):
