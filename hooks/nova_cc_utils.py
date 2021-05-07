@@ -1367,7 +1367,10 @@ def resolve_hosts_for(private_address, hostname):
         if (not ch_ip.is_ipv6(private_address) and
                 hostname and
                 hostname not in cached_hostset):
-            return cached_hostset + hostname
+            hosts = cached_hostset + [hostname]
+            db.set(db_key, hosts)
+            db.flush()
+            return hosts
         return cached_hostset
 
     # Use a set to enforce uniqueness; order doesn't matter
