@@ -404,6 +404,15 @@ class NovaConfigContext(ch_context.WorkerConfigContext):
         ctxt['disk_allocation_ratio'] = hookenv.config('disk-allocation-ratio')
         ctxt['cpu_allocation_ratio'] = hookenv.config('cpu-allocation-ratio')
         ctxt['ram_allocation_ratio'] = hookenv.config('ram-allocation-ratio')
+
+        for rid in hookenv.relation_ids('cloud-compute'):
+            rdata = {
+                'disk_allocation_ratio': ctxt['disk_allocation_ratio'],
+                'cpu_allocation_ratio': ctxt['cpu_allocation_ratio'],
+                'ram_allocation_ratio': ctxt['ram_allocation_ratio'],
+            }
+            hookenv.relation_set(relation_settings=rdata, relation_id=rid)
+
         ctxt['enable_new_services'] = hookenv.config('enable-new-services')
         addr = ch_ip.resolve_address(ch_ip.INTERNAL)
         ctxt['host_ip'] = ch_network_ip.format_ipv6_addr(addr) or addr
