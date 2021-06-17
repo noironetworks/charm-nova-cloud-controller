@@ -1575,6 +1575,17 @@ def determine_endpoints(public_url, internal_url, admin_url):
             'placement_admin_url': placement_admin_url,
             'placement_internal_url': placement_internal_url,
         })
+    else:
+        # NOTE(wolsen) drop placement endpoints when placement api is not
+        #  enabled. This prevents the ncc charm from overriding services
+        #  from placement in Train and newer. See LP#1928992
+        endpoints.update({
+            'placement_service': None,
+            'placement_region': None,
+            'placement_public_url': None,
+            'placement_admin_url': None,
+            'placement_internal_url': None,
+        })
 
     return endpoints
 
