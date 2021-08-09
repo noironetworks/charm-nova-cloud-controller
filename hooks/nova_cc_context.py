@@ -439,6 +439,12 @@ class NovaConfigContext(ch_context.WorkerConfigContext):
         ctxt['unique_server_names'] = hookenv.config('unique-server-names')
         ctxt['skip_hosts_with_build_failures'] = hookenv.config(
             'skip-hosts-with-build-failures')
+        ctxt['limit_tenants_to_placement_aggregate'] = hookenv.config(
+            'limit-tenants-to-placement-aggregate')
+        ctxt['placement_aggregate_required_for_tenants'] = hookenv.config(
+            'placement-aggregate-required-for-tenants')
+        ctxt['enable_isolated_aggregate_filtering'] = hookenv.config(
+            'enable-isolated-aggregate-filtering')
         return ctxt
 
 

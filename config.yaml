@@ -684,3 +684,82 @@ options:
       cloud utilization.
       .
       Note: only effective from Pike onward
+  limit-tenants-to-placement-aggregate:
+    type: boolean
+    default: False
+    description: |
+      This setting causes the scheduler to look up a host aggregate with the
+      metadata key of filter_tenant_id set to the project of an incoming
+      request, and request results from placement be limited to that
+      aggregate. Multiple tenants may be added to a single aggregate by
+      appending a serial number to the key, such as filter_tenant_id:123.
+      .
+      The matching aggregate UUID must be mirrored in placement for proper
+      operation. If no host aggregate with the tenant id is found, or that
+      aggregate does not match one in placement, the result will be the same
+      as not finding any suitable hosts for the request.
+      .
+      Set this option to True if you require instances for a particular tenant
+      to be placed in a particular host aggregate (i.e. a particular host or
+      set of hosts). After enabling this option, follow
+      https://docs.openstack.org/nova/latest/admin/aggregates.html#tenant-isolation-with-placement
+      for details on creating and configuring host aggregates and resource
+      providers.
+      .
+      Note that this will not prevent other tenants, who aren't associated with
+      a host aggregate, from launching instances on hosts within this
+      aggregate.
+      .
+      Also see the placement-aggregate-required-for-tenants and
+      enable-isolated-aggregate-filtering options.
+      .
+      This is only supported on OpenStack Train or later releases.
+  placement-aggregate-required-for-tenants:
+    type: boolean
+    default: False
+    description: |
+      This setting, which only has an effect when
+      limit-tenants-to-placement-aggregate is set to True, will control whether
+      or not a tenant with no aggregate affinity will be allowed to schedule to
+      any available node. If aggregates are used to limit some tenants but not
+      all, then this should be False. If all tenants should be confined via
+      aggregate, then this should be True to prevent them from receiving
+      unrestricted scheduling to any available node.
+      .
+      Set this option to True under the rare circumstance where you want to
+      manually control instance placement by associating every tenant with
+      a host aggregate. If you set this option to True and have tenants that
+      are not associated with a host aggregate, those tenants will no longer be
+      able to launch instances.
+      .
+      Also see the limit-tenants-to-placement-aggregate and
+      enable-isolated-aggregate-filtering options.
+      .
+      This is only supported on OpenStack Train or later releases.
+  enable-isolated-aggregate-filtering:
+    type: boolean
+    default: False
+    description: |
+      This setting allows the scheduler to restrict hosts in aggregates based
+      on matching required traits in the aggregate metadata and the instance
+      flavor/image. If an aggregate is configured with a property with key
+      trait:$TRAIT_NAME and value required, the instance flavor extra_specs
+      and/or image metadata must also contain trait:$TRAIT_NAME=required to be
+      eligible to be scheduled to hosts in that aggregate.
+      .
+      Set this option to True if you require that only instances with matching
+      traits (via flavor or image metadata) be placed on particular
+      hosts. This may also be a suitable workaround approach if you need to
+      give a tenant or tenants exclusivity for a compute host or set of hosts
+      (through the use of a custom trait) but otherwise want placement to
+      function normally for other hosts.
+      .
+      After enabling this option, follow
+      https://docs.openstack.org/nova/latest/reference/isolate-aggregates.html
+      for details on creating and creating and configuring traits, resource
+      providers and host aggregates.
+      .
+      Also see the limit-tenants-to-placement-aggregate and
+      placement-aggregate-required-for-tenants options.
+      .
+      This is only supported on OpenStack Train or later releases.
