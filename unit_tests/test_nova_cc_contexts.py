@@ -393,6 +393,14 @@ class NovaComputeContextTests(CharmTestCase):
                          self.config('unique-server-names'))
         self.assertEqual(ctxt['skip_hosts_with_build_failures'],
                          self.config('skip-hosts-with-build-failures'))
+        self.assertEqual(ctxt['limit_tenants_to_placement_aggregate'],
+                         self.config('limit-tenants-to-placement-aggregate'))
+        self.assertEqual(
+            ctxt["placement_aggregate_required_for_tenants"],
+            self.config("placement-aggregate-required-for-tenants"),
+        )
+        self.assertEqual(ctxt['enable_isolated_aggregate_filtering'],
+                         self.config('enable-isolated-aggregate-filtering'))
 
     _pci_alias1 = {
         "name": "IntelNIC",
