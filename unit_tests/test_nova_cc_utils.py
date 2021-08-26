@@ -96,7 +96,12 @@ BASE_ENDPOINTS = {
     's3_internal_url': 'http://foohost.com:3333',
     's3_public_url': 'http://foohost.com:3333',
     's3_region': 'RegionOne',
-    's3_service': 's3'
+    's3_service': 's3',
+    'placement_region': None,
+    'placement_service': None,
+    'placement_admin_url': None,
+    'placement_internal_url': None,
+    'placement_public_url': None,
 }
 
 QUEENS_ENDPOINTS = {
@@ -120,6 +125,29 @@ QUEENS_ENDPOINTS = {
     'placement_admin_url': 'http://foohost.com:8778',
     'placement_internal_url': 'http://foohost.com:8778',
     'placement_public_url': 'http://foohost.com:8778',
+}
+
+TRAIN_ENDPOINTS = {
+    'ec2_admin_url': None,
+    'ec2_internal_url': None,
+    'ec2_public_url': None,
+    'ec2_region': None,
+    'ec2_service': None,
+    'nova_admin_url': 'http://foohost.com:8774/v2.1',
+    'nova_internal_url': 'http://foohost.com:8774/v2.1',
+    'nova_public_url': 'http://foohost.com:8774/v2.1',
+    'nova_region': 'RegionOne',
+    'nova_service': 'nova',
+    's3_admin_url': None,
+    's3_internal_url': None,
+    's3_public_url': None,
+    's3_region': None,
+    's3_service': None,
+    'placement_region': None,
+    'placement_service': None,
+    'placement_admin_url': None,
+    'placement_internal_url': None,
+    'placement_public_url': None,
 }
 
 # Restart map should be constructed such that API services restart
@@ -839,6 +867,15 @@ class NovaCCUtilsTests(CharmTestCase):
             QUEENS_ENDPOINTS, utils.determine_endpoints('http://foohost.com',
                                                         'http://foohost.com',
                                                         'http://foohost.com'))
+
+    def test_determine_endpoints_train(self):
+        # Having placement related w/ train disables placement_api
+        self.relation_ids.return_value = ['placement:1']
+        self.os_release.return_value = 'train'
+        self.assertEqual(
+            TRAIN_ENDPOINTS, utils.determine_endpoints('http://foohost.com',
+                                                       'http://foohost.com',
+                                                       'http://foohost.com'))
 
     @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_output')
