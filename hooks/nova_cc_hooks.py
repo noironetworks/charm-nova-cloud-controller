@@ -693,7 +693,8 @@ def cloud_compute_relation_changed():
     """
     add_hosts_to_cell_when_ready()
     set_region_on_relation_from_config(rid=None)
-    update_ssh_keys_and_notify_compute_units(rid=None, unit=None)
+    update_ssh_key(rid=None, unit=None)
+    update_compute_units_with_ssh_key_change(rid=None, unit=None)
 
 
 def add_hosts_to_cell_when_ready():
@@ -732,16 +733,13 @@ def set_cross_az_attach_on_relation_from_config(rid=None):
                          cross_az_attach=hookenv.config('cross-az-attach'))
 
 
-def update_ssh_keys_and_notify_compute_units(rid=None, unit=None):
-    """Update and notify the collected ssh keys to nova-compute units
+def update_compute_units_with_ssh_key_change(rid=None, unit=None):
+    """Notify the updated ssh keys to nova-compute units
 
-    Update/add and notify, for the associated nova-compute unit, the ssh key to
-    all the other nova-compute units.
+    Notify all associated nova-compute units of the relation.
 
     If rid=None and unit=None, then this function is being called in the
-    context of a cloud-compute relation changed hook, and will relate to that
-    unit.  If rid and unit are set, then this function is being called to
-    refresh and update all specific units.
+    context of a cloud-compute relation changed hook.
 
     :param rid: The relation to check/set, or if None, the current one related
                 to the hook.
@@ -750,13 +748,21 @@ def update_ssh_keys_and_notify_compute_units(rid=None, unit=None):
                   the hook.
     :type unit: Union[str, None]
     """
-    update_ssh_key(rid=rid, unit=unit)
 
     # if we have goal state, then only notify the ssh authorized_keys and
     # known_hosts onto the relation when the last compute unit has arrived
     # (i.e. we've reached the goal state)
-    if _goal_state_achieved_for_relid('cloud-compute', rid):
-        notify_ssh_keys_to_compute_units(rid=rid, unit=unit)
+    rids = hookenv.relation_ids('cloud-compute')
+    if all(_goal_state_achieved_for_relid('cloud-compute', rid)
+           for rid in rids):
+        # NOTE(ganso): we are either in a relation-changed hook of a specific
+        # unit or already in a loop from upgrade-charm
+        if rid is None and unit is None:
+            for rid in rids:
+                for unit in hookenv.related_units(rid):
+                    notify_ssh_keys_to_compute_units(rid=rid, unit=unit)
+        else:
+            notify_ssh_keys_to_compute_units(rid=rid, unit=unit)
 
 
 def _goal_state_achieved_for_relid(reltype, rid=None):
@@ -885,22 +891,14 @@ def update_ssh_key(rid=None, unit=None):
 
 
 def notify_ssh_keys_to_compute_units(rid=None, unit=None):
-    """Update and notify the collected ssh keys to nova-compute units
+    """Notify the updated ssh keys to nova-compute units
 
-    Update/add and notify, for the associated nova-compute unit, the ssh key to
-    all the other nova-compute units.
+    Notify all associated nova-compute units of the relation.
 
-    If rid=None and unit=None, then this function is being called in the
-    context of a cloud-compute relation changed hook, and will relate to that
-    unit.  If rid and unit are set, then this function is being called to
-    refresh and update all specific units.
-
-    :param rid: The relation to check/set, or if None, the current one related
-                to the hook.
-    :type rid: Union[str. None]
-    :param unit: the unit to check, of None for the current one according to
-                  the hook.
-    :type unit: Union[str, None]
+    :param rid: The relation to check/set.
+    :type rid: str
+    :param unit: the unit to check
+    :type unit: str
     """
     rel_settings = hookenv.relation_get(rid=rid, unit=unit)
 
@@ -908,24 +906,27 @@ def notify_ssh_keys_to_compute_units(rid=None, unit=None):
     if migration_auth_type is None:
         return
 
-    remote_service = ncc_utils.remote_service_from_unit(unit)
+    # We distribute the ssh keys of all nova-compute units from all
+    # nova-compute charm apps
+    remote_services = set(dir_.split('_')[0]
+                          for dir_ in os.listdir(ncc_utils.NOVA_SSH_DIR))
 
     if migration_auth_type == 'ssh':
-        _set_hosts_and_keys_on_relation(remote_service, rid, user=None)
+        _set_hosts_and_keys_on_relation(remote_services, rid, user=None)
 
     if rel_settings.get('nova_ssh_public_key', None):
-        _set_hosts_and_keys_on_relation(remote_service, rid, user='nova')
+        _set_hosts_and_keys_on_relation(remote_services, rid, user='nova')
 
 
-def _set_hosts_and_keys_on_relation(remote_service, rid=None, user=None):
+def _set_hosts_and_keys_on_relation(remote_services, rid=None, user=None):
     """Set the known hosts and authorized keys on the relation specified.
 
     Takes the authorized_keys and known hosts collected from all of the related
     compute units (that have been processed) and sets them on the relation via
     the _batch_write_ssh_on_relation() helper.
 
-    :param remote_service: the remote service related the keys/hosts
-    :type remote_service: str
+    :param remote_services: the remote service related the keys/hosts
+    :type remote_services: list[str]
     :param rid: The relation to check/set, or if None, the current one related
                 to the hook.
     :type rid: Union[str. None]
@@ -946,11 +947,13 @@ def _set_hosts_and_keys_on_relation(remote_service, rid=None, user=None):
 
     _batch_write_ssh_on_relation(
         rid, known_hosts_prefix, known_hosts_max_key,
-        ncc_utils.ssh_known_hosts_lines(remote_service, user=user))
+        [line for svc in remote_services
+         for line in ncc_utils.ssh_known_hosts_lines(svc, user=user)])
 
     _batch_write_ssh_on_relation(
         rid, authorized_prefix, authorized_keys_max_key,
-        ncc_utils.ssh_authorized_keys_lines(remote_service, user=user))
+        [line for svc in remote_services
+         for line in ncc_utils.ssh_authorized_keys_lines(svc, user=user)])
 
 
 def _batch_write_ssh_on_relation(rid, prefix, max_index, _iter):
@@ -1180,16 +1183,22 @@ def upgrade_charm():
     # configurations installed at the same time.
     ncc_utils.stop_deprecated_services()
     ncc_utils.disable_package_apache_site(service_reload=True)
-
     for r_id in hookenv.relation_ids('amqp'):
         amqp_joined(relation_id=r_id)
     for r_id in hookenv.relation_ids('identity-service'):
         identity_joined(rid=r_id)
-    for r_id in hookenv.relation_ids('cloud-compute'):
+
+    r_ids = hookenv.relation_ids('cloud-compute')
+    # NOTE(ganso): we update ssh data for all units first
+    for r_id in r_ids:
+        for unit in hookenv.related_units(r_id):
+            update_ssh_key(rid=r_id, unit=unit)
+
+    for r_id in r_ids:
         set_region_on_relation_from_config(r_id)
         set_cross_az_attach_on_relation_from_config(r_id)
         for unit in hookenv.related_units(r_id):
-            update_ssh_keys_and_notify_compute_units(r_id, unit)
+            update_compute_units_with_ssh_key_change(rid=r_id, unit=unit)
     for r_id in hookenv.relation_ids('shared-db'):
         db_joined(relation_id=r_id)
 
