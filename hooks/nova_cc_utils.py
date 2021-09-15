@@ -1162,18 +1162,26 @@ def ssh_known_host_key(host, remote_service, user=None):
     """
     cmd = ['ssh-keygen', '-f',
            known_hosts(remote_service, user), '-H', '-F', host]
+
     try:
-        # The first line of output is like '# Host xx found: line 1 type RSA',
-        # which should be excluded.
         output = subprocess.check_output(cmd).decode('utf-8').strip()
-    except subprocess.CalledProcessError:
-        return None
+    except subprocess.CalledProcessError as e:
+        # NOTE(ganso): On Xenial and Bionic, RC is always 1 and
+        # does not include line "Host <host> found: line <number>"
+        if e.output and not e.stderr:
+            output = e.output.decode('utf-8').strip()
+        else:
+            return None
 
     if output:
         # Bug #1500589 cmd has 0 rc on precise if entry not present
         lines = output.split('\n')
-        if len(lines) > 1:
-            return lines[1]
+        if len(lines) > 0:
+            # NOTE(ganso): On Focal, RC is 0 if success
+            # and includes the line "Host <host> found: line <number>"
+            if "found: line" in lines[0]:
+                return lines[1]
+            return lines[0]
 
     return None
 
@@ -1266,7 +1274,7 @@ def ssh_authorized_key_exists(public_key, remote_service, user=None):
     :returns: True if the key is in the specified authorized key file
     """
     with open(authorized_keys(remote_service, user)) as keys:
-        return ' {} '.format(public_key) in keys.read()
+        return public_key in keys.read()
 
 
 def add_authorized_key_if_doesnt_exist(public_key,

@@ -14,6 +14,7 @@
 
 from collections import OrderedDict
 from mock import patch, MagicMock, call
+import subprocess
 
 from unit_tests.test_utils import (
     CharmTestCase,
@@ -808,7 +809,8 @@ class NovaCCUtilsTests(CharmTestCase):
 
     @patch.object(utils, 'authorized_keys')
     def test_ssh_authorized_key_exists(self, keys):
-        key = 'BBBBB3NzaC1yc2EBBBBDBQBBBBBBBQC27Us7lSjCpa7bumXBgc'
+        key = 'ssh-rsa BBBBB3NzaC1yc2EBBBBDBQBBBBBBBQC27Us7lSjCpa7bumXBgc' \
+              ' nova-compute-2'
         with patch_open() as (_open, _file):
             _file.read.return_value = AUTHORIZED_KEYS
             self.assertTrue(utils.ssh_authorized_key_exists(key, 'aservice'))
@@ -879,9 +881,11 @@ class NovaCCUtilsTests(CharmTestCase):
 
     @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_output')
-    def test_ssh_known_host_key(self, _check_output, _known_hosts):
+    def test_ssh_known_host_key_rc0(self, _check_output, _known_hosts):
         _known_hosts.return_value = '/foo/known_hosts'
-        utils.ssh_known_host_key('test', 'aservice')
+        _check_output.return_value = b"hash1 ssh-rsa key1\nhash2 ssh-rsa key2"
+        result = utils.ssh_known_host_key('test', 'aservice')
+        self.assertEqual("hash1 ssh-rsa key1", result)
         _check_output.assert_called_with(
             ['ssh-keygen', '-f', '/foo/known_hosts',
              '-H', '-F', 'test'])
@@ -898,6 +902,54 @@ class NovaCCUtilsTests(CharmTestCase):
         _check_output.return_value = b''
         key = utils.ssh_known_host_key('test', 'aservice')
         self.assertEqual(key, None)
+
+    @patch.object(utils, 'known_hosts')
+    @patch('subprocess.check_output')
+    def test_ssh_known_host_key_rc0_header(self, _check_output, _known_hosts):
+        cmd = ['ssh-keygen', '-f', '/foo/known_hosts',
+               '-H', '-F', 'test']
+        _known_hosts.return_value = '/foo/known_hosts'
+        _check_output.return_value = (b"# Host foo found: line 7\n"
+                                      b"hash1 ssh-rsa key1\n"
+                                      b"hash2 ssh-rsa key2")
+        result = utils.ssh_known_host_key('test', 'aservice')
+        self.assertEqual("hash1 ssh-rsa key1", result)
+        _check_output.assert_called_with(cmd)
+        _known_hosts.assert_called_with('aservice', None)
+        utils.ssh_known_host_key('test', 'bar')
+        _known_hosts.assert_called_with('bar', None)
+
+    @patch.object(utils, 'known_hosts')
+    @patch('subprocess.check_output')
+    def test_ssh_known_host_key_rc1(self, _check_output, _known_hosts):
+        cmd = ['ssh-keygen', '-f', '/foo/known_hosts',
+               '-H', '-F', 'test']
+        _known_hosts.return_value = '/foo/known_hosts'
+        _check_output.side_effect = subprocess.CalledProcessError(
+            1, ' '.join(cmd),
+            output=b"hash1 ssh-rsa key1\nhash2 ssh-rsa key2", stderr='')
+        result = utils.ssh_known_host_key('test', 'aservice')
+        self.assertEqual("hash1 ssh-rsa key1", result)
+        _check_output.assert_called_with(cmd)
+        _known_hosts.assert_called_with('aservice', None)
+        utils.ssh_known_host_key('test', 'bar')
+        _known_hosts.assert_called_with('bar', None)
+
+    @patch.object(utils, 'known_hosts')
+    @patch('subprocess.check_output')
+    def test_ssh_known_host_key_rc1_stderr(self, _check_output, _known_hosts):
+        cmd = ['ssh-keygen', '-f', '/foo/known_hosts',
+               '-H', '-F', 'test']
+        _known_hosts.return_value = '/foo/known_hosts'
+        _check_output.side_effect = subprocess.CalledProcessError(
+            1, ' '.join(cmd),
+            output="foobar", stderr='command error')
+        result = utils.ssh_known_host_key('test', 'aservice')
+        self.assertIsNone(result)
+        _check_output.assert_called_with(cmd)
+        _known_hosts.assert_called_with('aservice', None)
+        utils.ssh_known_host_key('test', 'bar')
+        _known_hosts.assert_called_with('bar', None)
 
     @patch.object(utils, 'known_hosts')
     @patch('subprocess.check_call')
