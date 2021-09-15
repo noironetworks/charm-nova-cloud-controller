@@ -147,25 +147,23 @@ options:
     type: boolean
     default: true
     description: |
-      If true then the charm will cache host and ip lookups for a unit when
-      populating the knownhosts file for nova-compute service.  This is a known
-      performance issue around maintaining the knownhosts files for each
-      nova-compute service, and caching is a strategy to reduce the hook
-      execution time when the 'cloud-compute' relation changes.  If false, then
-      no caching is performed.  Changing from true to false will NOT cause new
-      lookups to be performed.
+      Caching is a strategy to reduce the hook execution time when
+      'cloud-compute' relation data changes.
       .
-      To clear the caches and force new lookups to be performed, the action
-      'clear-unit-knownhost-cache' should be used.
+      If true, the charm will query the cache as needed and only perform a
+      lookup (and add a cache entry) when an entry is not available in the
+      cache.
       .
-      This config flag is new. If there are any DNS issues during the
-      deployment onto different platforms then the knownhost lookups may be
-      inconsistent.  Thus it may be preferred to keep the flag false during
-      deployment and then switch to true after deployment.
+      If false, the charm will not query the cache, lookups will always be
+      performed, and the cache will be populated (or refreshed).
       .
-      Note that the charm keeps a record of the lookups for each unit
-      regardless of the setting of this flag.  The cache is only used if the
-      flag is true.
+      If there is a possibility that DNS resolution may change during a cloud
+      deployment then lookups may be inconsistent. In this case it may be
+      preferable to keep the option false and only change it to true post
+      deployment.
+      .
+      The 'clear-unit-knownhost-cache' action refreshes the cache (with forced
+      lookups) and updates the knownhost file on nova-compute units.
   console-access-protocol:
     type: string
     default:
