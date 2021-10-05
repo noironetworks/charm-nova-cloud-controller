@@ -16,7 +16,8 @@
       - bionic-train
       - bionic-stein
       - bionic-queens
-      - xenial-mitaka
+      - xenial-mitaka:
+          voting: false
 
 - job:
     name: vault-focal-ussuri
