@@ -48,7 +48,6 @@ applications:
   rabbitmq-server:
     charm: cs:~openstack-charmers/rabbitmq-server
     num_units: 1
-    channel: candidate
   percona-cluster:
     charm: cs:~openstack-charmers/percona-cluster
     num_units: 1
@@ -58,7 +57,6 @@ applications:
       dataset-size: 25%
       root-password: ChangeMe123
       sst-password: ChangeMe123
-    channel: candidate
   nova-cloud-controller:
     charm: ../../../nova-cloud-controller
     num_units: 1
@@ -78,35 +76,29 @@ applications:
       openstack-origin: cloud:bionic-ussuri
       flat-network-providers: physnet1
       neutron-security-groups: true
-    channel: candidate
   keystone:
     charm: cs:~openstack-charmers/keystone
     num_units: 1
     options:
       openstack-origin: cloud:bionic-ussuri
-    channel: candidate
   neutron-gateway:
     charm: cs:~openstack-charmers/neutron-gateway
     num_units: 1
     options:
       openstack-origin: cloud:bionic-ussuri
       bridge-mappings: physnet1:br-ex
-    channel: candidate
   glance:
     charm: cs:~openstack-charmers/glance
     num_units: 1
     options:
       openstack-origin: cloud:bionic-ussuri
-    channel: candidate
   neutron-openvswitch:
     charm: cs:~openstack-charmers/neutron-openvswitch
-    channel: candidate
   placement:
     charm: cs:~openstack-charmers/placement
     num_units: 1
     options:
       openstack-origin: cloud:bionic-ussuri
-    channel: candidate
   nova-compute:
     charm: cs:~openstack-charmers/nova-compute
     num_units: 2
@@ -119,4 +111,3 @@ applications:
       ephemeral-device: /dev/vdb
       ephemeral-unmount: /mnt
       debug: true
-    channel: candidate
