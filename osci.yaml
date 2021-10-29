@@ -1,22 +1,21 @@
 - project:
     templates:
-      - charm-unit-jobs
+      - charm-yoga-unit-jobs
     check:
       jobs:
-      - vault-impish-xena:
-          voting: false 
-      - vault-hirsute-wallaby
-      - vault-groovy-victoria
-      - vault-focal-xena:
-          voting: false
-      - vault-focal-wallaby
-      - vault-focal-victoria
-      - vault-focal-ussuri
-      - bionic-ussuri
-      - bionic-train
-      - bionic-stein
       - bionic-queens
-      - xenial-mitaka:
+      - bionic-stein
+      - bionic-ussuri
+      - vault-focal-ussuri
+      - vault-focal-victoria
+      - vault-focal-wallaby
+      - vault-focal-xena
+      - vault-focal-yoga:
+          voting: false
+      - vault-hirsute-wallaby
+      - vault-impish-xena:
+          voting: false
+      - vault-jammy-yoga:
           voting: false
 
 - job:
@@ -45,11 +44,11 @@
     vars:
       tox_extra_args: vault:focal-xena
 - job:
-    name: vault-groovy-victoria
+    name: vault-focal-yoga
     parent: func-target
     dependencies: *smoke-jobs
     vars:
-      tox_extra_args: vault:groovy-victoria
+      tox_extra_args: vault:focal-yoga
 - job:
     name: vault-hirsute-wallaby
     parent: func-target
@@ -62,3 +61,9 @@
     dependencies: *smoke-jobs
     vars:
       tox_extra_args: vault:impish-xena
+- job:
+    name: vault-jammy-yoga
+    parent: func-target
+    dependencies: *smoke-jobs
+    vars:
+      tox_extra_args: vault:jammy-yoga
