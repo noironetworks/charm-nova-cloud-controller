@@ -19,6 +19,8 @@ from unit_tests.test_utils import (
     get_default_config,
 )
 
+import charmhelpers.core.unitdata
+
 __default_config = get_default_config()
 # NOTE(freyes): the default 'distro' makes the test suite behave different
 # depending on where it's being executed
@@ -33,6 +35,12 @@ TO_PATCH = [
 
 
 class PauseTestCase(CharmTestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        charmhelpers.core.unitdata._KV = (
+            charmhelpers.core.unitdata.Storage(':memory:'))
 
     def setUp(self):
         super(PauseTestCase, self).setUp(
@@ -50,6 +58,12 @@ class PauseTestCase(CharmTestCase):
 
 class ResumeTestCase(CharmTestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        charmhelpers.core.unitdata._KV = (
+            charmhelpers.core.unitdata.Storage(':memory:'))
+
     def setUp(self):
         super(ResumeTestCase, self).setUp(
             actions, [
@@ -64,6 +78,12 @@ class ResumeTestCase(CharmTestCase):
 
 
 class ClearUnitKnownhostCacheTestCase(CharmTestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        charmhelpers.core.unitdata._KV = (
+            charmhelpers.core.unitdata.Storage(':memory:'))
 
     @staticmethod
     def _relation_get(attribute=None, unit=None, rid=None):
@@ -152,6 +172,12 @@ class ClearUnitKnownhostCacheTestCase(CharmTestCase):
 
 
 class SyncComputeAvailabilityZonesTestCase(CharmTestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        charmhelpers.core.unitdata._KV = (
+            charmhelpers.core.unitdata.Storage(':memory:'))
 
     @staticmethod
     def _relation_get(attribute=None, unit=None, rid=None):
@@ -285,6 +311,12 @@ class SyncComputeAvailabilityZonesTestCase(CharmTestCase):
 
 
 class MainTestCase(CharmTestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        charmhelpers.core.unitdata._KV = (
+            charmhelpers.core.unitdata.Storage(':memory:'))
 
     def setUp(self):
         super(MainTestCase, self).setUp(
