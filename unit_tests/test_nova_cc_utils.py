@@ -16,6 +16,8 @@ from collections import OrderedDict
 from mock import patch, MagicMock, call
 import subprocess
 
+import charmhelpers.core.unitdata
+
 from unit_tests.test_utils import (
     CharmTestCase,
     patch_open,
@@ -246,6 +248,12 @@ NM_CELLS_LIST = b"""
 
 
 class NovaCCUtilsTests(CharmTestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        charmhelpers.core.unitdata._KV = (
+            charmhelpers.core.unitdata.Storage(':memory:'))
 
     def setUp(self):
         super(NovaCCUtilsTests, self).setUp(utils, TO_PATCH)
