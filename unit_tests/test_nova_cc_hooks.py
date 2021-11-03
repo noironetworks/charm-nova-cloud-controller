@@ -19,6 +19,7 @@ import tempfile
 from unit_tests.test_utils import CharmTestCase
 
 import charmhelpers.contrib.hardening.harden as harden
+import charmhelpers.core.unitdata
 
 import hooks.nova_cc_utils as utils
 import hooks.nova_cc_hooks as hooks
@@ -95,6 +96,12 @@ FAKE_KS_AUTH_CFG = {
 
 
 class NovaCCHooksTests(CharmTestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        charmhelpers.core.unitdata._KV = (
+            charmhelpers.core.unitdata.Storage(':memory:'))
 
     def setUp(self):
         super(NovaCCHooksTests, self).setUp(hooks, TO_PATCH)
