@@ -19,6 +19,8 @@ import hooks.nova_cc_context as context
 
 from charmhelpers.contrib.openstack import neutron
 from charmhelpers.contrib.openstack import utils
+import charmhelpers.core.unitdata
+
 from unit_tests.test_utils import CharmTestCase
 
 TO_PATCH = [
@@ -41,6 +43,13 @@ def fake_log(msg, level=None):
 
 
 class NovaComputeContextTests(CharmTestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        charmhelpers.core.unitdata._KV = (
+            charmhelpers.core.unitdata.Storage(':memory:'))
+
     def setUp(self):
         super(NovaComputeContextTests, self).setUp(context, TO_PATCH)
         self.relation_get.side_effect = self.test_relation.get
