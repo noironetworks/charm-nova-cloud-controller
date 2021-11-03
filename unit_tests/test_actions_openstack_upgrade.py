@@ -15,6 +15,8 @@
 from mock import patch
 from unit_tests.test_utils import CharmTestCase
 
+import charmhelpers.core.unitdata
+
 import actions.openstack_upgrade as openstack_upgrade
 
 
@@ -28,6 +30,12 @@ TO_PATCH = [
 
 
 class TestNovaCCUpgradeActions(CharmTestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        charmhelpers.core.unitdata._KV = (
+            charmhelpers.core.unitdata.Storage(':memory:'))
 
     def setUp(self):
         super(TestNovaCCUpgradeActions, self).setUp(openstack_upgrade,
