@@ -371,17 +371,20 @@ class NovaCCHooksTests(CharmTestCase):
 
     @patch.object(hooks, 'add_hosts_to_cell_when_ready')
     @patch.object(hooks, 'set_region_on_relation_from_config')
-    @patch.object(hooks, 'update_ssh_keys_and_notify_compute_units')
+    @patch.object(hooks, 'update_ssh_key')
+    @patch.object(hooks, 'update_compute_units_with_ssh_key_change')
     def test_cloud_compute_relation_changed(
             self,
-            mock_update_ssh_keys_and_notify_compute_units,
+            mock_update_compute_units_with_ssh_key_change,
+            mock_update_ssh_key,
             mock_set_region_on_relation_from_config,
             mock_add_hosts_to_cell_when_ready):
         hooks.cloud_compute_relation_changed()
         mock_add_hosts_to_cell_when_ready.assert_called_once_with()
         mock_set_region_on_relation_from_config.assert_called_once_with(
             rid=None)
-        mock_update_ssh_keys_and_notify_compute_units.assert_called_once_with(
+        mock_update_ssh_key.assert_called_once_with(rid=None, unit=None)
+        mock_update_compute_units_with_ssh_key_change.assert_called_once_with(
             rid=None, unit=None)
 
     @patch('charmhelpers.core.hookenv.related_units')
@@ -452,103 +455,195 @@ class NovaCCHooksTests(CharmTestCase):
     @patch('charmhelpers.core.unitdata.Storage.set')
     @patch('hooks.nova_cc_utils.add_authorized_key_if_doesnt_exist')
     @patch('hooks.nova_cc_utils.ssh_compute_add_known_hosts')
-    @patch('hooks.nova_cc_hooks._goal_state_achieved_for_relid')
     @patch('hooks.nova_cc_utils.remote_service_from_unit')
-    def test_update_ssh_keys_and_notify_compute_units_ssh_migration(
+    def test_update_ssh_key(
             self,
             mock_remote_service_from_unit,
-            mock__goal_state_achieved_for_relid,
             mock_ssh_compute_add_known_hosts,
             mock_add_authorized_key_if_doesnt_exist,
             mock_db_set,
             mock_get_hostname):
         mock_get_hostname.return_value = None
         mock_remote_service_from_unit.return_value = 'aservice'
-        mock__goal_state_achieved_for_relid.return_value = True
-        self.test_relation.set({
+
+        self.relation_get.side_effect = [{
             'migration_auth_type': 'ssh', 'ssh_public_key': 'fookey',
-            'private-address': '10.0.0.1', 'region': 'RegionOne'})
-        self.ssh_known_hosts_lines.return_value = [
-            'k_h_0', 'k_h_1', 'k_h_2']
-        self.ssh_authorized_keys_lines.return_value = [
-            'auth_0', 'auth_1', 'auth_2']
-        hooks.update_ssh_keys_and_notify_compute_units()
-        mock_db_set.assert_called_once_with('hostset-10.0.0.1', ['10.0.0.1'])
+            'private-address': '10.0.0.1', 'region': 'RegionOne'}]
+
+        hooks.update_ssh_key(rid=None, unit=None)
         mock_ssh_compute_add_known_hosts.assert_called_once_with(
             'aservice', ['10.0.0.1'], user=None)
         mock_add_authorized_key_if_doesnt_exist.assert_called_once_with(
             'fookey', 'aservice', '10.0.0.1', user=None)
-        expected_relations = [
-            call(relation_settings={'authorized_keys_0': 'auth_0'},
-                 relation_id=None),
-            call(relation_settings={'authorized_keys_1': 'auth_1'},
-                 relation_id=None),
-            call(relation_settings={'authorized_keys_2': 'auth_2'},
-                 relation_id=None),
-            call(relation_settings={'known_hosts_0': 'k_h_0'},
-                 relation_id=None),
-            call(relation_settings={'known_hosts_1': 'k_h_1'},
-                 relation_id=None),
-            call(relation_settings={'known_hosts_2': 'k_h_2'},
-                 relation_id=None),
-            call(relation_settings={'known_hosts_max_index': 3},
-                 relation_id=None),
-            call(relation_settings={'authorized_keys_max_index': 3},
-                 relation_id=None)]
-        self.relation_set.assert_has_calls(expected_relations, any_order=True)
-        mock__goal_state_achieved_for_relid.assert_called_once_with(
-            'cloud-compute', None)
+        mock_db_set.assert_called_once_with('hostset-10.0.0.1', ['10.0.0.1'])
 
     @patch('charmhelpers.contrib.openstack.utils.get_hostname')
     @patch('charmhelpers.core.unitdata.Storage.set')
     @patch('hooks.nova_cc_utils.add_authorized_key_if_doesnt_exist')
     @patch('hooks.nova_cc_utils.ssh_compute_add_known_hosts')
-    @patch('hooks.nova_cc_hooks._goal_state_achieved_for_relid')
     @patch('hooks.nova_cc_utils.remote_service_from_unit')
-    def test_update_ssh_keys_and_notify_compute_units_nova_public_key(
+    def test_update_ssh_key_nova_user(
             self,
             mock_remote_service_from_unit,
-            mock__goal_state_achieved_for_relid,
             mock_ssh_compute_add_known_hosts,
             mock_add_authorized_key_if_doesnt_exist,
             mock_db_set,
             mock_get_hostname):
         mock_get_hostname.return_value = None
         mock_remote_service_from_unit.return_value = 'aservice'
-        mock__goal_state_achieved_for_relid.return_value = True
-        self.test_relation.set({
+
+        self.relation_get.side_effect = [{
             'migration_auth_type': 'sasl', 'nova_ssh_public_key': 'fookey',
-            'private-address': '10.0.0.1', 'region': 'RegionOne'})
-        self.ssh_known_hosts_lines.return_value = [
-            'k_h_0', 'k_h_1', 'k_h_2']
-        self.ssh_authorized_keys_lines.return_value = [
-            'auth_0', 'auth_1', 'auth_2']
-        hooks.update_ssh_keys_and_notify_compute_units()
-        mock_db_set.assert_called_once_with('hostset-10.0.0.1', ['10.0.0.1'])
+            'private-address': '10.0.0.1', 'region': 'RegionOne'}]
+
+        hooks.update_ssh_key(rid=None, unit=None)
         mock_ssh_compute_add_known_hosts.assert_called_once_with(
             'aservice', ['10.0.0.1'], user='nova')
         mock_add_authorized_key_if_doesnt_exist.assert_called_once_with(
             'fookey', 'aservice', '10.0.0.1', user='nova')
-        expected_relations = [
-            call(relation_settings={'nova_authorized_keys_0': 'auth_0'},
-                 relation_id=None),
-            call(relation_settings={'nova_authorized_keys_1': 'auth_1'},
-                 relation_id=None),
-            call(relation_settings={'nova_authorized_keys_2': 'auth_2'},
-                 relation_id=None),
-            call(relation_settings={'nova_known_hosts_0': 'k_h_0'},
-                 relation_id=None),
-            call(relation_settings={'nova_known_hosts_1': 'k_h_1'},
-                 relation_id=None),
-            call(relation_settings={'nova_known_hosts_2': 'k_h_2'},
-                 relation_id=None),
-            call(relation_settings={'nova_known_hosts_max_index': 3},
-                 relation_id=None),
-            call(relation_settings={'nova_authorized_keys_max_index': 3},
-                 relation_id=None)]
-        self.relation_set.assert_has_calls(expected_relations, any_order=True)
-        mock__goal_state_achieved_for_relid.assert_called_once_with(
-            'cloud-compute', None)
+        mock_db_set.assert_called_once_with('hostset-10.0.0.1', ['10.0.0.1'])
+
+    @patch('os.listdir')
+    def test_notify_ssh_keys_to_compute_units(self, mock_listdir):
+        self.relation_ids.return_value = [
+            'cloud-compute:15', 'cloud-compute:16']
+
+        mock_listdir.return_value = ['nova-compute1', 'nova-compute2']
+
+        self.relation_get.side_effect = None
+        self.relation_get.return_value = {
+            'migration_auth_type': 'ssh', 'ssh_public_key': 'fookey',
+            'private-address': '10.0.0.1', 'region': 'RegionOne'}
+
+        self.ssh_known_hosts_lines.side_effect = [
+            ['1k_h_0', '1k_h_1'], ['2k_h_0', '2k_h_1'],
+            ['1k_h_0', '1k_h_1'], ['2k_h_0', '2k_h_1'],
+        ]
+        self.ssh_authorized_keys_lines.side_effect = [
+            ['1auth_0', '1auth_1'], ['2auth_0', '2auth_1'],
+            ['1auth_0', '1auth_1'], ['2auth_0', '2auth_1'],
+        ]
+
+        hooks.notify_ssh_keys_to_compute_units('cloud-compute:X', 'cmp/X')
+
+        self.relation_set.assert_has_calls([
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'known_hosts_0': '1k_h_0'}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'known_hosts_1': '1k_h_1'}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'known_hosts_2': '2k_h_0'}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'known_hosts_3': '2k_h_1'}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'known_hosts_max_index': 4}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'authorized_keys_0': '1auth_0'}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'authorized_keys_1': '1auth_1'}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'authorized_keys_2': '2auth_0'}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'authorized_keys_3': '2auth_1'}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'authorized_keys_max_index': 4}),
+        ])
+
+    @patch('os.listdir')
+    def test_notify_ssh_keys_to_compute_units_nova_user(self, mock_listdir):
+        self.relation_ids.return_value = [
+            'cloud-compute:15', 'cloud-compute:16']
+
+        mock_listdir.return_value = ['nova-compute1', 'nova-compute2']
+
+        self.relation_get.side_effect = None
+        self.relation_get.return_value = {
+            'migration_auth_type': 'sasl', 'nova_ssh_public_key': 'fookey',
+            'private-address': '10.0.0.1', 'region': 'RegionOne'}
+
+        self.ssh_known_hosts_lines.side_effect = [
+            ['1k_h_0', '1k_h_1'], ['2k_h_0', '2k_h_1'],
+            ['1k_h_0', '1k_h_1'], ['2k_h_0', '2k_h_1'],
+        ]
+        self.ssh_authorized_keys_lines.side_effect = [
+            ['1auth_0', '1auth_1'], ['2auth_0', '2auth_1'],
+            ['1auth_0', '1auth_1'], ['2auth_0', '2auth_1'],
+        ]
+
+        hooks.notify_ssh_keys_to_compute_units('cloud-compute:X', 'cmp/X')
+
+        self.relation_set.assert_has_calls([
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'nova_known_hosts_0': '1k_h_0'}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'nova_known_hosts_1': '1k_h_1'}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'nova_known_hosts_2': '2k_h_0'}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'nova_known_hosts_3': '2k_h_1'}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'nova_known_hosts_max_index': 4}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'nova_authorized_keys_0': '1auth_0'}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'nova_authorized_keys_1': '1auth_1'}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'nova_authorized_keys_2': '2auth_0'}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'nova_authorized_keys_3': '2auth_1'}),
+            call(relation_id='cloud-compute:X',
+                 relation_settings={'nova_authorized_keys_max_index': 4}),
+        ])
+
+    @patch('hooks.nova_cc_hooks._goal_state_achieved_for_relid')
+    @patch('hooks.nova_cc_hooks.notify_ssh_keys_to_compute_units')
+    def test_update_compute_units_with_ssh_key_change_rel_changed(
+            self,
+            mock_notify_ssh_keys_to_compute_units,
+            mock__goal_state_achieved_for_relid):
+
+        self.relation_ids.return_value = [
+            'cloud-compute:15', 'cloud-compute:16']
+        mock__goal_state_achieved_for_relid.side_effect = [True, True]
+
+        self.related_units.side_effect = [['cmp/0', 'cmp/1'],
+                                          ['cmp2/0', 'cmp2/1']]
+
+        hooks.update_compute_units_with_ssh_key_change()
+
+        mock__goal_state_achieved_for_relid.assert_has_calls([
+            call('cloud-compute', 'cloud-compute:15'),
+            call('cloud-compute', 'cloud-compute:16'),
+        ])
+
+        mock_notify_ssh_keys_to_compute_units.assert_has_calls([
+            call(rid='cloud-compute:15', unit='cmp/0'),
+            call(rid='cloud-compute:15', unit='cmp/1'),
+            call(rid='cloud-compute:16', unit='cmp2/0'),
+            call(rid='cloud-compute:16', unit='cmp2/1'),
+        ])
+
+    @patch('hooks.nova_cc_hooks._goal_state_achieved_for_relid')
+    @patch('hooks.nova_cc_hooks.notify_ssh_keys_to_compute_units')
+    def test_update_compute_units_with_ssh_key_change_upgrade_charm(
+            self,
+            mock_notify_ssh_keys_to_compute_units,
+            mock__goal_state_achieved_for_relid):
+
+        self.relation_ids.return_value = [
+            'cloud-compute:15', 'cloud-compute:16']
+        mock__goal_state_achieved_for_relid.side_effect = [True, True]
+
+        hooks.update_compute_units_with_ssh_key_change(
+            rid='cloud-compute:X', unit='cmp/X')
+
+        mock__goal_state_achieved_for_relid.assert_has_calls([
+            call('cloud-compute', 'cloud-compute:15'),
+            call('cloud-compute', 'cloud-compute:16'),
+        ])
+
+        mock_notify_ssh_keys_to_compute_units.assert_called_once_with(
+            rid='cloud-compute:X', unit='cmp/X')
 
     @patch('hooks.nova_cc_utils.is_cellv2_init_ready')
     @patch('hooks.nova_cc_utils.is_db_initialised')
