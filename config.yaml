@@ -249,7 +249,7 @@ options:
       is set.
   cpu-allocation-ratio:
     type: float
-    default: 16.0
+    default: 2.0
     description: |
       The per physical core -> virtual core ratio to use in the Nova scheduler.
       .
