@@ -4,7 +4,7 @@ smoke_bundles:
 - vault: focal-ussuri
 
 gate_bundles:
-- sync_az: bionic-queens
+- bionic-queens
 - sync_az: bionic-stein
 - sync_az: bionic-ussuri
 - vault: focal-ussuri
