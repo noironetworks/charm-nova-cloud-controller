@@ -770,3 +770,12 @@ options:
       Allow resizing to the same host. Setting this option to True will add the
       source host to the destination options for consideration by the
       scheduler when resizing an instance.
+  max-local-block-devices:
+    type: int
+    default:
+    description: |
+      Maximum number of local devices which can be attached to an
+      instance. Possible values are 0: Creating a local disk is not
+      allowed and letting the request fail, Negative number: Allows
+      unlimited number of local devices, Positive number: Allows only
+      these many number of local devices.
