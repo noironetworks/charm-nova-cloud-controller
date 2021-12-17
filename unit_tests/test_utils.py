@@ -120,6 +120,18 @@ class TestConfig(object):
         for k, v in d.items():
             self.set(k, v)
 
+    def __getitem__(self, key):
+        return self.get(key)
+
+    def __contains__(self, key):
+        return key in self.config
+
+    def __call__(self, key=None):
+        if key:
+            return self.get(key)
+        else:
+            return self
+
 
 class TestRelation(object):
 
