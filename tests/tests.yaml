@@ -1,22 +1,13 @@
 charm_name: nova-cloud-controller
 
 smoke_bundles:
-- vault: focal-ussuri
+- vault: focal-xena
 
 gate_bundles:
-- bionic-queens
-- sync_az: bionic-stein
-- sync_az: bionic-ussuri
-- vault: focal-ussuri
-- vault: focal-victoria
-- vault: focal-wallaby
 - vault: focal-xena
-- vault: hirsute-wallaby
 - vault: impish-xena
 
 dev_bundles:
-- bionic-rocky
-- sync_az: bionic-train
 - vault: focal-yoga
 - vault: jammy-yoga
 
@@ -62,6 +53,5 @@ tests:
 
 tests_options:
   force_deploy:
-    - hirsute-wallaby
     - impish-xena
     - jammy-yoga
