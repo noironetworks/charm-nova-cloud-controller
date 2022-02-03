@@ -1324,3 +1324,21 @@ class NovaCCHooksTests(CharmTestCase):
         compute_joined.assert_has_calls([
             call(rid='ridcomp7', remote_restart=True),
             call(rid='ridcomp9', remote_restart=True)], any_order=True)
+
+    @patch('charmhelpers.contrib.charmsupport.nrpe.NRPE.remove_check')
+    @patch('charmhelpers.contrib.charmsupport.nrpe.copy_nrpe_checks')
+    @patch('charmhelpers.contrib.charmsupport.nrpe.config')
+    @patch('charmhelpers.contrib.charmsupport.nrpe.relation_ids')
+    @patch('charmhelpers.contrib.charmsupport.nrpe.local_unit')
+    def test_update_nrpe_config(self,
+                                mock_local_unit,
+                                mock_relation_ids,
+                                mock_config,
+                                mock_copy_nrpe_checks,
+                                mock_remove_check):
+        self.os_release.return_value = 'train'
+        self.config.side_effect = self.test_config
+        mock_config.return_value = self.test_config
+
+        hooks.update_nrpe_config()
+        mock_remove_check.assert_called_with(shortname='nova-consoleauth')

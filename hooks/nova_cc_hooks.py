@@ -1255,6 +1255,8 @@ def update_nrpe_config():
                                  ncc_utils.services(),
                                  current_unit)
     nrpe.add_haproxy_checks(nrpe_setup, current_unit)
+    if not ncc_utils.is_consoleauth_enabled():
+        nrpe_setup.remove_check(shortname='nova-consoleauth')
     nrpe_setup.write()
 
 
