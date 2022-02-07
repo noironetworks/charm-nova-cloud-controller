@@ -418,6 +418,26 @@ class NovaComputeContextTests(CharmTestCase):
 
     _pci_alias_list = [_pci_alias1, _pci_alias2]
 
+    @mock.patch('charmhelpers.contrib.openstack.ip.config')
+    @mock.patch('charmhelpers.core.hookenv.local_unit')
+    @mock.patch('charmhelpers.contrib.openstack.context.config')
+    def test_allow_resize_to_same_host(self, mock_config,
+                                       local_unit, mock_config_ip):
+        _rel_data = {'disk_allocation_ratio':
+                     self.config('disk-allocation-ratio'),
+                     'cpu_allocation_ratio':
+                     self.config('cpu-allocation-ratio'),
+                     'ram_allocation_ratio':
+                     self.config('ram-allocation-ratio'),
+                     'allow_resize_to_same_host': True}
+        self.test_config.set('allow-resize-to-same-host', True)
+        self.relation_ids.return_value = ['nova-compute:0']
+        ctxt = context.NovaConfigContext()()
+        self.assertEqual(ctxt['allow_resize_to_same_host'],
+                         self.config('allow-resize-to-same-host'))
+        self.relation_set.assert_called_with(relation_id=mock.ANY,
+                                             relation_settings=_rel_data)
+
     @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
     @mock.patch('charmhelpers.contrib.openstack.ip.unit_get')
     @mock.patch('charmhelpers.contrib.hahelpers.cluster.relation_ids')

@@ -405,11 +405,15 @@ class NovaConfigContext(ch_context.WorkerConfigContext):
         ctxt['cpu_allocation_ratio'] = hookenv.config('cpu-allocation-ratio')
         ctxt['ram_allocation_ratio'] = hookenv.config('ram-allocation-ratio')
 
+        ctxt['allow_resize_to_same_host'] = hookenv.config(
+            'allow-resize-to-same-host')
+
         for rid in hookenv.relation_ids('cloud-compute'):
             rdata = {
                 'disk_allocation_ratio': ctxt['disk_allocation_ratio'],
                 'cpu_allocation_ratio': ctxt['cpu_allocation_ratio'],
                 'ram_allocation_ratio': ctxt['ram_allocation_ratio'],
+                'allow_resize_to_same_host': ctxt['allow_resize_to_same_host'],
             }
             hookenv.relation_set(relation_settings=rdata, relation_id=rid)
 
