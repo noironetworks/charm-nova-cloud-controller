@@ -5,6 +5,7 @@ bin
 tags
 *.sw[nop]
 *.pyc
+*.charm
 .unit-state.db
 trusty/
 xenial/
