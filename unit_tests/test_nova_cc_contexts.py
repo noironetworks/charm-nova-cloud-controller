@@ -341,10 +341,13 @@ class NovaComputeContextTests(CharmTestCase):
         mock_config_ip.side_effect = self.test_config.get
         mock_unit_get.return_value = '127.0.0.1'
         self.test_config.set('scheduler-default-filters', 'TestFilter')
+        self.test_config.set('scheduler-max-attempts', 10)
         self.test_config.set('unique-server-names', 'project')
         ctxt = context.NovaConfigContext()()
         self.assertEqual(ctxt['scheduler_default_filters'],
                          self.config('scheduler-default-filters'))
+        self.assertEqual(ctxt['scheduler_max_attempts'],
+                         self.config('scheduler-max-attempts'))
         self.assertEqual(ctxt['cpu_allocation_ratio'],
                          self.config('cpu-allocation-ratio'))
         self.assertEqual(ctxt['ram_allocation_ratio'],

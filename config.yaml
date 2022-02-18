@@ -617,6 +617,17 @@ options:
       .
       Possible Values are positive integers. Any value less than 1 will be
       treated as 1.
+  scheduler-max-attempts:
+    type: int
+    default:
+    description: |
+      The value to be configured for max_attempts property under scheduler.
+      .
+      This is useful for rescheduling instances to hosts when affinity policies
+      are in place as described in the following URL
+      https://docs.openstack.org/nova/latest/admin/troubleshooting/affinity-policy-violated.html
+      .
+      The default 3
   spice-agent-enabled:  # LP: #1856602
     type: boolean
     default: True  # OpenStack's default value.
