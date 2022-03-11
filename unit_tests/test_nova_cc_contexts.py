@@ -404,6 +404,8 @@ class NovaComputeContextTests(CharmTestCase):
         )
         self.assertEqual(ctxt['enable_isolated_aggregate_filtering'],
                          self.config('enable-isolated-aggregate-filtering'))
+        self.assertEqual(ctxt['max_local_block_devices'],
+                         self.config('max-local-block-devices'))
 
     _pci_alias1 = {
         "name": "IntelNIC",

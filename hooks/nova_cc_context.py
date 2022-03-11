@@ -451,6 +451,8 @@ class NovaConfigContext(ch_context.WorkerConfigContext):
             'placement-aggregate-required-for-tenants')
         ctxt['enable_isolated_aggregate_filtering'] = hookenv.config(
             'enable-isolated-aggregate-filtering')
+        ctxt['max_local_block_devices'] = hookenv.config(
+            'max-local-block-devices')
         return ctxt
 
 
