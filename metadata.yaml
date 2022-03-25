@@ -17,7 +17,7 @@ tags:
 - openstack
 series:
 - focal
-- impish
+- jammy
 extra-bindings:
   public:
   admin:
