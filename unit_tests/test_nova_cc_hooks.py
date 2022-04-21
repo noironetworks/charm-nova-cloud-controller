@@ -1319,7 +1319,8 @@ class NovaCCHooksTests(CharmTestCase):
             call('ridnapi1'), call('ridnapi3')])
         configure_https.assert_called_once_with()
         sleep.assert_called_once_with(73)
-        service_restart.assert_called_once_with('nova-scheduler')
+        service_restart.assert_has_calls([
+            call('nova-scheduler'), call('nova-conductor')])
         save_endpoint_changed_triggers.assert_called_once_with(['placement'])
         compute_joined.assert_has_calls([
             call(rid='ridcomp7', remote_restart=True),

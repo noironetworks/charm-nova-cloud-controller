@@ -485,7 +485,8 @@ def identity_changed():
         hookenv.status_set(
             'active',
             'Restart complete')
-        ch_host.service_restart('nova-scheduler')
+        for service in ['nova-scheduler', 'nova-conductor']:
+            ch_host.service_restart(service)
         hookenv.log(("Placement endpoint has changed, requesting nova-compute "
                      "restart"),
                     "INFO")
