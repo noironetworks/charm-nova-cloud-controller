@@ -1,64 +1,30 @@
 - project:
     templates:
-      - charm-unit-jobs
+      - charm-unit-jobs-py38
     check:
       jobs:
-      - vault-impish-xena:
-          voting: false 
-      - vault-hirsute-wallaby
-      - vault-groovy-victoria
-      - vault-focal-xena:
-          voting: false
-      - vault-focal-wallaby
-      - vault-focal-victoria
-      - vault-focal-ussuri
-      - bionic-ussuri
-      - bionic-train
-      - bionic-stein
-      - bionic-queens
-      - xenial-mitaka:
-          voting: false
+        - vault-focal-victoria
+        - vault-focal-ussuri
+    vars:
+      needs_charm_build: true
+      charm_build_name: nova-cloud-controller
+      build_type: charmcraft
 
 - job:
     name: vault-focal-ussuri
     parent: func-target
-    dependencies: &smoke-jobs
-      - bionic-ussuri
+    dependencies:
+      - charm-build
+      - osci-lint
+      - tox-py38
     vars:
       tox_extra_args: vault:focal-ussuri
 - job:
     name: vault-focal-victoria
     parent: func-target
-    dependencies: *smoke-jobs
+    dependencies:
+      - charm-build
+      - osci-lint
+      - tox-py38
     vars:
       tox_extra_args: vault:focal-victoria
-- job:
-    name: vault-focal-wallaby
-    parent: func-target
-    dependencies: *smoke-jobs
-    vars:
-      tox_extra_args: vault:focal-wallaby
-- job:
-    name: vault-focal-xena
-    parent: func-target
-    dependencies: *smoke-jobs
-    vars:
-      tox_extra_args: vault:focal-xena
-- job:
-    name: vault-groovy-victoria
-    parent: func-target
-    dependencies: *smoke-jobs
-    vars:
-      tox_extra_args: vault:groovy-victoria
-- job:
-    name: vault-hirsute-wallaby
-    parent: func-target
-    dependencies: *smoke-jobs
-    vars:
-      tox_extra_args: vault:hirsute-wallaby
-- job:
-    name: vault-impish-xena
-    parent: func-target
-    dependencies: *smoke-jobs
-    vars:
-      tox_extra_args: vault:impish-xena
