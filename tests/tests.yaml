@@ -4,24 +4,11 @@ smoke_bundles:
 - vault: focal-ussuri
 
 gate_bundles:
-- vault: groovy-victoria
-- vault: focal-wallaby
-- vault: focal-victoria
 - vault: focal-ussuri
 - sync_az: bionic-ussuri
 - sync_az: bionic-train
-- sync_az: bionic-stein
-- bionic-queens
-- xenial-mitaka
 
-dev_bundles:
-- xenial-ocata
-- xenial-pike
-- xenial-queens
-- bionic-rocky
-- focal-xena
-- vault: hirsute-wallaby
-- vault: impish-xena
+dev_bundles: []
 
 target_deploy_status:
   vault:
@@ -64,6 +51,4 @@ tests:
   - zaza.openstack.charm_tests.nova.tests.NovaCloudControllerActionTest
 
 tests_options:
-  force_deploy:
-    - groovy-victoria
-    - impish-xena
+  force_deploy: []
