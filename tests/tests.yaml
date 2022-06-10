@@ -1,15 +1,15 @@
 charm_name: nova-cloud-controller
 
 smoke_bundles:
-- vault: focal-xena
+- jammy-yoga
 
 gate_bundles:
-- vault: focal-xena
-- vault: impish-xena
+- jammy-yoga
 
 dev_bundles:
-- vault: focal-yoga
-- vault: jammy-yoga
+- jammy-yoga
+- jammy-zed
+- kinetic-zed
 
 target_deploy_status:
   vault:
@@ -17,41 +17,19 @@ target_deploy_status:
     workload-status-message: Vault needs to be initialized
 
 configure:
+- zaza.openstack.charm_tests.vault.setup.auto_initialize
 - zaza.openstack.charm_tests.glance.setup.add_cirros_image
 - zaza.openstack.charm_tests.keystone.setup.add_demo_user
 - zaza.openstack.charm_tests.neutron.setup.basic_overcloud_network
 - zaza.openstack.charm_tests.nova.setup.create_flavors
 - zaza.openstack.charm_tests.nova.setup.manage_ssh_key
-- vault:
-  - zaza.openstack.charm_tests.vault.setup.auto_initialize
-  - zaza.openstack.charm_tests.glance.setup.add_cirros_image
-  - zaza.openstack.charm_tests.keystone.setup.add_demo_user
-  - zaza.openstack.charm_tests.neutron.setup.basic_overcloud_network
-  - zaza.openstack.charm_tests.nova.setup.create_flavors
-  - zaza.openstack.charm_tests.nova.setup.manage_ssh_key
-- sync_az:
-  - zaza.openstack.charm_tests.glance.setup.add_cirros_image
-  - zaza.openstack.charm_tests.keystone.setup.add_demo_user
-  - zaza.openstack.charm_tests.neutron.setup.basic_overcloud_network
-  - zaza.openstack.charm_tests.nova.setup.create_flavors
-  - zaza.openstack.charm_tests.nova.setup.manage_ssh_key
 
 tests:
 - zaza.openstack.charm_tests.nova.tests.CirrosGuestCreateTest
 - zaza.openstack.charm_tests.nova.tests.SecurityTests
 - zaza.openstack.charm_tests.nova.tests.NovaCloudController
-- vault:
-  - zaza.openstack.charm_tests.nova.tests.CirrosGuestCreateTest
-  - zaza.openstack.charm_tests.nova.tests.SecurityTests
-  - zaza.openstack.charm_tests.nova.tests.NovaCloudController
-  - zaza.openstack.charm_tests.nova.tests.NovaCloudControllerActionTest
-- sync_az:
-  - zaza.openstack.charm_tests.nova.tests.CirrosGuestCreateTest
-  - zaza.openstack.charm_tests.nova.tests.SecurityTests
-  - zaza.openstack.charm_tests.nova.tests.NovaCloudController
-  - zaza.openstack.charm_tests.nova.tests.NovaCloudControllerActionTest
+- zaza.openstack.charm_tests.nova.tests.NovaCloudControllerActionTest
 
 tests_options:
   force_deploy:
-    - impish-xena
-    - jammy-yoga
+    - kinetic-zed

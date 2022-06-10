@@ -1,2 +1,3 @@
-bzr [platform:dpkg]  # for bzr+lp: python requirements format
-
+libffi-dev [platform:dpkg]
+libxml2-dev [platform:dpkg]
+libxslt1-dev [platform:dpkg]

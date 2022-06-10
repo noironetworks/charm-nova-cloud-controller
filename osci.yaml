@@ -1,50 +1,9 @@
 - project:
     templates:
-      - charm-unit-jobs-py38
       - charm-unit-jobs-py310
-    check:
-      jobs:
-      - vault-focal-xena
-      - vault-focal-yoga:
-          voting: false
-      - vault-impish-xena:
-          voting: false
-      - vault-jammy-yoga:
-          voting: false
+      - charm-zed-functional-jobs
     vars:
       needs_charm_build: true
       charm_build_name: nova-cloud-controller
       build_type: charmcraft
-
-- job:
-    name: vault-focal-xena
-    parent: func-target
-    dependencies:
-      - charm-build
-      - osci-lint
-      - tox-py38
-      - name: tox-py310
-        soft: true
-    vars:
-      tox_extra_args: vault:focal-xena
-- job:
-    name: vault-focal-yoga
-    parent: func-target
-    dependencies:
-      - vault-focal-xena
-    vars:
-      tox_extra_args: vault:focal-yoga
-- job:
-    name: vault-impish-xena
-    parent: func-target
-    dependencies:
-      - vault-focal-xena
-    vars:
-      tox_extra_args: vault:impish-xena
-- job:
-    name: vault-jammy-yoga
-    parent: func-target
-    dependencies:
-      - vault-focal-xena
-    vars:
-      tox_extra_args: vault:jammy-yoga
+      charmcraft_channel: 2.0/stable
