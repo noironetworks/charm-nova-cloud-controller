@@ -1,3 +1,5 @@
+local_overlay_enabled: False
+
 variables:
   openstack-origin: &openstack-origin cloud:focal-xena
 
@@ -31,22 +33,22 @@ applications:
 
   nova-cloud-controller-mysql-router:
     charm: ch:mysql-router
-    channel: latest/edge
+    channel: 8.0/edge
   keystone-mysql-router:
     charm: ch:mysql-router
-    channel: latest/edge
+    channel: 8.0/edge
   glance-mysql-router:
     charm: ch:mysql-router
-    channel: latest/edge
+    channel: 8.0/edge
   neutron-api-mysql-router:
     charm: ch:mysql-router
-    channel: latest/edge
+    channel: 8.0/edge
   placement-mysql-router:
     charm: ch:mysql-router
-    channel: latest/edge
+    channel: 8.0/edge
   vault-mysql-router:
     charm: ch:mysql-router
-    channel: latest/edge
+    channel: 8.0/edge
 
   mysql-innodb-cluster:
     charm: ch:mysql-innodb-cluster
@@ -59,14 +61,14 @@ applications:
       - '0'
       - '1'
       - '2'
-    channel: latest/edge
+    channel: 8.0/edge
 
   rabbitmq-server:
     charm: ch:rabbitmq-server
     num_units: 1
     to:
       - '3'
-    channel: latest/edge
+    channel: 3.9/edge
 
   nova-cloud-controller:
     charm: ../../nova-cloud-controller.charm
@@ -156,7 +158,7 @@ applications:
     num_units: 1
     to:
       - '12'
-    channel: latest/edge
+    channel: 1.7/edge
 
 relations:
 
