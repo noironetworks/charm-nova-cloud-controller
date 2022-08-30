@@ -5,12 +5,10 @@
     check:
       jobs:
       - vault-focal-xena
-      - vault-focal-yoga:
-          voting: false
+      - vault-focal-yoga
       - vault-impish-xena:
           voting: false
-      - vault-jammy-yoga:
-          voting: false
+      - vault-jammy-yoga
     vars:
       needs_charm_build: true
       charm_build_name: nova-cloud-controller
