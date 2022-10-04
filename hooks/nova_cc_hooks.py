@@ -190,6 +190,10 @@ def install():
 
     hookenv.status_set('maintenance', 'Installing apt packages')
     ch_fetch.apt_update()
+    # (ajkavanagh) LP: #1989538
+    # Tactical fix to force openstack-release to match the configured
+    # installation source; note that it comes after apt_update().
+    ch_fetch.apt_install(['openstack-release'], fatal=False, quiet=True)
     ch_fetch.apt_install(ncc_utils.determine_packages(), fatal=True)
 
     ncc_utils.disable_package_apache_site()
