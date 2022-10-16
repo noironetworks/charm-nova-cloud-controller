@@ -862,6 +862,28 @@ class NovaCCUtilsTests(CharmTestCase):
             utils.ssh_compute_remove(removed_key)
             self.assertEqual(_written, keys_removed)
 
+    @patch.object(utils.ch_utils, 'get_host_ip')
+    @patch.object(utils.ch_ip, 'ns_query')
+    def test_resolve_hosts_for_bug_1992789(self, _ns_query, _get_host_ip):
+        # regression test for bug: 1992789; when the function was refactored to
+        # use a set instead of a list to ensure uniqueness of hosts, a method
+        # was missed from being converted from .append() to .add()
+        private_address = "myhostname"  # trigger behaviour of bug
+        hostname = "myhostname2"
+        db_key = "hostset-{}".format(private_address)
+
+        # note that this is patched in class setup to :memory: sqlite db
+        db = charmhelpers.core.unitdata.kv()
+        db.unset(db_key)
+
+        # ensure caching is disabled
+        self.test_config.set('cache-known-hosts', False)
+        _get_host_ip.return_value = "10.0.0.10"
+        _ns_query.return_value = False
+        hosts = utils.resolve_hosts_for(private_address, hostname)
+        self.assertEqual(sorted(hosts),
+                         ["10.0.0.10", "myhostname", "myhostname2"])
+
     def test_determine_endpoints_base(self):
         self.relation_ids.return_value = []
         self.os_release.return_value = 'diablo'
