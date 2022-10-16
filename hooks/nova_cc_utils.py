@@ -1381,7 +1381,7 @@ def resolve_hosts_for(private_address, hostname):
             hosts.add(hostname)
 
         if not ch_utils.is_ip(private_address):
-            hosts.append(private_address.lower())
+            hosts.add(private_address.lower())
             hosts.add(ch_utils.get_host_ip(private_address))
             short = private_address.split('.')[0]
             if ch_ip.ns_query(short):
