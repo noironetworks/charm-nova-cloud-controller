@@ -135,8 +135,8 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.install()
         self.apt_install.assert_called_with(
             ['nova-scheduler', 'nova-api-ec2'], fatal=True)
-        self.assertTrue(self.execd_preinstall.called)
-        self.assertTrue(self.service_pause.called)
+        self.execd_preinstall.assert_called()
+        self.service_pause.assert_called()
 
     @patch.object(utils, 'set_shared_metadatasecret')
     @patch.object(utils, 'get_shared_metadatasecret')
@@ -163,9 +163,9 @@ class NovaCCHooksTests(CharmTestCase):
         self.os_release.return_value = 'diablo'
         hooks.resolve_CONFIGS()
         hooks.config_changed()
-        self.assertTrue(self.save_script_rc.called)
+        self.save_script_rc.assert_called()
         mock_filter_packages.assert_called_with([])
-        self.assertTrue(mock_update_aws_compat_services.called)
+        mock_update_aws_compat_services.assert_called()
 
     @patch.object(utils, 'set_shared_metadatasecret')
     @patch.object(utils, 'get_shared_metadatasecret')
@@ -195,10 +195,10 @@ class NovaCCHooksTests(CharmTestCase):
         # probably need the with patch.object from below
         with patch.object(hooks.CONFIGS, 'write_all') as wa:
             hooks.config_changed()
-            self.assertTrue(wa.called)
-        self.assertTrue(self.save_script_rc.called)
+            wa.assert_called()
+        self.save_script_rc.assert_called()
         mock_filter_packages.assert_called_with([])
-        self.assertTrue(mock_update_aws_compat_services.called)
+        mock_update_aws_compat_services.assert_called()
         mock_set_shared_metadatasecret.assert_called_once_with()
 
     @patch.object(utils, 'set_shared_metadatasecret')
@@ -225,10 +225,10 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.resolve_CONFIGS()
         with patch.object(hooks.CONFIGS, 'write_all') as wa:
             hooks.config_changed()
-            self.assertTrue(wa.called)
-        self.assertTrue(self.save_script_rc.called)
+            wa.assert_called()
+        self.save_script_rc.assert_called()
         mock_filter_packages.assert_called_with([])
-        self.assertTrue(mock_update_aws_compat_services.called)
+        mock_update_aws_compat_services.assert_called()
         self.service_pause.assert_called_with('neutron-server')
 
     @patch.object(utils, 'set_shared_metadatasecret')
@@ -261,9 +261,9 @@ class NovaCCHooksTests(CharmTestCase):
         hooks.resolve_CONFIGS()
         with patch.object(hooks.CONFIGS, 'write_all'):
             hooks.config_changed()
-        self.assertTrue(self.save_script_rc.called)
+        self.save_script_rc.assert_called()
         mock_filter_packages.assert_called_with([])
-        self.assertTrue(mock_update_aws_compat_services.called)
+        mock_update_aws_compat_services.assert_called()
         self.service_pause.assert_called_with('neutron-server')
 
     @patch.object(utils, 'set_shared_metadatasecret')
@@ -311,23 +311,23 @@ class NovaCCHooksTests(CharmTestCase):
         self.os_release.return_value = 'diablo'
         hooks.resolve_CONFIGS()
         hooks.config_changed()
-        self.assertTrue(self.do_openstack_upgrade.called)
-        self.assertTrue(neutron_api_joined.called)
-        self.assertTrue(identity_joined.called)
-        self.assertTrue(cluster_joined.called)
-        self.assertTrue(db_joined.called)
-        self.assertTrue(self.save_script_rc.called)
+        self.do_openstack_upgrade.assert_called()
+        neutron_api_joined.assert_called()
+        identity_joined.assert_called()
+        cluster_joined.assert_called()
+        db_joined.assert_called()
+        self.save_script_rc.assert_called()
         mock_filter_packages.assert_called_with([])
-        self.assertTrue(mock_quantum_joined.called)
-        self.assertTrue(mock_update_aws_compat_services.called)
+        mock_quantum_joined.assert_called()
+        mock_update_aws_compat_services.assert_called()
 
         # test upgrade from stein->train without placement related
         self.do_openstack_upgrade.return_value = None
         self.os_release.return_value = 'stein'
         self.save_script_rc.reset_mock()
         hooks.config_changed()
-        self.assertTrue(self.do_openstack_upgrade.called)
-        self.assertFalse(self.save_script_rc.called)
+        self.do_openstack_upgrade.assert_called()
+        self.save_script_rc.assert_not_called()
 
     @patch.object(utils, 'set_shared_metadatasecret')
     @patch.object(utils, 'get_shared_metadatasecret')
@@ -367,7 +367,7 @@ class NovaCCHooksTests(CharmTestCase):
             [call('generic_rid')])
         mock_compute_joined.assert_has_calls(
             [call(rid='generic_rid', remote_restart=False)])
-        self.assertTrue(mock_update_aws_compat_services.called)
+        mock_update_aws_compat_services.assert_called()
 
     @patch.object(hooks, 'add_hosts_to_cell_when_ready')
     @patch.object(hooks, 'set_region_on_relation_from_config')
@@ -656,11 +656,11 @@ class NovaCCHooksTests(CharmTestCase):
         mock_is_db_initialised.return_value = True
         mock_is_cellv2_init_ready.return_value = True
         hooks.add_hosts_to_cell_when_ready()
-        self.assertTrue(self.is_leader.called)
-        self.assertTrue(mock_is_db_initialised.called)
-        self.assertTrue(mock_is_cellv2_init_ready.called)
-        self.assertTrue(self.is_db_maintenance_mode.called)
-        self.assertTrue(mock_add_hosts_to_cell.called)
+        self.is_leader.assert_called()
+        mock_is_db_initialised.assert_called()
+        mock_is_cellv2_init_ready.assert_called()
+        self.is_db_maintenance_mode.assert_called()
+        mock_add_hosts_to_cell.assert_called()
 
     @patch('hooks.nova_cc_utils.is_cellv2_init_ready')
     @patch('hooks.nova_cc_utils.is_db_initialised')
@@ -673,11 +673,11 @@ class NovaCCHooksTests(CharmTestCase):
         mock_is_db_initialised.return_value = True
         mock_is_cellv2_init_ready.return_value = True
         hooks.add_hosts_to_cell_when_ready()
-        self.assertTrue(self.is_leader.called)
-        self.assertFalse(mock_is_db_initialised.called)
-        self.assertFalse(mock_is_cellv2_init_ready.called)
-        self.assertFalse(self.is_db_maintenance_mode.called)
-        self.assertFalse(mock_add_hosts_to_cell.called)
+        self.is_leader.assert_called()
+        mock_is_db_initialised.assert_not_called()
+        mock_is_cellv2_init_ready.assert_not_called()
+        self.is_db_maintenance_mode.assert_not_called()
+        mock_add_hosts_to_cell.assert_not_called()
 
     @patch('hooks.nova_cc_utils.is_cellv2_init_ready')
     @patch('hooks.nova_cc_utils.is_db_initialised')
@@ -690,11 +690,11 @@ class NovaCCHooksTests(CharmTestCase):
         mock_is_cellv2_init_ready.return_value = True
         self.is_db_maintenance_mode.return_value = True
         hooks.add_hosts_to_cell_when_ready()
-        self.assertTrue(self.is_leader.called)
-        self.assertTrue(mock_is_db_initialised.called)
-        self.assertTrue(mock_is_cellv2_init_ready.called)
-        self.assertTrue(self.is_db_maintenance_mode.called)
-        self.assertFalse(mock_add_hosts_to_cell.called)
+        self.is_leader.assert_called()
+        mock_is_db_initialised.assert_called()
+        mock_is_cellv2_init_ready.assert_called()
+        self.is_db_maintenance_mode.assert_called()
+        mock_add_hosts_to_cell.assert_not_called()
 
     @patch('charmhelpers.contrib.openstack.ip.canonical_url')
     @patch.object(hooks, '_auth_config')
@@ -850,7 +850,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.is_clustered.return_value = False
         self.test_config.set('vip', '10.0.0.10')
         hooks.identity_joined()
-        self.assertFalse(self.relation_set.called)
+        self.relation_set.assert_not_called()
 
     @patch.object(utils, 'resource_map')
     @patch.object(hooks, 'CONFIGS')
@@ -880,8 +880,8 @@ class NovaCCHooksTests(CharmTestCase):
         'No database migration is attempted when ACL list is not present'
         self.os_release.return_value = 'diablo'
         self._shared_db_test(configs)
-        self.assertTrue(configs.write_all.called)
-        self.assertFalse(self.migrate_nova_databases.called)
+        configs.write_all.assert_called()
+        self.migrate_nova_databases.assert_not_called()
 
     @patch.object(utils, 'resource_map')
     @patch('hooks.nova_cc_utils.is_db_initialised')
@@ -898,7 +898,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.os_release.return_value = 'diablo'
         self.is_leader.return_value = True
         self._shared_db_test(configs)
-        self.assertTrue(configs.write_all.called)
+        configs.write_all.assert_called()
         self.migrate_nova_databases.assert_called_with()
 
     @patch.object(utils, 'resource_map')
@@ -915,8 +915,8 @@ class NovaCCHooksTests(CharmTestCase):
         self.local_unit.return_value = 'nova-cloud-controller/1'
         self.os_release.return_value = 'diablo'
         self._shared_db_test(configs)
-        self.assertTrue(configs.write_all.called)
-        self.assertFalse(self.migrate_nova_databases.called)
+        configs.write_all.assert_called()
+        self.migrate_nova_databases.assert_not_called()
 
     @patch.object(utils, 'resource_map')
     @patch.object(hooks, 'quantum_joined')
@@ -958,7 +958,7 @@ class NovaCCHooksTests(CharmTestCase):
         configs.write = MagicMock()
         self.relation_ids.return_value = ['nova-cell-api/0']
         hooks.relation_broken()
-        self.assertTrue(configs.write_all.called)
+        configs.write_all.assert_called()
 
     @patch.object(hooks, 'update_child_cell_records')
     @patch.object(utils, 'resource_map')
@@ -1028,7 +1028,7 @@ class NovaCCHooksTests(CharmTestCase):
         _canonical_url.return_value = 'http://novaurl'
         self.uuid.uuid4.return_value = 'bob'
         hooks.neutron_api_relation_joined(remote_restart=True)
-        self.assertTrue(_identity_joined.called)
+        _identity_joined.assert_called()
         self.relation_set.assert_called_with(relation_id=None,
                                              nova_url=nova_url,
                                              restart_trigger='bob')
@@ -1041,9 +1041,9 @@ class NovaCCHooksTests(CharmTestCase):
         _compute_joined = self.patch('compute_joined')
         _quantum_joined = self.patch('quantum_joined')
         hooks.neutron_api_relation_changed()
-        self.assertTrue(configs.write.called_with('/etc/nova/nova.conf'))
-        self.assertTrue(_compute_joined.called)
-        self.assertTrue(_quantum_joined.called)
+        configs.write.assert_called_with('/etc/nova/nova.conf')
+        _compute_joined.assert_called()
+        _quantum_joined.assert_called()
 
     @patch.object(utils, 'resource_map')
     @patch.object(os, 'remove')
@@ -1057,9 +1057,9 @@ class NovaCCHooksTests(CharmTestCase):
         _compute_joined = self.patch('compute_joined')
         _quantum_joined = self.patch('quantum_joined')
         hooks.neutron_api_relation_broken()
-        self.assertTrue(configs.write_all.called)
-        self.assertTrue(_compute_joined.called)
-        self.assertTrue(_quantum_joined.called)
+        configs.write_all.assert_called()
+        _compute_joined.assert_called()
+        _quantum_joined.assert_called()
 
     @patch.object(utils, 'resource_map')
     @patch('charmhelpers.contrib.openstack.ip.canonical_url')
@@ -1207,7 +1207,7 @@ class NovaCCHooksTests(CharmTestCase):
     @patch('hooks.nova_cc_utils.disable_deprecated_nova_placement_apache_site')
     def test_placement_joined(self, disable_nova_placement):
         hooks.placement_relation_joined()
-        self.assertTrue(disable_nova_placement.called)
+        disable_nova_placement.assert_called()
         self.relation_set.assert_called_with(nova_placement_disabled=True,
                                              relation_id=None)
 
@@ -1221,10 +1221,10 @@ class NovaCCHooksTests(CharmTestCase):
         self.services.return_value = ['dummy-service']
         self.relation_ids.return_value = ['generic_rid']
         hooks.placement_relation_changed()
-        self.assertTrue(self.service_restart.called)
-        self.assertTrue(configs.write_all.called)
-        self.assertTrue(identity_joined.called)
-        self.assertTrue(compute_joined.called)
+        self.service_restart.assert_called()
+        configs.write_all.assert_called()
+        identity_joined.assert_called()
+        compute_joined.assert_called()
 
     @patch.object(hooks, 'memcached_common')
     def test_memcache_joined(self, _memcached_common):

@@ -58,11 +58,11 @@ class TestNovaCCUpgradeActions(CharmTestCase):
 
         openstack_upgrade.openstack_upgrade()
 
-        self.assertTrue(self.do_openstack_upgrade.called, config.mock_calls)
+        self.do_openstack_upgrade.assert_called()
         self.neutron_api_relation_joined.assert_called_with(
             rid='relid1', remote_restart=True)
         self.db_joined.assert_called_with(relation_id='relid1')
-        self.assertTrue(self.config_changed.called)
+        self.config_changed.assert_called()
 
         # upgrade from stein without placement related
         os_release.return_value = 'stein'
@@ -72,7 +72,7 @@ class TestNovaCCUpgradeActions(CharmTestCase):
 
         openstack_upgrade.openstack_upgrade()
 
-        self.assertFalse(self.do_openstack_upgrade.called)
+        self.do_openstack_upgrade.assert_not_called()
 
     @patch('charmhelpers.contrib.openstack.utils.os_release')
     @patch('charmhelpers.contrib.openstack.utils.config')
@@ -86,5 +86,5 @@ class TestNovaCCUpgradeActions(CharmTestCase):
 
         openstack_upgrade.openstack_upgrade()
 
-        self.assertFalse(self.do_openstack_upgrade.called)
-        self.assertFalse(self.config_changed.called)
+        self.do_openstack_upgrade.assert_not_called()
+        self.config_changed.assert_not_called()
