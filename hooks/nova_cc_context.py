@@ -239,10 +239,22 @@ class HAProxyContext(ch_context.HAProxyContext):
             del listen_ports['placement_listen_port']
             del port_mapping['nova-placement-api']
 
+        healthcheck = [{
+            'option': 'httpchk GET /',
+            'http-check': 'expect status 200',
+        }]
+
+        backend_options = {
+            'nova-api-os-compute': healthcheck,
+            'nova-api-metadata': healthcheck,
+        }
+
         # for haproxy.conf
         ctxt['service_ports'] = port_mapping
         # for nova.conf
         ctxt['listen_ports'] = listen_ports
+        ctxt['backend_options'] = backend_options
+        ctxt['https'] = ch_cluster.https()
         return ctxt
 
 
