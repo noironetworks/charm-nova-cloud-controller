@@ -67,7 +67,7 @@ TO_PATCH = [
 ]
 
 SCRIPTRC_ENV_VARS = {
-    'OPENSTACK_PORT_MCASTPORT': 5404,
+    'OPENSTACK_PORT_MASTPORT': 5404,
     'OPENSTACK_SERVICE_API_EC2': 'nova-api-ec2',
     'OPENSTACK_SERVICE_API_OS_COMPUTE': 'nova-api-os-compute',
     'OPENSTACK_SERVICE_CERT': 'nova-cert',
@@ -724,8 +724,8 @@ class NovaCCUtilsTests(CharmTestCase):
         host_key.return_value = '|1|= fookey'
         with patch_open() as (_open, _file):
             utils.add_known_host('foohost', 'aservice')
-            self.assertFalse(rm.called)
-            self.assertFalse(_file.write.called)
+            rm.assert_not_called()
+            _file.write.assert_not_called()
 
     @patch.object(utils, 'known_hosts')
     @patch.object(utils, 'remove_known_host')
@@ -750,7 +750,7 @@ class NovaCCUtilsTests(CharmTestCase):
         with patch_open() as (_open, _file):
             _file.write = MagicMock()
             utils.add_known_host('foohost', 'aservice')
-            self.assertFalse(rm.called)
+            rm.assert_not_called()
             _file.write.assert_called_with('|1|= fookey\n')
 
     @patch('charmhelpers.contrib.openstack.cert_utils.'
@@ -1001,7 +1001,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.services.return_value = ['dummy-service']
         utils.migrate_nova_databases()
         check_output.assert_called_with(['nova-manage', 'db', 'sync'])
-        self.assertTrue(self.service_resume.called)
+        self.service_resume.assert_called()
 
     @patch('subprocess.check_output')
     def test_migrate_nova_databases_cluster(self, check_output):
@@ -1015,7 +1015,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.assertNotIn(call(['nova-manage', 'db', 'online_data_migrations']),
                          check_output.mock_calls)
         self.peer_store.assert_called_with('dbsync_state', 'complete')
-        self.assertTrue(self.service_resume.called)
+        self.service_resume.assert_called()
 
     @patch('subprocess.check_output')
     def test_migrate_nova_databases_mitaka(self, check_output):
@@ -1031,7 +1031,7 @@ class NovaCCUtilsTests(CharmTestCase):
             call(['nova-manage', 'db', 'online_data_migrations']),
         ])
         self.peer_store.assert_called_with('dbsync_state', 'complete')
-        self.assertTrue(self.service_resume.called)
+        self.service_resume.assert_called()
 
     @patch('subprocess.Popen')
     @patch('subprocess.check_output')
@@ -1069,7 +1069,7 @@ class NovaCCUtilsTests(CharmTestCase):
             '--max-count', '50000'], stdout=-1)
         Popen.assert_has_calls([map_call])
         self.peer_store.assert_called_with('dbsync_state', 'complete')
-        self.assertTrue(self.service_resume.called)
+        self.service_resume.assert_called()
 
     @patch('subprocess.Popen')
     @patch('subprocess.check_output')
@@ -1099,7 +1099,7 @@ class NovaCCUtilsTests(CharmTestCase):
             'c83121db-f1c7-464a-b657-38c28fac84c6'])
         self.assertFalse(map_call in Popen.call_args_list)
         self.peer_store.assert_called_with('dbsync_state', 'complete')
-        self.assertTrue(self.service_resume.called)
+        self.service_resume.assert_called()
 
     @patch('subprocess.check_output')
     def test_migrate_nova_flavors(self, check_output):
@@ -1195,7 +1195,7 @@ class NovaCCUtilsTests(CharmTestCase):
                                             dist=True)
         self.apt_install.assert_called_with(determine_packages(), fatal=True)
         self.register_configs.assert_called_with(release='mitaka')
-        self.assertFalse(migrate_nova_databases.called)
+        migrate_nova_databases.assert_not_called()
         database_setup.assert_called_with(prefix='novaapi')
 
     @patch.object(utils, 'online_data_migrations_if_needed')
@@ -1226,7 +1226,7 @@ class NovaCCUtilsTests(CharmTestCase):
                                             dist=True)
         self.apt_install.assert_called_with(determine_packages(), fatal=True)
         self.register_configs.assert_called_with(release='rocky')
-        self.assertFalse(migrate_nova_databases.called)
+        migrate_nova_databases.assert_not_called()
         database_setup.assert_called_with(prefix='novaapi')
         online_data_migrations_if_needed.assert_called_once()
         disable_package_apache_site.assert_called_once()
@@ -1238,7 +1238,7 @@ class NovaCCUtilsTests(CharmTestCase):
 
         utils.do_openstack_upgrade(self.register_configs())
 
-        self.assertFalse(self.apt_update.called)
+        self.apt_update.assert_not_called()
 
         # test upgrade from stein->train with placement related
         self.os_release.return_value = 'stein'
@@ -1248,7 +1248,7 @@ class NovaCCUtilsTests(CharmTestCase):
 
         utils.do_openstack_upgrade(self.register_configs())
 
-        self.assertTrue(self.apt_update.called)
+        self.apt_update.assert_called()
 
     def test_guard_map_nova(self):
         self.relation_ids.return_value = []
@@ -1298,8 +1298,8 @@ class NovaCCUtilsTests(CharmTestCase):
         def dummy_func():
             pass
         dummy_func()
-        self.assertFalse(self.service_running.called)
-        self.assertFalse(contexts.complete_contexts.called)
+        self.service_running.assert_not_called()
+        contexts.complete_contexts.assert_not_called()
 
     def test_service_guard_active_guard(self):
         '''Ensure services with incomplete interfaces are stopped'''
@@ -1339,8 +1339,8 @@ class NovaCCUtilsTests(CharmTestCase):
             pass
 
         dummy_func()
-        self.assertFalse(self.service_running.called)
-        self.assertFalse(self.service_stop.called)
+        self.service_running.assert_not_called()
+        self.service_stop.assert_not_called()
         self.assertTrue(_mc.called)
 
     def test_service_guard_active_with_guardmap_function_object(self):
@@ -1361,8 +1361,8 @@ class NovaCCUtilsTests(CharmTestCase):
             pass
 
         dummy_func()
-        self.assertFalse(self.service_running.called)
-        self.assertFalse(self.service_stop.called)
+        self.service_running.assert_not_called()
+        self.service_stop.assert_not_called()
         self.assertTrue(_mc.called)
 
     def test_service_guard_active_with_contexts_function_object(self):
@@ -1383,8 +1383,8 @@ class NovaCCUtilsTests(CharmTestCase):
             pass
 
         dummy_func()
-        self.assertFalse(self.service_running.called)
-        self.assertFalse(self.service_stop.called)
+        self.service_running.assert_not_called()
+        self.service_stop.assert_not_called()
         self.assertTrue(_mc.called)
 
     def test_service_guard_active_with_active_function_object(self):
@@ -1403,7 +1403,7 @@ class NovaCCUtilsTests(CharmTestCase):
             pass
 
         dummy_func()
-        self.assertFalse(self.service_running.called)
+        self.service_running.assert_not_called()
         self.assertFalse(_mc.called)
 
     def test_assess_status(self):
@@ -1859,8 +1859,8 @@ class NovaCCUtilsTests(CharmTestCase):
                                            mock_is_db_initialised):
         mock_is_db_initialised.return_value = False
         utils.update_child_cell('cell2', 'mysql-cell2', 'amqp-cell2')
-        self.assertFalse(mock_check_output.called)
-        self.assertFalse(self.service_restart.called)
+        mock_check_output.assert_not_called()
+        self.service_restart.assert_not_called()
 
     @patch.object(utils, 'get_cell_details')
     @patch.object(utils, 'is_db_initialised')
@@ -1873,8 +1873,8 @@ class NovaCCUtilsTests(CharmTestCase):
         mock_get_cell_details.return_value = {}
         utils.update_child_cell('cell2', 'mysql-cell2', 'amqp-cell2')
         mock_get_cell_details.assert_called_once_with()
-        self.assertFalse(mock_check_output.called)
-        self.assertFalse(self.service_restart.called)
+        mock_check_output.assert_not_called()
+        self.service_restart.assert_not_called()
 
     @patch.object(utils.subprocess, 'check_output')
     @patch.object(utils, 'get_cell_details')
@@ -1888,8 +1888,8 @@ class NovaCCUtilsTests(CharmTestCase):
         mock_get_cell_details.return_value = {'cell1': 'uuid4cell1'}
         mock_get_cell_db_context.return_value = {}
         utils.update_child_cell('cell2', 'mysql-cell2', 'amqp-cell2')
-        self.assertFalse(mock_check_output.called)
-        self.assertFalse(self.service_restart.called)
+        mock_check_output.assert_not_called()
+        self.service_restart.assert_not_called()
 
     @patch.object(utils, 'get_cell_amqp_context')
     @patch.object(utils, 'get_sql_uri')
@@ -1908,8 +1908,8 @@ class NovaCCUtilsTests(CharmTestCase):
         mock_get_cell_db_context.return_value = {'ctxt': 'a full context'}
         mock_get_cell_amqp_context.return_value = {}
         utils.update_child_cell('cell2', 'mysql-cell2', 'amqp-cell2')
-        self.assertFalse(mock_check_output.called)
-        self.assertFalse(self.service_restart.called)
+        mock_check_output.assert_not_called()
+        self.service_restart.assert_not_called()
 
     @patch('os.remove')
     @patch('os.path.exists')
@@ -1918,7 +1918,7 @@ class NovaCCUtilsTests(CharmTestCase):
         self.os_release.return_value = 'stein'
         exists.return_value = True
         utils.disable_deprecated_nova_placement_apache_site()
-        self.assertTrue(remove.called)
+        remove.assert_called()
 
     @patch.object(utils.ch_context, 'SharedDBContext')
     @patch.object(utils, 'get_cell_details')
