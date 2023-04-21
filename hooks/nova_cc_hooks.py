@@ -1092,6 +1092,8 @@ def ha_changed():
                 'keystone endpoint configuration')
     for rid in hookenv.relation_ids('identity-service'):
         identity_joined(rid=rid)
+    hookenv.log('Updating nova relations data')
+    update_nova_relation()
 
 
 @hooks.hook('shared-db-relation-broken')
