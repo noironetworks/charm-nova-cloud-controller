@@ -1204,6 +1204,38 @@ class NovaCCHooksTests(CharmTestCase):
             ha='settings',
             relation_id=None)
 
+    @patch('charmhelpers.contrib.openstack.context.relation_ids')
+    def test_ha_relation_changed_not_clustered(self, ctxt_relation_ids):
+        self.relation_get.return_value = ''
+        self.os_release.return_value = 'ussuri'
+        ctxt_relation_ids.return_value = []
+        hooks.resolve_CONFIGS()
+        with patch.object(hooks.CONFIGS, 'write') as configs_write:
+            hooks.ha_changed()
+            configs_write.assert_not_called()
+
+    @patch.object(hooks, 'update_nova_relation')
+    @patch.object(hooks, 'identity_joined')
+    @patch('charmhelpers.contrib.openstack.context.relation_get')
+    @patch('charmhelpers.contrib.openstack.context.related_units')
+    @patch('charmhelpers.contrib.openstack.context.relation_ids')
+    def test_ha_relation_changed_clustered(self, ctxt_relation_ids,
+                                           ctxt_related_units,
+                                           ctxt_relation_get,
+                                           identity_joined,
+                                           update_nova_relation):
+        ctxt_relation_get.return_value = None
+        self.test_relation.set({'clustered': True})
+        self.os_release.return_value = 'ussuri'
+        self.relation_ids.return_value = ['identity-service:1']
+        ctxt_related_units.return_value = ['keystone/0']
+        hooks.resolve_CONFIGS()
+        with patch.object(hooks.CONFIGS, 'write') as configs_write:
+            hooks.ha_changed()
+            configs_write.assert_called_with(utils.NOVA_CONF)
+            identity_joined.assert_called_with(rid='identity-service:1')
+            update_nova_relation.assert_called_with()
+
     @patch('hooks.nova_cc_utils.disable_deprecated_nova_placement_apache_site')
     def test_placement_joined(self, disable_nova_placement):
         hooks.placement_relation_joined()
