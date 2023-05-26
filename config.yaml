@@ -684,3 +684,10 @@ options:
       cloud utilization.
       .
       Note: only effective from Pike onward
+  allow-resize-to-same-host:
+    type: boolean
+    default: False
+    description: |
+      Allow resizing to the same host. Setting this option to True will add the
+      source host to the destination options for consideration by the
+      scheduler when resizing an instance.
