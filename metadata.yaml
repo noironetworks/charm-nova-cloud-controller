@@ -13,6 +13,7 @@ description: |
   .
   This charm provides the cloud controller service for OpenStack Nova and includes
   nova-scheduler, nova-api and nova-conductor services.
+docs: https://discourse.charmhub.io/t/nova-cloud-controller-docs-index/10551
 tags:
 - openstack
 series:
