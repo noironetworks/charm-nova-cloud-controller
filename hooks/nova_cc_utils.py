@@ -1763,7 +1763,9 @@ def check_optional_relations(configs):
     if hookenv.relation_ids('ha'):
         try:
             ch_cluster.get_hacluster_config()
-        except Exception:
+        except Exception as ex:
+            hookenv.log("get_hacluster_config exception: %s" % str(ex),
+                        hookenv.DEBUG)
             return ('blocked',
                     'hacluster missing configuration: '
                     'vip, vip_iface, vip_cidr')
@@ -1779,6 +1781,12 @@ def check_optional_relations(configs):
             'WARN: Reset the configuration quota-count-usage-from-placement to'
             'false, this configuration is only availabe for releases>=Train'
         )
+
+    if hookenv.config('enable-serial-console'):
+        if not hookenv.relation_ids('dashboard'):
+            return ('blocked',
+                    ("Required relation 'dashboard' needed when "
+                     "enable-serial-console is set to True"))
 
     # return 'unknown' as the lowest priority to not clobber an existing
     # status.
