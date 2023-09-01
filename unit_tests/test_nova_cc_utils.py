@@ -1947,3 +1947,31 @@ class NovaCCUtilsTests(CharmTestCase):
             call(['nova-manage', 'cell_v2', 'update_cell',
                   '--cell_uuid', 'cell1uuid']),
         ])
+
+    @patch('charmhelpers.core.hookenv.relation_ids')
+    def test_check_optional_relations(self, relation_ids):
+        self.get_os_codename_install_source.return_value = 'ussuri'
+        self.os_release.return_value = 'ussuri'
+
+        fake_relation_ids = {'placement': ['placement:0'],
+                             'ha': ['ha:1'],
+                             'dashboard': []}
+        relation_ids.side_effect = fake_relation_ids.get
+        self.test_config.set('enable-serial-console', True)
+        (status, workload_msg) = utils.check_optional_relations(None)
+
+        self.assertEqual('blocked', status)
+        self.assertEqual(('hacluster missing configuration: vip, vip_iface, '
+                          'vip_cidr'),
+                         workload_msg)
+        with patch.object(utils.ch_cluster,
+                          'get_hacluster_config') as get_hacluster_config:  # noqa
+            (status, workload_msg) = utils.check_optional_relations(None)
+            self.assertEqual('blocked', status)
+            self.assertEqual(("Required relation 'dashboard' needed when "
+                              "enable-serial-console is set to True"),
+                             workload_msg)
+            fake_relation_ids['dashboard'] = ['dashboard:2']
+            (status, workload_msg) = utils.check_optional_relations(None)
+            self.assertEqual('unknown', status)
+            self.assertEqual(None, workload_msg)
