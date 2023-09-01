@@ -44,6 +44,8 @@ requires:
     interface: nova-compute
   cinder-volume-service:
     interface: cinder
+  dashboard:
+    interface: dashboard
   quantum-network-service:
     interface: quantum
   neutron-api:
