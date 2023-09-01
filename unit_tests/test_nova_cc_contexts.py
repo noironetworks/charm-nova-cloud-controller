@@ -504,6 +504,8 @@ class NovaComputeContextTests(CharmTestCase):
         self.test_config.set('enable-serial-console', True)
         mock_format_ipv6_address.return_value = None
         mock_resolve_address.return_value = '10.10.10.1'
+
+        # no relation to openstack-dashboard:dashboard
         ctxt = context.SerialConsoleContext()()
         self.assertEqual(
             ctxt,
@@ -512,6 +514,40 @@ class NovaComputeContextTests(CharmTestCase):
         )
         mock_resolve_address.assert_called_with(
             endpoint_type=context.ch_ip.PUBLIC)
+
+        # generated context when related to openstack-dashboard:dashboard
+        fake_relation_ids = {
+            'dashboard': ['dashboard:1'],
+        }
+        self.relation_ids.side_effect = fake_relation_ids.get
+        fake_related_units = {'dashboard:1': ['openstack-dashboard/0']}
+        self.related_units.side_effect = fake_related_units.get
+
+        def fake_relation_get(attribute=None, rid=None, unit=None, app=None):
+            data = {
+                'dashboard:1': {
+                    'openstack-dashboard/0': {
+                        'os-public-hostname': 'myhostname',
+                        'vip': '1.2.3.4',
+                        'ingress-address': '10.20.30.40',
+                    },
+                }
+            }
+            if attribute:
+                return data[rid][unit or app][attribute]
+            else:
+                return data[rid][unit or app]
+
+        self.relation_get.side_effect = fake_relation_get
+
+        ctxt = context.SerialConsoleContext()()
+        self.assertEqual(
+            ctxt,
+            {'serial_console_base_url': 'ws://10.10.10.1:6083/',
+             'enable_serial_console': 'true',
+             'console_allowed_origins': ['myhostname', '1.2.3.4',
+                                         '10.20.30.40']}
+        )
 
     @mock.patch.object(context, 'ch_cluster')
     @mock.patch('os.path.exists')

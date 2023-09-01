@@ -565,8 +565,33 @@ class SerialConsoleContext(ch_context.OSContextGenerator):
         ctxt = {
             'enable_serial_console':
                 str(hookenv.config('enable-serial-console')).lower(),
-            'serial_console_base_url': 'ws://{}:6083/'.format(ip_addr)
+            'serial_console_base_url': 'ws://{}:6083/'.format(ip_addr),
         }
+        if hookenv.config('enable-serial-console'):
+            for rel_id in hookenv.relation_ids('dashboard'):
+                ctxt['console_allowed_origins'] = []
+                rel_units = hookenv.related_units(rel_id)
+                if not rel_units:
+                    continue
+
+                os_public_hostname = hookenv.relation_get('os-public-hostname',
+                                                          rid=rel_id,
+                                                          app=rel_units[0])
+                if os_public_hostname:
+                    ctxt['console_allowed_origins'].append(os_public_hostname)
+
+                vip = hookenv.relation_get('vip',
+                                           rid=rel_id,
+                                           app=rel_units[0])
+                if vip:
+                    ip_addresses = [ip.strip() for ip in vip.split(' ')]
+                    ctxt['console_allowed_origins'] += ip_addresses
+
+                for unit in rel_units:
+                    ingress_address = hookenv.ingress_address(rel_id, unit)
+                    if ingress_address:
+                        ctxt['console_allowed_origins'].append(ingress_address)
+
         return ctxt
 
 
