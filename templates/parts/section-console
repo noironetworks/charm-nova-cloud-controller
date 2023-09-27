@@ -1,0 +1,6 @@
+{% if console_allowed_origins -%}
+[console]
+# List of allowed origins to the console websocket proxy to allow connections
+# from other origin hostnames.
+allowed_origins = {{ console_allowed_origins|join(',') }}
+{% endif -%}

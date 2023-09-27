@@ -1403,6 +1403,15 @@ def placement_relation_changed(rid=None, unit=None):
         ch_host.service_restart(s)
 
 
+@hooks.hook('dashboard-relation-joined',
+            'dashboard-relation-changed')
+def dashboard_relation_changed():
+    """
+    Gather information from the related openstack-dashboard units
+    """
+    CONFIGS.write_all()
+
+
 @hooks.hook('update-status')
 @ch_harden.harden()
 def update_status():
