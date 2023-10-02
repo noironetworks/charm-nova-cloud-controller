@@ -381,6 +381,15 @@ _victoria_enabled_filters = [
     "DifferentHostFilter",
     "SameHostFilter",
 ]
+_bobcat_enabled_filters = [
+    "ComputeFilter",
+    "ComputeCapabilitiesFilter",
+    "ImagePropertiesFilter",
+    "ServerGroupAntiAffinityFilter",
+    "ServerGroupAffinityFilter",
+    "DifferentHostFilter",
+    "SameHostFilter",
+]
 
 
 def default_enabled_filters():
@@ -392,6 +401,8 @@ def default_enabled_filters():
     """
     os_rel = ch_utils.os_release('nova-common')
     cmp_os_rel = ch_utils.CompareOpenStackReleases(os_rel)
+    if cmp_os_rel >= 'bobcat':
+        return _bobcat_enabled_filters
     if cmp_os_rel >= 'victoria':
         return _victoria_enabled_filters
     if cmp_os_rel >= 'pike':

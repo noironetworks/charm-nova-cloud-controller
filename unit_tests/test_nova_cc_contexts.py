@@ -774,3 +774,8 @@ class NovaComputeContextTests(CharmTestCase):
         self.os_release.return_value = 'victoria'
         self.assertEqual(context.default_enabled_filters(),
                          context._victoria_enabled_filters)
+
+    def test_default_enabled_filters_bobcat(self):
+        self.os_release.return_value = 'bobcat'
+        self.assertEqual(context.default_enabled_filters(),
+                         context._bobcat_enabled_filters)
