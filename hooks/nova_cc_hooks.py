@@ -856,7 +856,7 @@ def update_ssh_key(rid=None, unit=None):
     hostname = rel_settings.get('hostname', '')
 
     # only resolve the hosts once, so this is the memo for it
-    resolved_hosts = None
+    resolved_hosts = []
 
     if migration_auth_type == 'ssh':
         # TODO(ajkavanagh) -- the hookenv was previous behaviour, but there
@@ -870,7 +870,24 @@ def update_ssh_key(rid=None, unit=None):
                         .format(rid or hookenv.relation_id(),
                                 unit or hookenv.remote_unit()))
             return
-        resolved_hosts = ncc_utils.resolve_hosts_for(private_address, hostname)
+
+        resolved_hosts = ncc_utils.resolve_hosts_for(private_address,
+                                                     hostname)
+        # Ensure management address and fqdn always in known_hosts (see LP
+        # 1969971)
+        ingress_address = hookenv.ingress_address(rid=rid, unit=unit)
+        if ingress_address:
+            if ingress_address not in resolved_hosts:
+                resolved_hosts.append(ingress_address)
+
+            ingress_host = ncc_utils.resolve_hosts_for(ingress_address, None)
+            if ingress_host:
+                for host in ingress_host:
+                    if host not in resolved_hosts:
+                        resolved_hosts.append(host)
+
+        # sort mainly for unit tests
+        resolved_hosts = sorted(resolved_hosts)
         ncc_utils.ssh_compute_add_known_hosts(
             remote_service, resolved_hosts, user=None)
         ncc_utils.add_authorized_key_if_doesnt_exist(
@@ -882,7 +899,7 @@ def update_ssh_key(rid=None, unit=None):
     if nova_ssh_public_key:
         # in the unlikely event the migration type wasn't ssh, we still have to
         # resolve the hosts
-        if resolved_hosts is None:
+        if not resolved_hosts:
             resolved_hosts = ncc_utils.resolve_hosts_for(private_address,
                                                          hostname)
         ncc_utils.ssh_compute_add_known_hosts(
