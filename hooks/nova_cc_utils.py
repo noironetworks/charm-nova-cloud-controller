@@ -1398,11 +1398,14 @@ def resolve_hosts_for(private_address, hostname):
 
     # Note, the cache is maintained regardless of whether the config
     # 'cache-known-hosts' flag is set; the flag only affects usage and lookup.
-    hosts = list(hosts)
+    hosts = sorted(list(hosts))
     db.set(db_key, hosts)
     db.flush()
 
-    return hosts
+    # NOTE: if we don't make this a fresh copy the caller can modify it which
+    #       can break, amongst other things, unit tests that use
+    #       assert_has_calls to test input.
+    return hosts[:]
 
 
 def clear_hostset_cache_for(private_address):
