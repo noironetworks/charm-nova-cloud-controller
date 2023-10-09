@@ -451,6 +451,7 @@ class NovaCCHooksTests(CharmTestCase):
         self.assertFalse(
             hooks._goal_state_achieved_for_relid('aservice', None))
 
+    @patch.object(utils.hookenv, 'ingress_address')
     @patch('charmhelpers.contrib.openstack.utils.get_hostname')
     @patch('charmhelpers.core.unitdata.Storage.set')
     @patch('hooks.nova_cc_utils.add_authorized_key_if_doesnt_exist')
@@ -462,20 +463,34 @@ class NovaCCHooksTests(CharmTestCase):
             mock_ssh_compute_add_known_hosts,
             mock_add_authorized_key_if_doesnt_exist,
             mock_db_set,
-            mock_get_hostname):
-        mock_get_hostname.return_value = None
-        mock_remote_service_from_unit.return_value = 'aservice'
+            mock_get_hostname,
+            mock_ingress_address):
 
+        def fake_get_hostname(addr):
+            if addr == '10.0.0.1':
+                return "bond0.bighost.ace"
+            elif addr == '10.1.2.3':
+                return "bighost.ace"
+
+            raise Exception("unexpected resolve for address {}".format(addr))
+
+        mock_get_hostname.side_effect = fake_get_hostname
+        mock_remote_service_from_unit.return_value = 'aservice'
+        mock_ingress_address.return_value = '10.1.2.3'
         self.relation_get.side_effect = [{
             'migration_auth_type': 'ssh', 'ssh_public_key': 'fookey',
             'private-address': '10.0.0.1', 'region': 'RegionOne'}]
 
         hooks.update_ssh_key(rid=None, unit=None)
         mock_ssh_compute_add_known_hosts.assert_called_once_with(
-            'aservice', ['10.0.0.1'], user=None)
+            'aservice', sorted(['10.0.0.1', 'bond0.bighost.ace', '10.1.2.3',
+                                'bighost.ace']), user=None)
         mock_add_authorized_key_if_doesnt_exist.assert_called_once_with(
             'fookey', 'aservice', '10.0.0.1', user=None)
-        mock_db_set.assert_called_once_with('hostset-10.0.0.1', ['10.0.0.1'])
+        mock_db_set.assert_has_calls([call('hostset-10.0.0.1',
+                                           ['10.0.0.1', 'bond0.bighost.ace']),
+                                      call('hostset-10.1.2.3',
+                                           ['10.1.2.3', 'bighost.ace'])])
 
     @patch('charmhelpers.contrib.openstack.utils.get_hostname')
     @patch('charmhelpers.core.unitdata.Storage.set')
