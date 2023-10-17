@@ -18,7 +18,6 @@ tags:
 - openstack
 series:
 - jammy
-- lunar
 - mantic
 extra-bindings:
   public:
