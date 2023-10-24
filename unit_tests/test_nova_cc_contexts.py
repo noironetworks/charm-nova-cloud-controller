@@ -141,6 +141,7 @@ class NovaComputeContextTests(CharmTestCase):
         self.assertEqual(ctxt['nova_url'], 'http://10.0.1.1:8774/v2')
         self.assertFalse('neutron_url' in ctxt)
 
+    @mock.patch('charmhelpers.contrib.openstack.context.is_ipv6_disabled')
     @mock.patch('charmhelpers.core.hookenv.relation_ids')
     @mock.patch('charmhelpers.contrib.openstack.context.config')
     @mock.patch('charmhelpers.contrib.openstack.context.get_relation_ip')
@@ -159,12 +160,14 @@ class NovaComputeContextTests(CharmTestCase):
                              mock_local_unit, mock_get_netmask_for_address,
                              mock_get_address_in_network, mock_kv, mock_https,
                              mock_network_manager, mock_mkdir,
-                             mock_get_relation_ip, mock_config, mock_rids):
+                             mock_get_relation_ip, mock_config, mock_rids,
+                             mock_is_ipv6_disabled):
         self.os_release.return_value = 'ocata'
         mock_config.side_effect = self.test_config.get
         mock_https.return_value = False
         mock_network_manager.return_value = 'neutron'
         mock_rids.return_value = []
+        mock_is_ipv6_disabled.return_value = True
         ctxt = context.HAProxyContext()()
         self.assertEqual(ctxt['service_ports']['nova-api-os-compute'],
                          [8774, 8764])
