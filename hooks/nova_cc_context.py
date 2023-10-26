@@ -27,6 +27,10 @@ import charmhelpers.core.hookenv as hookenv
 
 import hooks.nova_cc_common as common
 
+APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
+APACHE_24_CONF_ENABLED = ('/etc/apache2/sites-enabled/'
+                          'openstack_https_frontend.conf')
+
 
 def context_complete(ctxt):
     _missing = []
@@ -595,10 +599,17 @@ class SerialConsoleContext(ch_context.OSContextGenerator):
         ip_addr = ch_ip.resolve_address(endpoint_type=ch_ip.PUBLIC)
         ip_addr = ch_network_ip.format_ipv6_addr(ip_addr) or ip_addr
 
+        if os.path.isfile(APACHE_24_CONF):
+            protocol = 'wss'
+        else:
+            protocol = 'ws'
+
         ctxt = {
             'enable_serial_console':
                 str(hookenv.config('enable-serial-console')).lower(),
-            'serial_console_base_url': 'ws://{}:6083/'.format(ip_addr),
+            'serial_console_base_url':
+                '{protocol}://{ip_addr}:6083/'.format(ip_addr=ip_addr,
+                                                      protocol=protocol),
         }
         if hookenv.config('enable-serial-console'):
             for rel_id in hookenv.relation_ids('dashboard'):

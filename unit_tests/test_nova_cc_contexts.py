@@ -562,6 +562,18 @@ class NovaComputeContextTests(CharmTestCase):
                                          '10.20.30.40']}
         )
 
+        with mock.patch('os.path.isfile') as isfile:
+            isfile.return_value = True
+            ctxt = context.SerialConsoleContext()()
+            self.assertEqual(
+                ctxt,
+                {'serial_console_base_url': 'wss://10.10.10.1:6083/',
+                 'enable_serial_console': 'true',
+                 'console_allowed_origins': ['myhostname', '1.2.3.4',
+                                             '10.20.30.40']}
+            )
+            isfile.assert_called_with(context.APACHE_24_CONF)
+
     @mock.patch.object(context, 'ch_cluster')
     @mock.patch('os.path.exists')
     @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
