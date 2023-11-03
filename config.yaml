@@ -691,3 +691,11 @@ options:
       Allow resizing to the same host. Setting this option to True will add the
       source host to the destination options for consideration by the
       scheduler when resizing an instance.
+  wsgi-socket-rotation:
+    type: boolean
+    default: True
+    description: |
+      Allow users to disable Apache wsgi socket rotation. If not configured,
+      this option sets True as the default value, which is consistent with the
+      default value 'WSGISocketRotation On' in Apache. This option should be
+      used with caution. Please read the Apache doc page for more information.
