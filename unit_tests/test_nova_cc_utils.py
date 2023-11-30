@@ -453,10 +453,10 @@ class NovaCCUtilsTests(CharmTestCase):
         _exists.return_value = True
         self.os_release.return_value = 'diablo'
         _map = utils.restart_map()
-        self.assertTrue('/etc/apache2/sites-available/'
-                        'openstack_https_frontend.conf' in _map)
-        self.assertTrue('/etc/apache2/sites-available/'
-                        'openstack_https_frontend' not in _map)
+        self.assertIn('/etc/apache2/sites-available/'
+                      'openstack_https_frontend.conf', _map)
+        self.assertNotIn('/etc/apache2/sites-available/'
+                         'openstack_https_frontend', _map)
 
     @patch('charmhelpers.contrib.openstack.context.SubordinateConfigContext')
     @patch('os.path.exists')
