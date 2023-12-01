@@ -113,7 +113,6 @@ VENDORDATA_FILE = '%s/vendor_data.json' % NOVA_CONF_DIR
 HAPROXY_CONF = '/etc/haproxy/haproxy.cfg'
 APACHE_PORTS_CONF = '/etc/apache2/ports.conf'
 APACHE_CONF = '/etc/apache2/sites-available/openstack_https_frontend'
-APACHE_24_CONF = '/etc/apache2/sites-available/openstack_https_frontend.conf'
 APACHE_SSL_DIR = '/etc/apache2/ssl/nova'
 MEMCACHED_CONF = '/etc/memcached.conf'
 WSGI_NOVA_PLACEMENT_API_CONF = \
@@ -218,7 +217,7 @@ def get_base_resource_map():
                     determine_ports)],
                 'services': ['apache2'],
             }),
-            (APACHE_24_CONF, {
+            (nova_cc_context.APACHE_24_CONF, {
                 'contexts': [nova_cc_context.ApacheSSLContext(
                     determine_ports)],
                 'services': ['apache2'],
@@ -273,7 +272,7 @@ def resource_map(actual_services=True):
     if os.path.exists('/etc/apache2/conf-available'):
         _resource_map.pop(APACHE_CONF)
     else:
-        _resource_map.pop(APACHE_24_CONF)
+        _resource_map.pop(nova_cc_context.APACHE_24_CONF)
 
     _resource_map[NOVA_CONF]['contexts'].append(
         nova_cc_context.NeutronCCContext())
