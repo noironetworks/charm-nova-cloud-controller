@@ -15,11 +15,9 @@ description: |
   nova-scheduler, nova-api and nova-conductor services.
 docs: https://discourse.charmhub.io/t/nova-cloud-controller-docs-index/10551
 tags:
-- openstack
+  - openstack
 series:
-- jammy
-- lunar
-- mantic
+  - jammy
 extra-bindings:
   public:
   admin:
