@@ -426,11 +426,13 @@ class NovaComputeContextTests(CharmTestCase):
 
     _pci_alias_list = [_pci_alias1, _pci_alias2]
 
+    @mock.patch('charmhelpers.contrib.openstack.ip.resolve_address')
     @mock.patch('charmhelpers.contrib.openstack.ip.config')
     @mock.patch('charmhelpers.core.hookenv.local_unit')
     @mock.patch('charmhelpers.contrib.openstack.context.config')
     def test_allow_resize_to_same_host(self, mock_config,
-                                       local_unit, mock_config_ip):
+                                       local_unit, mock_config_ip,
+                                       mock_resolve_address):
         _rel_data = {'disk_allocation_ratio':
                      self.config('disk-allocation-ratio'),
                      'cpu_allocation_ratio':
@@ -440,6 +442,7 @@ class NovaComputeContextTests(CharmTestCase):
                      'allow_resize_to_same_host': True}
         self.test_config.set('allow-resize-to-same-host', True)
         self.relation_ids.return_value = ['nova-compute:0']
+        mock_resolve_address.return_value = '10.0.0.1'
         ctxt = context.NovaConfigContext()()
         self.assertEqual(ctxt['allow_resize_to_same_host'],
                          self.config('allow-resize-to-same-host'))
@@ -459,6 +462,7 @@ class NovaComputeContextTests(CharmTestCase):
         local_unit.return_value = 'nova-cloud-controller/0'
         mock_config.side_effect = self.test_config.get
         mock_unit_get.return_value = '127.0.0.1'
+        mock_resolve_address.return_value = '10.0.0.1'
         self.test_config.set(
             'pci-alias', json.dumps(self._pci_alias1))
         ctxt = context.NovaConfigContext()()
@@ -482,6 +486,7 @@ class NovaComputeContextTests(CharmTestCase):
         local_unit.return_value = 'nova-cloud-controller/0'
         mock_config.side_effect = self.test_config.get
         mock_unit_get.return_value = '127.0.0.1'
+        mock_resolve_address.return_value = '10.0.0.1'
         self.test_config.set(
             'pci-alias', json.dumps(self._pci_alias_list))
         ctxt = context.NovaConfigContext()()
