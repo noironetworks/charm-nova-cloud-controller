@@ -95,6 +95,7 @@ BASE_SERVICES = [
 ]
 
 AWS_COMPAT_SERVICES = ['nova-api-ec2', 'nova-objectstore']
+AUDIT_SERVICES = ['nova-api-os-compute']
 SERVICE_BLACKLIST = {
     'liberty': AWS_COMPAT_SERVICES,
     'newton': ['nova-cert'],
@@ -285,6 +286,18 @@ def resource_map(actual_services=True):
                                                    database='nova_api',
                                                    ssl_dir=NOVA_CONF_DIR)
         )
+
+    if cmp_os_release >= 'yoga':
+        # Conditionally render audit middleware for yoga and later
+        NOVA_AUDIT_MAP = '%s/api_audit_map.conf' % NOVA_CONF_DIR
+        _resource_map[NOVA_CONF]['contexts'].append(
+            ch_context.KeystoneAuditMiddleware(service='nova'))
+        _resource_map[NOVA_API_PASTE]['contexts'].append(
+            ch_context.KeystoneAuditMiddleware(service='nova'))
+        _BASE_RESOURCE_MAP[NOVA_AUDIT_MAP] = {
+            'contexts': [ch_context.KeystoneAuditMiddleware(service='nova')],
+            'services': AUDIT_SERVICES,
+        }
 
     if common.console_attributes('services'):
         _resource_map[NOVA_CONF]['services'] += (

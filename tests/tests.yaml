@@ -24,11 +24,15 @@ configure:
 - zaza.openstack.charm_tests.nova.setup.manage_ssh_key
 
 tests:
-- zaza.openstack.charm_tests.nova.tests.CirrosGuestCreateTest
-- zaza.openstack.charm_tests.nova.tests.SecurityTests
-- zaza.openstack.charm_tests.nova.tests.NovaCloudController
-- zaza.openstack.charm_tests.nova.tests.NovaCloudControllerActionTest
+  - zaza.openstack.charm_tests.nova.tests.CirrosGuestCreateTest
+  - zaza.openstack.charm_tests.nova.tests.SecurityTests
+  - zaza.openstack.charm_tests.nova.tests.NovaCloudController
+  - zaza.openstack.charm_tests.nova.tests.NovaCloudControllerActionTest
+  - zaza.openstack.charm_tests.audit.tests.KeystoneAuditMiddlewareTest
 
 tests_options:
+  audit-middleware:
+    service: nova
+    application: nova-cloud-controller
   force_deploy:
     - mantic-bobcat
