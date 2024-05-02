@@ -40,6 +40,7 @@ tests:
 - zaza.openstack.charm_tests.nova.tests.CirrosGuestCreateTest
 - zaza.openstack.charm_tests.nova.tests.SecurityTests
 - zaza.openstack.charm_tests.nova.tests.NovaCloudController
+- zaza.openstack.charm_tests.audit.tests.KeystoneAuditMiddlewareTest
 - vault:
   - zaza.openstack.charm_tests.nova.tests.CirrosGuestCreateTest
   - zaza.openstack.charm_tests.nova.tests.SecurityTests
@@ -52,6 +53,9 @@ tests:
   - zaza.openstack.charm_tests.nova.tests.NovaCloudControllerActionTest
 
 tests_options:
+  audit-middleware:
+    service: nova
+    application: nova-cloud-controller
   force_deploy:
     - impish-xena
     - jammy-yoga
