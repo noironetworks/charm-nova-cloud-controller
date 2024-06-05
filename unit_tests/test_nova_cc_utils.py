@@ -1622,6 +1622,80 @@ class NovaCCUtilsTests(CharmTestCase):
         with self.assertRaises(Exception):
             utils.archive_deleted_rows()
 
+    @patch('subprocess.Popen')
+    def test_purge_stale_soft_deleted_rows(self, mock_popen):
+        process_mock = MagicMock()
+        attrs = {
+            'communicate.return_value': ('output', 'error'),
+            'wait.return_value': 0}
+        process_mock.configure_mock(**attrs)
+        mock_popen.return_value = process_mock
+        expectd_calls = [
+            call([
+                'nova-manage',
+                'db',
+                'purge',
+                '--verbose',
+                '--all'], stdout=-1),
+            call().communicate(),
+            call().wait()]
+        utils.purge_stale_soft_deleted_rows()
+        self.assertEqual(mock_popen.mock_calls, expectd_calls)
+
+    @patch('subprocess.Popen')
+    def test_purge_stale_soft_deleted_rows_no_data(self, mock_popen):
+        process_mock = MagicMock()
+        attrs = {
+            'communicate.return_value': ('output', 'error'),
+            'wait.return_value': 3}
+        process_mock.configure_mock(**attrs)
+        mock_popen.return_value = process_mock
+        expectd_calls = [
+            call([
+                'nova-manage',
+                'db',
+                'purge',
+                '--verbose',
+                '--all'], stdout=-1),
+            call().communicate(),
+            call().wait()]
+        msg = utils.purge_stale_soft_deleted_rows()
+        self.assertEqual(mock_popen.mock_calls, expectd_calls)
+        self.assertEqual(
+            msg, 'Purging stale soft-deleted rows and no data was deleted')
+
+    @patch('subprocess.Popen')
+    def test_purge_stale_soft_deleted_rows_with_before(self, mock_popen):
+        process_mock = MagicMock()
+        attrs = {
+            'communicate.return_value': ('output', 'error'),
+            'wait.return_value': 0}
+        process_mock.configure_mock(**attrs)
+        mock_popen.return_value = process_mock
+        expectd_calls = [
+            call([
+                'nova-manage',
+                'db',
+                'purge',
+                '--verbose',
+                '--before',
+                '2024-06-06'], stdout=-1),
+            call().communicate(),
+            call().wait()]
+        utils.purge_stale_soft_deleted_rows(before='2024-06-06')
+        self.assertEqual(mock_popen.mock_calls, expectd_calls)
+
+    @patch('subprocess.Popen')
+    def test_purge_stale_soft_deleted_rows_exception(self, mock_popen):
+        process_mock = MagicMock()
+        attrs = {
+            'communicate.return_value': ('output', 'error'),
+            'wait.return_value': 123}
+        process_mock.configure_mock(**attrs)
+        mock_popen.return_value = process_mock
+        with self.assertRaises(Exception):
+            utils.purge_stale_soft_deleted_rows()
+
     def test_is_serial_console_enabled_on_juno(self):
         self.os_release.return_value = 'juno'
         self.test_config.set('enable-serial-console', True)
