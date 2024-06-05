@@ -946,6 +946,33 @@ def map_instances():
     hookenv.log(msg, level=hookenv.INFO)
 
 
+def purge_stale_soft_deleted_rows(before=""):
+    '''Purge all stale soft-deleted rows.'''
+    hookenv.log('Purging stale soft-deleted rows', level=hookenv.INFO)
+    cmd = ['nova-manage', 'db', 'purge', '--verbose']
+    if before:
+        cmd.extend(['--before', str(before)])
+    else:
+        cmd.extend(['--all'])
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    exit_code = process.wait()
+
+    # exit_code 3 means no data was deleted.
+    if exit_code not in [0, 3]:
+        msg = (
+            'Purging stale soft-deleted rows failed\nsstdout: {}\nsstderr: {}'
+            .format(stdout, stderr)
+        )
+        hookenv.log(msg, level=hookenv.ERROR)
+        raise Exception(msg)
+    if exit_code == 3:
+        msg = 'Purging stale soft-deleted rows and no data was deleted'
+        hookenv.log(msg, level=hookenv.INFO)
+        return msg
+    return stdout
+
+
 def archive_deleted_rows(max_rows=None):
     hookenv.log('Archiving deleted rows', level=hookenv.INFO)
     cmd = ['nova-manage', 'db', 'archive_deleted_rows', '--verbose']
@@ -954,6 +981,7 @@ def archive_deleted_rows(max_rows=None):
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     stdout, stderr = process.communicate()
     exit_code = process.wait()
+
     if exit_code not in [0, 1]:
         msg = 'Archiving deleted rows failed\nstdout: {}\nstderr: {}'.format(
             stdout,
