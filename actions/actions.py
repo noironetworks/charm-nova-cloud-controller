@@ -48,6 +48,16 @@ def resume(args):
     utils.resume_unit_helper(utils.register_configs())
 
 
+def purge_data(args):
+    """Run data purge process
+    @raises Exception should the purge fail"""
+    hookenv.action_set({
+        'output': utils.purge_stale_soft_deleted_rows(
+            before=hookenv.action_get('before'),
+        )
+    })
+
+
 def archive_data(args):
     """Run data archival process
     @raises Exception should the archival fail"""
@@ -198,6 +208,7 @@ ACTIONS = {
     "archive-data": archive_data,
     "clear-unit-knownhost-cache": clear_unit_knownhost_cache,
     "sync-compute-availability-zones": sync_compute_availability_zones,
+    "purge-data": purge_data,
 }
 
 
