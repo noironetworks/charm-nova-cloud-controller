@@ -16,7 +16,14 @@ archive-data:
     batch-size:
       type: integer
       default: 10000
-  description: Archive old data to shadow tables
+purge-data:
+  description: Run job to purge stale soft deleted rows in database
+  params:
+    before:
+      type: string
+      description: |
+        Delete data from all shadow tables that is older than the date provided.
+        Date strings may be fuzzy, such as `Oct 21 2015`.
 security-checklist:
   description: |
     Validate the running configuration against the OpenStack security guides
