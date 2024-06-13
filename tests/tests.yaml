@@ -26,7 +26,11 @@ tests:
   - zaza.openstack.charm_tests.nova.tests.SecurityTests
   - zaza.openstack.charm_tests.nova.tests.NovaCloudController
   - zaza.openstack.charm_tests.nova.tests.NovaCloudControllerActionTest
+  - zaza.openstack.charm_tests.audit.tests.KeystoneAuditMiddlewareTest
 
 tests_options:
+  audit-middleware:
+    service: nova
+    application: nova-cloud-controller
   force_deploy:
     - noble-caracal
