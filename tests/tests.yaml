@@ -1,11 +1,9 @@
 charm_name: nova-cloud-controller
 
 smoke_bundles:
-  - jammy-caracal
+  - noble-caracal
 gate_bundles:
-  - jammy-antelope
-  - jammy-bobcat
-  - jammy-caracal
+  - noble-caracal
 dev_bundles:
   - noble-caracal
 target_deploy_status:
@@ -32,5 +30,3 @@ tests_options:
   audit-middleware:
     service: nova
     application: nova-cloud-controller
-  force_deploy:
-    - noble-caracal

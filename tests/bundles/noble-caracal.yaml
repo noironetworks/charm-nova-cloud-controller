@@ -92,7 +92,7 @@ applications:
       neutron-security-groups: true
     to:
       - '5'
-    channel: 2024.1/edge
+    channel: latest/edge
 
   keystone:
     charm: ch:keystone
@@ -101,7 +101,7 @@ applications:
       openstack-origin: *openstack-origin
     to:
       - '6'
-    channel: 2024.1/edge
+    channel: latest/edge
 
   neutron-gateway:
     charm: ch:neutron-gateway
@@ -111,7 +111,7 @@ applications:
       bridge-mappings: physnet1:br-ex
     to:
       - '7'
-    channel: 2024.1/edge
+    channel: latest/edge
 
   glance:
     charm: ch:glance
@@ -120,11 +120,11 @@ applications:
       openstack-origin: *openstack-origin
     to:
       - '8'
-    channel: 2024.1/edge
+    channel: latest/edge
 
   neutron-openvswitch:
     charm: ch:neutron-openvswitch
-    channel: 2024.1/edge
+    channel: latest/edge
 
   placement:
     charm: ch:placement
@@ -133,7 +133,7 @@ applications:
       openstack-origin: *openstack-origin
     to:
       - '9'
-    channel: 2024.1/edge
+    channel: latest/edge
 
   nova-compute:
     charm: ch:nova-compute
@@ -149,7 +149,7 @@ applications:
     to:
       - '10'
       - '11'
-    channel: 2024.1/edge
+    channel: latest/edge
 
   vault:
     charm: ch:vault
