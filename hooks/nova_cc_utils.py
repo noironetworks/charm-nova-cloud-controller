@@ -78,7 +78,6 @@ PY3_PACKAGES = [
     'python3-novaclient',
     'python3-keystoneclient',
     'python3-psutil',
-    'python3-six',
     'python3-memcache',
 ]
 
