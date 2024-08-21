@@ -1481,7 +1481,7 @@ def ssh_known_hosts_lines(remote_service, user=None):
             stripped_line = hosts_line.rstrip()
             if stripped_line:
                 known_hosts_list.append(stripped_line)
-    return(known_hosts_list)
+    return known_hosts_list
 
 
 def ssh_authorized_keys_lines(remote_service, user=None):
@@ -1503,7 +1503,7 @@ def ssh_authorized_keys_lines(remote_service, user=None):
             stripped_line = authkey_line.rstrip()
             if stripped_line:
                 authorized_keys_list.append(stripped_line)
-    return(authorized_keys_list)
+    return authorized_keys_list
 
 
 def ssh_compute_remove(public_key, unit=None, user=None):
