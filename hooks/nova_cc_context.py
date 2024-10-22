@@ -480,6 +480,14 @@ class NovaConfigContext(ch_context.WorkerConfigContext):
             'enable-isolated-aggregate-filtering')
         ctxt['max_local_block_devices'] = hookenv.config(
             'max-local-block-devices')
+
+        enable_notify = hookenv.config('enable-notify')
+        notify_on_state_change = hookenv.config('notify-on-state-change')
+        if enable_notify and notify_on_state_change:
+            ctxt['enable_notify'] = True
+            ctxt['notify_on_state_change'] = notify_on_state_change
+        else:
+            ctxt['enable_notify'] = False
         return ctxt
 
 

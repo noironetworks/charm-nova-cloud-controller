@@ -667,6 +667,25 @@ options:
       default notification format unversioned until this is implemented.
       .
       Possible Values are both, versioned, unversioned.
+  enable-notify:
+    type: boolean
+    default: False
+    description: |
+      Enable or disable the addition of the `notify_on_state_change` setting
+      in `nova.conf`. When set to `True`, the `notify_on_state_change` option
+      will be configured based on the value of `notify-on-state-change`.
+      If set to `False`, no state change notifications will be configured.
+  notify-on-state-change:
+    type: string
+    default:
+    description: |
+      If set, send `compute.instance.update` notifications on instance state changes.
+      Possible values:
+        - `None`: No notifications are sent.
+        - `vm_state`: Notify on changes to the VM state.
+        - `vm_and_task_state`: Notify on changes to both the VM and task states.
+      For more details on the available notifications, refer to:
+      https://wiki.openstack.org/wiki/SystemUsageData.
   cross-az-attach:  # LP: 1856776
     type: boolean
     default: True  # OpenStack default value

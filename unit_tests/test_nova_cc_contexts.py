@@ -346,6 +346,8 @@ class NovaComputeContextTests(CharmTestCase):
         self.test_config.set('scheduler-default-filters', 'TestFilter')
         self.test_config.set('scheduler-max-attempts', 10)
         self.test_config.set('unique-server-names', 'project')
+        self.test_config.set('enable-notify', True)
+        self.test_config.set('notify-on-state-change', 'vm_and_task_state')
         ctxt = context.NovaConfigContext()()
         self.assertEqual(ctxt['scheduler_default_filters'],
                          self.config('scheduler-default-filters'))
@@ -409,6 +411,10 @@ class NovaComputeContextTests(CharmTestCase):
                          self.config('enable-isolated-aggregate-filtering'))
         self.assertEqual(ctxt['max_local_block_devices'],
                          self.config('max-local-block-devices'))
+        self.assertEqual(ctxt['enable_notify'],
+                         self.config('enable-notify'))
+        self.assertEqual(ctxt['notify_on_state_change'],
+                         self.config('notify-on-state-change'))
 
     _pci_alias1 = {
         "name": "IntelNIC",
