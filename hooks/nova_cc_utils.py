@@ -293,7 +293,7 @@ def resource_map(actual_services=True):
             ch_context.KeystoneAuditMiddleware(service='nova'))
         _resource_map[NOVA_API_PASTE]['contexts'].append(
             ch_context.KeystoneAuditMiddleware(service='nova'))
-        _BASE_RESOURCE_MAP[NOVA_AUDIT_MAP] = {
+        _resource_map[NOVA_AUDIT_MAP] = {
             'contexts': [ch_context.KeystoneAuditMiddleware(service='nova')],
             'services': AUDIT_SERVICES,
         }
