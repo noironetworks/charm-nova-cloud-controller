@@ -67,7 +67,7 @@ TO_PATCH = [
 ]
 
 SCRIPTRC_ENV_VARS = {
-    'OPENSTACK_PORT_MASTPORT': 5404,
+    'OPENSTACK_PORT_MCASTPORT': 5404,
     'OPENSTACK_SERVICE_API_EC2': 'nova-api-ec2',
     'OPENSTACK_SERVICE_API_OS_COMPUTE': 'nova-api-os-compute',
     'OPENSTACK_SERVICE_CERT': 'nova-cert',
@@ -648,7 +648,7 @@ class NovaCCUtilsTests(CharmTestCase):
     def test_save_script_rc_base(self):
         self.relation_ids.return_value = []
         utils.save_script_rc()
-        self.save_script_rc.called_with(**SCRIPTRC_ENV_VARS)
+        self.save_script_rc.assert_called_with(**SCRIPTRC_ENV_VARS)
 
     @patch('charmhelpers.contrib.openstack.utils.lsb_release')
     def test_get_step_upgrade_source_target_liberty(self, lsb_release):
