@@ -69,7 +69,7 @@ applications:
     channel: 3.9/edge
 
   nova-cloud-controller:
-    charm: ../../nova-cloud-controller.charm
+    charm: ../../nova-cloud-controller_ubuntu@22.04-amd64.charm
     num_units: 1
     options:
       openstack-origin: *openstack-origin
