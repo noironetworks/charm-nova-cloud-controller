@@ -6,8 +6,6 @@
       jobs:
       - vault-focal-xena
       - vault-focal-yoga
-      - vault-impish-xena:
-          voting: false
       - vault-jammy-yoga
     vars:
       needs_charm_build: true
@@ -32,13 +30,6 @@
       - vault-focal-xena
     vars:
       tox_extra_args: vault:focal-yoga
-- job:
-    name: vault-impish-xena
-    parent: func-target
-    dependencies:
-      - vault-focal-xena
-    vars:
-      tox_extra_args: vault:impish-xena
 - job:
     name: vault-jammy-yoga
     parent: func-target
